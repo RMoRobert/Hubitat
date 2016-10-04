@@ -47,6 +47,11 @@ preferences {
 		input "boolRemember", "bool", title: "Remember states?"
         
 	}
+    section("Only during certain times...") {
+    	//TODO: Would be nice to have sunset/sunrise as options here like stock app
+        input "starting", "time", title: "Starting", required: false
+		input "ending", "time", title: "Ending", required: false
+    }
 }
 
 //=========================================================================
@@ -96,6 +101,21 @@ def isOneSavedSwitchOn() {
         return isOneOn
 }
 
+
+// Returns false if user has specified "run between" times and the current time
+// is outside those times. Otherwise, returns true.
+def isRunTimeOK() {
+	def retVal = true
+	if (starting && ending) {
+		def currTime = now()
+		def startTime = timeToday(starting).time
+		def stopTime = timeToday(ending).time
+		retVal = startTime < stopTime ? currTime >= startTime && currTime <= stopTime : currTime <= stopTime || currTime >= startTime
+	}
+	log.trace "isRunTimeOK = $retVal"
+	return retVal
+}
+
 /**
  * Returns "Switch Level" (dimmer) matching "Switch", assuming user has selected both
  */
@@ -143,6 +163,10 @@ def motionHandler(evt) {
 def turnOnOrRestoreLights() {
 	// No lights are on. Turn on all lights if all were off when motion stopped, restore dim level of those
     // with known level saved, or just turn on any where know on/off info but not last dim level.
+    if (!isRunTimeOK()) {
+    	log.debug "Outside specified run time. Skip turnOnOrRestoreLights()."
+        return
+    }
     if (!isOneSavedSwitchOn() || !boolRemember) {
     	switches.on()
     } else
@@ -171,6 +195,10 @@ def turnOnOrRestoreLights() {
  * Dim lights after saving their states.
  */
 def dimLights() {
+	if (!isRunTimeOK()) {
+    	log.debug "Outside specified run time. Skip dimLights()."
+        return
+    }
 	log.debug "Running dimLights()..."
     state.mode = "dim"
 	state.switchStates = [:] // Re-create empty map to store switch states
@@ -194,6 +222,11 @@ def dimLights() {
  * Turns off all lights. Intended to be used after motion stops and after dimming if diming enabled.
  */
 def turnOffLights() {
+	if (!isRunTimeOK()) {
+    	log.debug "Outside specified run time. Skip turnOffLights()."
+        // Though this is a place we may want to actually run the action if marginally outside the time (and not turn them on again)
+        return
+    }
 	log.debug "Running turnOffLights()..."
     state.mode = "off"
     if (!boolDim) {
