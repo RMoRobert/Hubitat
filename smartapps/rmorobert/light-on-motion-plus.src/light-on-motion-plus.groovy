@@ -1,6 +1,6 @@
 /**
  *  Copyright 2016 Robert Morris
- *  Portions of code based on "Light Follows Me" app by SmartThings, Copyright 2014SmartThings
+ *  Portions of code based on "Light Follows Me" app by SmartThings, copyright 2014 SmartThings
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -19,7 +19,7 @@ definition(
     name: "Light on Motion Plus",
     namespace: "RMoRobert",
     author: "Robert Morris",
-    description: "Turn group of lights on when motion is detected and optionally off after motion stops for period of time. Optionally dim before turning off, and remembers states (incuding on/off) of invididual lights when turning back on.",
+    description: "Turn on one or more lights on when motion is detected and off after motion stops. Optionally dim before turning off and remember on/off states of invididual lights when motion stops to restore these states when turning back on rather than turning on all.",
     category: "Convenience",
     iconUrl: "https://s3.amazonaws.com/smartapp-icons/Meta/light_motion-outlet.png",
     iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Meta/light_motion-outlet@2x.png"
@@ -32,6 +32,7 @@ preferences {
 	section("Turn on/off light(s)..."){
     	// Really want to use the 'dimmers' variable below for these, but can't seem to access their on/off
         // capabilities (even though the devices support it) unless they are selected as switches, so...
+        // Make user select ideally the same lights for both 'switches' and 'dimmers'
 		input "switches", "capability.switch", multiple: true
 	}    
 	section("And off when there's been no movement for..."){
@@ -86,13 +87,12 @@ def isOneRealSwitchOn() {
 
 // Returns true if at least switch in saved switches is turned on
 def isOneSavedSwitchOn() {
-		def isOneOn = false
-    	for (st in state.switchStates) {
-        	log.debug "st = " + st
-			if (st.switch == "on") {
-				isOneOn = true
-			} 
-		}
+        def isOneOn = false
+        switchStates.each { key, value ->
+            if (value["switch"] == "on") {
+                isOneOn = true
+            }
+        }
         return isOneOn
 }
 
@@ -141,22 +141,27 @@ def motionHandler(evt) {
  * Use when all lights are off and motion is detected, so need to turn some/all on
  */
 def turnOnOrRestoreLights() {
-	// No lights are on. Turn on all lights if don't know previous states, or restore previous states if known.
-    state.mode = "on"
-    for (dm in dimmers) {
-        if (state.switchStates[dm.id]) {
-            // Restore pre-dim/pre-off brightness if can find
-            log.debug "Found previous dim level for" + dm + "; setting."
-            dm.setLevel(state.switchStates[dm.id].level)
-        } else {
-            // If can't find, turn the light back on (and hopefully the device itself remembers)
-            def sw = getSwitchForDimmer(dm)
-            if (sw) {
-                log.debug "Couldn't find previous dim level, but turning switch device back on."
-                sw.on()
+	// No lights are on. Turn on all lights if all were off when motion stopped, restore dim level of those
+    // with known level saved, or just turn on any where know on/off info but not last dim level.
+    if (!isOneSavedSwitchOn() || !boolRemember) {
+    	switches.on()
+    } else
+    {
+        for (dm in dimmers) {
+            if (state.switchStates[dm.id]) {
+                // Restore pre-dim/pre-off brightness if can find
+                log.debug "Found previous dim level for" + dm + "; setting."
+                dm.setLevel(state.switchStates[dm.id].level)
             } else {
-                log.debug "No information found for " + dm + " and couldn't find switch device. Turning dimmer on device to 100%."
-                dm.setLevel(100)
+                // If can't find, turn the light back on (and hopefully the device itself remembers)
+                def sw = getSwitchForDimmer(dm)
+                if (sw) {
+                    log.debug "Couldn't find previous dim level, but turning switch device back on."
+                    sw.on()
+                } else {
+                    log.debug "No information found for " + dm + " and couldn't find switch device. Turning dimmer on device to 100%."
+                    dm.setLevel(100)
+                }
             }
         }
     }
