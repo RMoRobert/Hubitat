@@ -75,8 +75,10 @@ def installed() {
 def updated() {
 	unsubscribe()
 	subscribe(motion1, "motion", motionHandler) 
+    state.mode = "unknown"
     log.debug "APP UDPDATED"
     log.debug "STATE.MODE = " + state.mode
+    
 }
 
 // Returns true if at least one switch is turned on at the moment
@@ -93,11 +95,13 @@ def isOneRealSwitchOn() {
 // Returns true if at least switch in saved switches is turned on
 def isOneSavedSwitchOn() {
         def isOneOn = false
-        switchStates.each { key, value ->
+        state.switchStates.each { key, value ->
             if (value["switch"] == "on") {
+            	log.debug "Saved switch is on"
                 isOneOn = true
             }
         }
+        log.debug "isOneOn = " + isOneOn
         return isOneOn
 }
 
@@ -166,8 +170,10 @@ def turnOnOrRestoreLights() {
     if (!isRunTimeOK()) {
     	log.debug "Outside specified run time. Skip turnOnOrRestoreLights()."
         return
-    }
+    }    
+	state.mode = "on"
     if (!isOneSavedSwitchOn() || !boolRemember) {
+    	log.debug "No switches were saved as on, or not configured to remember Turning on all lights."
     	switches.on()
     } else
     {
@@ -187,7 +193,7 @@ def turnOnOrRestoreLights() {
                     dm.setLevel(100)
                 }
             }
-        }
+        }        
     }
 }
 
