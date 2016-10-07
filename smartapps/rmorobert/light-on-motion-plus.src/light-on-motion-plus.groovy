@@ -87,7 +87,7 @@ def updated() {
 	unsubscribe()
 	subscribe(motion1, "motion", motionHandler) 
     state.mode = "unknown"
-    log.debug "-----------APP UDPDATED--------------"
+    log.debug "****** App updated *****"
     
 }
 
@@ -334,7 +334,17 @@ def dimLights() {
         def dm = getDimmerForSwitch(sw)
         if (dm) {
             log.debug "Found ${dm}, currently at level ${dm.currentLevel}"
-            dm.setLevel(dimToLevel)
+            if (sw.currentSwitch != "off") {
+            	toLevel = dimToLevel
+                if (dm.currentLevel <= toLevel) {
+                	// If light is currently at or less than "dim to" level, dim it as low as possible
+                	toLevel = 1
+                } 
+            	dm.setLevel(toLevel)
+                log.debug "Dimmed ${dm} to ${toLevel}"
+            } else {
+            	log.debug "Not dimming ${sw} because is off."
+            }
             log.debug "${dm} now at level ${dm.currentLevel}"
         }
     }
