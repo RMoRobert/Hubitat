@@ -193,7 +193,7 @@ def saveLightState(forSwitch) {
  */
 def saveLightOnOffState(forSwitch) {
 	log.trace "Running saveLightOnOffState()..."
-    log.debug "Switch ${forSwitch.id} currently saved as ${state.switchStates.(forSwitch.id).switch}"
+    log.debug "Switch ${forSwitch.id} currently saved as ${state.switchStates.(forSwitch.id)}"
     state.switchStates.(forSwitch.id).switch = forSwitch.currentSwitch
     log.debug "Just saved for " + forSwitch.id + ": " + state.switchStates.get(forSwitch.id)
     log.trace "Exiting saveLightOnOffState()."    
@@ -237,8 +237,9 @@ def motionHandler(evt) {
     	log.debug "Motion inactive. Deciding what to do..."
         if (dimmers) {
         	log.debug "Dimming option has been chosen. Scheduling scheduleCheck() to run after 'dimming' threshold reached."
-            // Run 1 minute before "off" threshold, unless offThreshold > 1 minute, then aim for 30s
-        	runIn(minutes1 > 1 ? (minutes1 - 1) * 60 : 30, scheduleCheck)
+            // Run 1 minute before "off" threshold, unless offThreshold > 1 minute, then aim for 45s
+            runIn(minutes1 > 1 ? (minutes1 - 1) * 60 : 30, scheduleCheck)            
+            //runIn(minutes1 > 1 ? (minutes1 - 1) * 60 : 45, scheduleCheck)
         } else {
         	log.debug "Dimming option not chosen. Scheduling scheduleCheck() to run after 'off' threshold reached."
         	runIn(minutes1 * 60, scheduleCheck)
@@ -257,7 +258,8 @@ def scheduleCheck() {
         	log.debug "Motion has stayed inactive for amount of time between 'dim' and 'off' thresholds ($elapsed ms). Dimming lights"
             dimLights()
             // Schedule to run again so can check for "off" threshold next:
-            runIn(minutes1 > 1 ? (minutes1 - 1) * 60 : 30, scheduleCheck)
+            runIn(minutes1 > 1 ? (minutes1 - 1) * 60 : 30, scheduleCheck)            
+            //runIn(minutes1 > 1 ? (minutes1 - 1) * 60 : 45, scheduleCheck)
             log.debug "Done dimming. Scheduled scheduleCheck() to run again in ${minutes1 > 1 ? (minutes1 - 1) * 60 : 30} seconds."
         }
     	if (elapsed >= getOffThreshold()) {
@@ -278,31 +280,41 @@ def scheduleCheck() {
   * Intended to be called when motion is detected after period of no motion (i.e., when lights are off or dimmed).
   */
 def turnOnOrRestoreLights() {
-	// TODO: Don't just turn everything on. Do what it says it will do instead. :)
     log.trace "Running turnOnOrRestoreLights()..."
     log.debug "state.mode = ${state.mode}"
     if (!isRunTimeOK) {
     	log.trace "Outside specified run time. Returning."
         return
     }
-    if (state.mode == "dim" || state.mode == "off") {
-    	switches.each {
-        	def savedLightState = getSavedLightOnOffState(it) 
-            log.debug "Saved light state returned in motion handler is: ${savedLightState}"
-        	if (savedLightState != "off") {
-           		log.debug "${it} was saved as on. Turning on."
-            	it.on()
-                def dm = getDimmerForSwitch(it)
-                if (dm) {
-                	def prevLevel = getSavedDimLevelState(it)
-                	log.debug "Dimmer found for ${it}. Previous level: ${prevLevel}. Setting."
-                	dm.setLevel(prevLevel)
-                } else {
-                	log.debug "No dimmer found for ${it}. Turning on switch but cannot restore dim level."
+    if (state.mode != "dim" && isOneRealSwitchOn()) {
+    	log.debug "Current mode is not 'dim' and at least on swtich is on. Assume this is desired state."
+        log.debug "Setting mode to 'on' in case it isn't."
+        state.mode = "on"
+    }
+    else if (state.mode == "dim" || state.mode == "off") {
+    	if (!isOneSavedSwitchOn) {
+        	log.debug "No switches were saved as 'on' when motion last stopped. Turning all on."
+            switches.on
+            state.mode = "on"
+        } else {
+        	log.debug "Mode is either 'dim' or 'off,' so restore lights to last known state."
+            switches.each {
+                def savedLightState = getSavedLightOnOffState(it)
+                if (savedLightState != "off") {
+                    log.debug "${it} was saved as on. Turning on."
                     it.on()
+                    def dm = getDimmerForSwitch(it)
+                    if (dm) {
+                        def prevLevel = getSavedDimLevelState(it)
+                        log.debug "Dimmer found for ${it}. Previous level: ${prevLevel}. Setting."
+                        dm.setLevel(prevLevel)
+                    } else {
+                        log.debug "No dimmer found for ${it}. Turning on switch but cannot restore dim level."
+                        it.on()
+                    }
+                } else {
+                    log.debug "${it} was saved as off. Not turning on."
                 }
-            } else {
-            	log.debug "${it} was saved as off. Not turning on."
             }
         }
     }
@@ -335,7 +347,7 @@ def dimLights() {
         if (dm) {
             log.debug "Found ${dm}, currently at level ${dm.currentLevel}"
             if (sw.currentSwitch != "off") {
-            	toLevel = dimToLevel
+            	def toLevel = dimToLevel
                 if (dm.currentLevel <= toLevel) {
                 	// If light is currently at or less than "dim to" level, dim it as low as possible
                 	toLevel = 1
@@ -346,6 +358,8 @@ def dimLights() {
             	log.debug "Not dimming ${sw} because is off."
             }
             log.debug "${dm} now at level ${dm.currentLevel}"
+        } else {
+        	log.debug "No dimmer found for ${sw}"
         }
     }
     state.mode = "dim"
