@@ -38,14 +38,15 @@ preferences {
 	section("And off when there's been no movement for..."){
 		input "minutes1", "number", title: "Minutes?"
 	}
-    section("Dim before turning off... (select no lights here to disable the dimming feature, otherwise select all lights you selected above that you want to dim before turning off; selecting lights here that were not selected above will have no effect)") {
+    section("Dim before turning off...") {
         // See comment for 'switches' variable. 
-		input "dimmers", "capability.switchLevel", multiple: true, title: "Lights to dim for 1 minute before turning off"
+        input "dimmers", "capability.switchLevel", multiple: true, title: "Lights to dim for 1 minute before turning off"
+        paragraph "If you want the lights to turn off without first dimming, select no lights here. Otherwise, you probably want to select the same lights here as you did above. (Selecting lights not chosen above will have no effect.)"
     }
-    section("Remember on/off state of individual lights when motion stops and restore when motion starts? (Do not select if you want all lights to turn back on when motion is detected regardless of their state when motion stopped.)"){
-		input "boolRemember", "bool", title: "Remember states?"
-        
-	}
+    section("Remember on/off state of individual lights when motion stops and restore when motion starts?"){
+		input "boolRemember", "bool", defaultValue: true, title: "Remember states?"
+        paragraph "By default, this app will remember the on/off state of each light chosen above and restore the lights to those on/off states when motion resumes after inactivity, rather than turning all lights back on. You can disable this below if desired, which will make this app function more like most others."
+    }
     section("Only during certain times...") {
     	//TODO: Would be nice to have sunset/sunrise as options here like stock app
         input "starting", "time", title: "Starting", required: false
@@ -224,7 +225,7 @@ def getSavedDimLevelState(forSwitch) {
 def motionHandler(evt) {
 	log.trace "----------------Begin handling of ${evt.name}: ${evt.value}----------------"
     log.debug "state.mode = ${state.mode}"
-    if (!isRunTimeOK) {
+    if (!isRunTimeOK()) {
     	log.trace "Outside specified run time. Returning."
         return
     }	
@@ -282,7 +283,7 @@ def scheduleCheck() {
 def turnOnOrRestoreLights() {
     log.trace "Running turnOnOrRestoreLights()..."
     log.debug "state.mode = ${state.mode}"
-    if (!isRunTimeOK) {
+    if (!isRunTimeOK()) {
     	log.trace "Outside specified run time. Returning."
         return
     }
@@ -334,7 +335,7 @@ def turnOnOrRestoreLights() {
 def dimLights() {
 	log.trace "Running dimLights()..."
     log.debug "state.mode = ${state.mode}"
-    if (!isRunTimeOK) {
+    if (!isRunTimeOK()) {
     	log.trace "Outside specified run time. Returning."
         return
     }
@@ -374,7 +375,7 @@ def dimLights() {
 def turnOffLights() {
 	log.trace "Running turnOffLights()..."
     log.debug "state.mode = ${state.mode}"
-    if (!isRunTimeOK) {
+    if (!isRunTimeOK()) {
     	log.trace "Outside specified run time. Returning."
         return
     }
