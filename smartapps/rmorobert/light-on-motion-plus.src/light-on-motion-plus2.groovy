@@ -16,10 +16,10 @@
  */
 
 definition(
-    name: "Light on Motion Plus",
+    name: "Light on Motion Plus 2",
     namespace: "RMoRobert",
     author: "Robert Morris",
-    description: "Turn on one or more lights on when motion is detected and off after motion stops. Optionally dim before turning off and remember on/off states of invididual lights when motion stops to restore these states when turning back on rather than turning on all.",
+    description: "Turn on one or more lights on when motion is detected and off after motion stops. Optionally dim before turning off and remember on/off states of invididual lights when motion stops to restore these states when turning back on rather than turning on all. Version 2 tracks light states as change rathern than waiting until moment of dimming/turning off.",
     category: "Convenience",
     iconUrl: "https://s3.amazonaws.com/smartapp-icons/Meta/light_motion-outlet.png",
     iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Meta/light_motion-outlet@2x.png"
