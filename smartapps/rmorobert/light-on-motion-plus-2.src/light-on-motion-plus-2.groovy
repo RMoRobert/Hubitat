@@ -82,16 +82,55 @@ def getDimToLevel() {
 	return 10
 }
 
-def getOffThreshold() {
-	return 1000 * 60 * minutes1 - 1000
+// Number of seconds that should elapse before scheduleCheck is called again to check if OK to turn off if dimming disabled
+def getOffRunDelay() {
+	if (minutes1 < 1) {
+    	return 1
+    }
+	return minutes1 * 60
 }
 
-def getDimThreshold() {
-	// If off threshold is <= 1, make dim threshold 30s (actually 29s) rather than zero
-    if (minutes1 <= 1) {
-    	return 1000 * 30 - 1000
+// Number of seconds that should elapse before scheduleCheck is called again to check if OK to turn off if after dimming
+def getPostDimOffRunDelay() {
+	return minutes1 > 1 ? 60 : 30
+}
+
+// Number of seconds that shoud elapse before scheduleCheck is called gain to check if OK to dim
+def getDimRunDelay() {
+	if (minutes1 < 1) {
+    	return 1
     }
-	return 1000 * 60 * (minutes1 - 1) - 1000 
+	else if (minutes1 == 1) {
+    	return 30
+    }
+	// or if minutes > 1, then:
+	return (minutes1 - 1) * 60
+}
+
+// Number of milliseconds that must have elapsed since motion stop to turn lights off
+def getOffThreshold() {
+	def retVal = 1000 * 60 * minutes1 - 1000 // 1s before "off" time, just to have some margin
+	if (minutes1 == 0) {
+    	if (boolDim) {
+        	retVal = 29000  // 29 s
+        } else {
+        	retVal = 0
+        }
+    }
+    log.debug "getOffThreshold() returning ${retVal}"
+	return retVal
+}
+
+// Number of milliseconds that must have elapsed since motion stop to dim lights before turning off
+def getDimThreshold() {
+	def retVal = 1000 * 60 * (minutes1 - 1) - 1000 
+    if (minutes1 == 1) {
+    	retVal = 1000 * 30 - 1000
+    } else if (minutes < 1) {
+    	retVal = 0
+    }
+    log.debug "getDimThreshold() returning ${retVal}"
+	return retVal
 }
 
 //=========================================================================
@@ -288,6 +327,9 @@ def saveLightState(forSwitch) {
 def saveLightOnOffState(forSwitch) {
 	log.debug "Running saveLightOnOffState()..."
     //log.trace "Switch ${forSwitch.id} currently saved as ${state.switchStates.(forSwitch.id)}"
+    if (!state.switchStates) {
+    	state.switchStates = [:]
+    }
     state.switchStates.(forSwitch.id).switch = forSwitch.currentSwitch
     log.trace "Just saved for ${forSwitch}: " + state.switchStates.get(forSwitch.id)
     log.debug "Exiting saveLightOnOffState()."    
@@ -332,11 +374,10 @@ def motionHandler(evt) {
     	log.trace "Motion inactive. Deciding what to do..."
         if (boolDim) {
         	log.trace "Dimming option has been chosen. Scheduling scheduleCheck() to run after 'dimming' threshold reached."
-            // Run 1 minute before "off" threshold, unless offThreshold > 1 minute, then aim for 30s
-            runIn(minutes1 > 1 ? (minutes1 - 1) * 60 : 30, scheduleCheck)        
+            runIn(getDimRunDelay(), scheduleCheck)        
         } else {
         	log.trace "Dimming option not chosen. Scheduling scheduleCheck() to run after 'off' threshold reached."
-        	runIn(minutes1 * 60, scheduleCheck)
+        	runIn(getOffRunDelay(), scheduleCheck)
         }
 	}
     log.debug "----------------End handling of ${evt.name}: ${evt.value}----------------"
@@ -351,11 +392,10 @@ def scheduleCheck() {
         if (elapsed >= getDimThreshold() && elapsed < getOffThreshold() && boolDim) {
         	log.trace "Motion has stayed inactive for amount of time between 'dim' and 'off' thresholds ($elapsed ms). Dimming lights"
             dimLights()
-            // Schedule to run again in 1 minute (30 s if "off" threshold <1m) so can check for "off" threshold next:
-            runIn(minutes1 > 1 ? 60 : 30, scheduleCheck)
+            runIn(getPostDimOffRunDelay(), scheduleCheck)
             log.trace "Done dimming. Scheduled scheduleCheck() to run again in ${minutes1 > 1 ? 60 : 30} seconds."
         }
-    	if (elapsed >= getOffThreshold()) {
+    	else if (elapsed >= getOffThreshold()) {
             log.trace "Motion has stayed inactive long enough to cross 'off' threshold ($elapsed ms). Turning lights off."
             turnOffLights()
     	} else {
