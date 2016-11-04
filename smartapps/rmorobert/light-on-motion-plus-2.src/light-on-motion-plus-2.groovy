@@ -19,45 +19,57 @@ definition(
     name: "Light on Motion Plus 2",
     namespace: "RMoRobert",
     author: "Robert Morris",
-    description: "Turn on one or more lights on when motion is detected and off after motion stops. Optionally dim before turning off and remember on/off states of invididual lights when motion stops to restore these states when turning back on rather than turning on all. Version 2 attempst to track light states as change rather than only right before dim/off.",
+    description: "Turn on one or more lights on when motion is detected and off after motion stops. Optionally dim before turning off and remember on/off states of invididual lights when motion stops to restore these states when turning back on rather than turning on all. v2 adds 0-minute 'off' option.",
     category: "Convenience",
     iconUrl: "https://s3.amazonaws.com/smartapp-icons/Meta/light_motion-outlet.png",
     iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Meta/light_motion-outlet@2x.png"
 )
 
 preferences {
-	section("Turn on when there's movement...") {
-		input "motion1", "capability.motionSensor", title: "Where?"
-	}
-	section("Turn on/off light(s)...") {
-    	// Really want to use the 'dimmers' variable below for these, but can't seem to access their on/off
-        // capabilities (even though the devices support it) unless they are selected as switches, so...
-        // Make user select ideally the same lights for both 'switches' and 'dimmers'
-		input "switches", "capability.switch", multiple: true
-	}    
-	section("And off when there's been no movement for...") {
-		input "minutes1", "number", title: "Minutes?"
-	}
-    section("Dim before turning off...") {
-        // See comment for 'switches' variable. 
-        input "dimmers", "capability.switchLevel", multiple: true, title: "Lights to dim for 1 minute before turning off"
-        paragraph "Select the same lights here as you did above, unless you do not want then to dim before turning off. (Selecting lights not chosen above will have no effect.)"
+	page(name: "pageBasic", title: "When there's activity on sensor", nextPage: "pageAdvanced", uninstall: true) {
+        section("Choose a motion sensor...") {
+            input "motion1", "capability.motionSensor", title: "Which motion sensor?"
+        }
+        section("Turn on/off light(s)...") {
+            input "switches", "capability.switch", multiple: true
+        }    
+        section("And off when there's been no movement for...") {
+            input "minutes1", "number", title: "Minutes?"
+        }
+        section("Dim 1 minute before turning off...") {
+        	input "boolDim", "bool", defaultValue: true, required: true, title: "Dim before turning off"
+       }     
+       section("Only during certain times...") {
+            //TODO: Would be nice to have sunset/sunrise as options here like stock app
+            input "starting", "time", title: "Starting", required: false
+            input "ending", "time", title: "Ending", required: false
+        } 
+        
+        section("Only when illuminance is less than....") {
+            input "lightSensor", "capability.illuminanceMeasurement", required: false
+            input "lightLevel", "number", title: "Below level", required: false
+            paragraph "Levels may range from 0 to over 100,000, depending on the device. Try 400 lux (300 lux if device points indoors) as an esimate for dawn/dusk levels, or check the readings on your device at an appropriate time."
+        }
     }
-    section("Remember on/off state of individual lights when motion stops and restore when motion starts?"){
-		input "boolRemember", "bool", defaultValue: true, title: "Remember states?"
-        paragraph "By default, this app will remember the on/off state of each light chosen above and restore the lights to those on/off states when motion resumes after inactivity (unless all were off), rather than turning all lights back on."
+    page(name: "pageAdvanced", title: "Advanced options", nextPage: "pageFinal") {
+
+        section("Always turn off lights after motion stops, even if outside of specifed time, illuminance, or mode conditions?") {
+            input "boolDontObserve", "bool", defaultValue: false, required: true, title: "Always turn off after motion stops"
+        }
+        section("If multiple lights are selected, remember on/off state of individual lights when motion stops and restore when motion starts?"){
+            input "boolRemember", "bool", defaultValue: true, required: true, title: "Remember states?"
+            paragraph "By default, this app remembers the on/off state of each light chosen previously and restores the on/off state of each light when motion resumes after inactivity, rather than turning all lights back on (unless all were off, then all are turned back on)."
+        }
+        section("Disable app? (Use this to temporarily prevent this app from effecting changes on the lights without needing to actually uninstall the app.)") {
+        	input "boolDisable", "bool", defaultValue: false, required: true, title: "Disable app"
+        }
     }
-    section("Only during certain times...") {
-    	//TODO: Would be nice to have sunset/sunrise as options here like stock app
-        input "starting", "time", title: "Starting", required: false
-		input "ending", "time", title: "Ending", required: false
-    } 
-    section("Only when illuminance is less than....") {
-    	input "lightSensor", "capability.illuminanceMeasurement", required: false
-    	input "lightLevel", "number", title: "Below level (0 to over 100,000; recommend 400 lux for sunrise/sunset levels or about 300 lux if inside)", required: false
-  	}
-    section("Always observe time/illuminance conditions?") {
-    	input "boolDontObserve", "bool", defaultValue: false, title: "Turn bulbs off after motion stops even if outside of specified time or illumance thresholds"
+    
+    page(name: "pageFinal", title: "Name app and configure modes", install: true, uninstall: true) {
+        section([mobileOnly:true]) {
+            label title: "Assign a name", required: false
+            input "modes", "mode", title: "Only when mode is", multiple: true, required: false
+        }
     }
 }
 
@@ -88,20 +100,54 @@ def getDimThreshold() {
 
 def installed() {
 	subscribe(motion1, "motion", motionHandler)
-	subscribe(switches, "switch", switchesHandler)
-	subscribe(dimmers, "level", dimmersHandler)
-    state.mode = "unknown" // Use state.mode to hold one of "unknown", "on", "dim", or "off" depending on current situation
-    state.modeChanging = false // Set to true if mode is being changed (by dimming, turning off, or on--so methods that look for changes can ignore ones created by app
+    state.mode = "unknown" // Use state.MODE to hold one of "unknown", "on", "dim", or "off" depending on current situation
 }
 
 def updated() {
 	unsubscribe()
-	subscribe(motion1, "motion", motionHandler)
-	subscribe(switches, "switch", switchesHandler)
-	subscribe(dimmers, "level", dimmersHandler)
+	subscribe(motion1, "motion", motionHandler) 
     state.mode = "unknown"
     log.trace "****** App updated *****"
-    
+}
+
+def isModeOK() {	
+	log.debug "Running isModeOK()..."
+	def retVal = !modes || modes.contains(location.mode)	
+	log.debug "Exiting isModeOK(). Return value = ${retVal}"
+	return retVal
+}
+
+// Returns false if user has specified "run between" times and the current time
+// is outside those times. Otherwise, returns true.
+def isRunTimeOK() {
+	log.debug "Running isRunTimeOK()..."
+	def retVal = true
+	if (starting && ending) {
+		def currTime = new Date()
+		def startTime = timeToday(starting, location.timeZone)
+		def stopTime = timeToday(ending, location.timeZone)
+        retVal = timeOfDayIsBetween(startTime, stopTime, currTime, location.timeZone)
+	}
+	log.debug "Exiting isRunTimeOK(). Return value = ${retVal}"
+	return retVal
+}
+
+// Returns false if lux level greater than specified threshold. Returns true
+// otherwise or if not configured.
+def isLuxLevelOK() {
+	log.debug "Running is LuxLevelOK()..."
+    def retVal = true
+    if (lightSensor && lightValue) {
+        def currLum = lightSensor.currentValue("illuminance").toInteger()
+        if (currLum >= lightValue.toInteger()) {
+            retVal = false
+            log.trace "Lux level not OK because current value of ${currLum} is greter than threshold of ${lightValue}"        
+        } else {
+            log.trace "Lux level is OK or not configured"
+        }
+    }
+    log.debug "Exiting isLuxLevelOK(). Return value = ${retVal}"
+    return retVal
 }
 
 // Returns true if at least one switch is turned on at the moment
@@ -137,67 +183,79 @@ def isOneSavedSwitchOn() {
     return isOneOn
 }
 
-
-// Returns false if user has specified "run between" times and the current time
-// is outside those times. Otherwise, returns true.
-def isRunTimeOK() {
-	log.debug "Running isRunTimeOK()..."
-	def retVal = true
-	if (starting && ending) {
-		def currTime = now()
-		def startTime = timeToday(starting).time
-		def stopTime = timeToday(ending).time
-		retVal = startTime < stopTime ? currTime >= startTime && currTime <= stopTime : currTime <= stopTime || currTime >= startTime
-	}
-	log.debug "Exiting isRunTimeOK(). Return value = ${retVal}"
-	return retVal
-}
-
-// Returns false if lux level greater than specified threshold. Returns true
-// otherwise or if not configured.
-def isLuxLevelOK() {
-	log.debug "Running is LuxLevelOK()..."
-    def retVal = true
-    if (lightSensor && lightValue) {
-        def currLum = lightSensor.currentValue("illuminance").toInteger()
-        if (currLum >= lightValue.toInteger()) {
-            retVal = false
-            log.trace "Lux level not OK because current value of ${currLum} is greter than threshold of ${lightValue}"        
-        } else {
-            log.trace "Lux level is OK or not configured"
+/**
+ * Returns current "level" attribute for device if supports "level", otherwise returns 100 if switch on or 0 if off
+ 
+ */
+def getDimmerLevel(sw) {
+	log.debug "Running getDimmerLevel for ${sw}..."
+	def retVal
+    def supportedAttributes
+    retVal = -1
+    supportedAttributes = sw.getSupportedAttributes()
+    supportedAttributes.each {
+    	if (it.getName() == "level") {
+    		log.trace "Device ${sw} supports 'level'"
+    		retVal = sw.currentLevel
         }
     }
-    log.debug "Exiting isLuxLevelOK(). Return value = ${retVal}"
+    if (retVal == -1) {
+        supportedAttributes.each {
+            if (it.getName() == "switch") {
+            	log.trace "Device ${sw} supports 'switch' but not 'level'"
+           		if (sw.currentSwitch == "on") {
+                	retVal = 100
+            	} else {
+                	retVal = 0
+            	}
+        	}
+    	}
+    }
+    if (retVal == -1 ) {
+    	log.warn "Device ${sw} does not support 'level' or 'switch' capabilties."        
+    	retVal = 0
+    }
+    log.debug "Exiting getDimmerLevel for ${sw}. Returning ${retVal}."
     return retVal
 }
 
 /**
- * Returns "Switch Level" (dimmer) matching "Switch", assuming user has selected both
+ * Sets "level" attribute on device if supports Switch Level capabilities. Otherwise sets "switch" attribute to "on" if lvl > 100 or "off" if = 0.
+ * Returns "true" if appears to have succeeded.
  */
-def getDimmerForSwitch(sw) {
-	log.trace "Running getDimmerForSwitch()... sw = ${sw}"
-	for (dm in dimmers) {
-    	if (dm.id == sw.id) {
-        	//log.trace "Found dimmer matching switch ${sw}"
-            log.debug "Exiting from getDimmerForSwitch(). Found dimmer, returning ${dm}."
-        	return dm
-		}
-	}
-    log.warn "No dimmer matching switch ${sw} was found. Exiting getDimmerForSwitch()."
-}
-
-/**
- * Returns "Switch" matching "Switch Level" (dimmer), assuming user has selected both
- */
-def getSwitchForDimmer(dm) {
-	for (sw in switches) {
-    	if (sw.id == dm.id) {
-			//log.trace "Found switch matching dimmer ${dm}"
-            log.trace "Exiting getSwitchForDimmer(). Found switch, returning ${sw}."
-        	return sw
-		}
-	}
-    log.warn "No match for dimmer ${dm} found. Exiting getSwitchForDimmer()."
+def setDimmerLevel(sw, lvl) {
+	log.debug "Running setDimmerLevel for '${sw}' with '${lvl}'..."
+	def retVal
+    def supportedAttributes
+    retVal = -1
+    supportedAttributes = sw.getSupportedAttributes()
+    supportedAttributes.each {
+    	if (it.getName() == "level") {
+    	log.trace "Device ${sw} supports 'level'"
+    	sw.setLevel(lvl)
+        retVal = true
+        }
+    }
+    if (retVal == -1) {
+        supportedAttributes.each {
+            if (it.getName() == "switch") {
+            	log.trace "Device ${sw} supports 'switch' but not 'level'"
+          		log.trace "Device ${sw} supports 'switch' but not 'level'"
+          		if (lvl > 0) {
+					sw.on()
+            	} else {
+					sw.off()
+            	}   
+            		// Ambiguous case, not sure if should do or not:
+            		//retVal = true
+        	}
+    	}
+    }
+    if (retVal == -1 ) {
+    	log.warn "Device ${sw} does not support 'level' or 'switch' capabilties."        
+    }
+    log.debug "Exiting setDimmerLevel for ${sw}. Returning ${retVal}."
+    return retVal
 }
 
 /**
@@ -208,17 +266,18 @@ def getSwitchForDimmer(dm) {
 def saveLightState(forSwitch) {
 	log.debug "Running saveLightState()..."
 	if (forSwitch.currentSwitch == "on") {
-        def dm = getDimmerForSwitch(forSwitch)
-        if (dm) {
-            state.switchStates.put(forSwitch.id, ["switch": "on", "level": dm.currentLevel])
+        def dimmerLevel = getDimmerLevel(forSwitch)
+        if (dimmerLevel) {
+            state.switchStates.put(forSwitch.id, ["switch": "on", "level": dimmerLevel])
         } else {
-            state.switchStates.put(forSwitch.id, ["switch": "on", "level": 100])   // Guess just store 100 for brightness if can't tell...
+            state.switchStates.put(forSwitch.id, ["switch": "on", "level": 100])   // Guess just store 100 for brightness if can't tell and getDimmerLevel also failed
+            log.warn "Couldn't find 'level' capability for ${forSwitch}, using 100 instead"
             // Can't dim bulb, so I guess don't do anything here
         }
     } else {
             state.switchStates.put(forSwitch.id, ["switch": "off"])
     }
-    log.trace "Just saved for " + forSwitch.id + ": " + state.switchStates.get(forSwitch.id)
+    log.trace "Just saved for ${forSwitch}: " + state.switchStates.get(forSwitch.id)
     log.debug "Exiting saveLightState()."    
 }
 
@@ -228,9 +287,9 @@ def saveLightState(forSwitch) {
  */
 def saveLightOnOffState(forSwitch) {
 	log.debug "Running saveLightOnOffState()..."
-    log.trace "Switch ${forSwitch.id} currently saved as ${state.switchStates.(forSwitch.id)}"
+    //log.trace "Switch ${forSwitch.id} currently saved as ${state.switchStates.(forSwitch.id)}"
     state.switchStates.(forSwitch.id).switch = forSwitch.currentSwitch
-    log.trace "Just saved for " + forSwitch.id + ": " + state.switchStates.get(forSwitch.id)
+    log.trace "Just saved for ${forSwitch}: " + state.switchStates.get(forSwitch.id)
     log.debug "Exiting saveLightOnOffState()."    
 }
 
@@ -257,66 +316,30 @@ def getSavedDimLevelState(forSwitch) {
 }
 
 def motionHandler(evt) {
-	log.debug "----------------Begin motionHandler() for ${evt.displayName}: ${evt.name} is ${evt.value} ----------------"
+	log.debug "----------------Begin handling of ${evt.name}: ${evt.value}----------------"
+    if (boolDisable) {
+    	lob.debug "---------------- App configured to be to disabled. Exiting motion handler. ----------------"
+    }
     log.info "state.mode = ${state.mode}"
-    if ((!isRunTimeOK() || !isLuxLevelOK()) && !boolDontObserve) {
-    	log.debug "Outside specified run time or lux level. Returning."
+    if ((!isRunTimeOK() || !isLuxLevelOK() || !isModeOK()) && !boolDontObserve) {
+    	log.debug "Outside specified run time, lux level, or mode. Returning."
         return
     }	
 	if (evt.value == "active") {
 		log.trace "Motion active. Turn on lights (or ensure on). Calling turnOnOrRestoreLights()..."
 		turnOnOrRestoreLights()
 	} else if (evt.value == "inactive") {
-    	// Old code to just run scheduleCheck after 'off' threshold:
-		//runIn(minutes1 * 60, scheduleCheck, [overwrite: false])  // why not overwrite?
     	log.trace "Motion inactive. Deciding what to do..."
-        if (dimmers) {
+        if (boolDim) {
         	log.trace "Dimming option has been chosen. Scheduling scheduleCheck() to run after 'dimming' threshold reached."
             // Run 1 minute before "off" threshold, unless offThreshold > 1 minute, then aim for 30s
-            runIn(minutes1 > 1 ? (minutes1 - 1) * 60 : 30, scheduleCheck)            
-            //runIn(minutes1 > 1 ? (minutes1 - 1) * 60 : 45, scheduleCheck)
+            runIn(minutes1 > 1 ? (minutes1 - 1) * 60 : 30, scheduleCheck)        
         } else {
         	log.trace "Dimming option not chosen. Scheduling scheduleCheck() to run after 'off' threshold reached."
         	runIn(minutes1 * 60, scheduleCheck)
         }
 	}
-    log.debug "----------------Exiting motionHandler() for  for ${evt.displayName}: ${evt.name} ${evt.value} ----------------"
-}
-
-def switchesHandler(evt) {
-	log.debug "Running switchesHandler for ${evt.displayName}: ${evt.name} is now ${evt.value}..."
-    if (state.modeChanging == true) {
-    	log.trace "Mode is in process of changing. Ignore."
-    } else {
-        if (state.mode == "on") {
-            log.trace "state.mode == 'on', so ignore (state should be saved when dim or turn off)"
-        } else if (state.mode == "dim") {
-            log.trace "state.mode == 'dim', so save on/off state"
-            saveLightOnOffState(evt.device)
-        }
-        else {
-            log.trace "state.mode is not 'on' or 'dim.' Ignoring."
-        }
-    }
-    log.debug "Exiting switchesHandler() for ${evt.displayName}: ${evt.name} = ${evt.value}"
-}
-
-def dimmersHandler(evt) {
-	log.debug "Running dimmersHandler for ${evt.displayName}: ${evt.name} is now ${evt.value}..."
-    if (state.modeChanging == true) {
-    	log.trace "Mode is in process of changing. Ignore."
-    } else {
-        if (state.mode == "on") {
-            log.trace "state.mode == 'on', so ignore (state should be saved when dim or turn off)"
-        } else if (state.mode == "dim") {
-            log.trace "state.mode == 'dim', so save on/off and dimmer state"
-            saveLightState(evt.device)
-        }
-        else {
-            log.trace "state.mode is not 'on' or 'dim.' Ignoring."
-        }
-    }
-    log.debug "Exiting dimmersHandler() for ${evt.displayName}: ${evt.name} = ${evt.value}."
+    log.debug "----------------End handling of ${evt.name}: ${evt.value}----------------"
 }
 
 def scheduleCheck() {
@@ -325,13 +348,12 @@ def scheduleCheck() {
 	def motionState = motion1.currentState("motion")
     if (motionState.value == "inactive") {
         def elapsed = now() - motionState.rawDateCreated.time
-        if (elapsed >= getDimThreshold() && elapsed < getOffThreshold() && dimmers) {
+        if (elapsed >= getDimThreshold() && elapsed < getOffThreshold() && boolDim) {
         	log.trace "Motion has stayed inactive for amount of time between 'dim' and 'off' thresholds ($elapsed ms). Dimming lights"
             dimLights()
-            // Schedule to run again so can check for "off" threshold next:
-            runIn(minutes1 > 1 ? (minutes1 - 1) * 60 : 30, scheduleCheck)            
-            //runIn(minutes1 > 1 ? (minutes1 - 1) * 60 : 45, scheduleCheck)
-            log.trace "Done dimming. Scheduled scheduleCheck() to run again in ${minutes1 > 1 ? (minutes1 - 1) * 60 : 30} seconds."
+            // Schedule to run again in 1 minute (30 s if "off" threshold <1m) so can check for "off" threshold next:
+            runIn(minutes1 > 1 ? 60 : 30, scheduleCheck)
+            log.trace "Done dimming. Scheduled scheduleCheck() to run again in ${minutes1 > 1 ? 60 : 30} seconds."
         }
     	if (elapsed >= getOffThreshold()) {
             log.trace "Motion has stayed inactive long enough to cross 'off' threshold ($elapsed ms). Turning lights off."
@@ -353,107 +375,85 @@ def scheduleCheck() {
 def turnOnOrRestoreLights() {
     log.debug "Running turnOnOrRestoreLights()..."
     log.trace "state.mode = ${state.mode}"
-    if ((!isRunTimeOK() || !isLuxLevelOK()) && !boolDontObserve)   {
-    	log.debug "Outside specified run time or lux level. Returning."
+    if ((!isRunTimeOK() || !isLuxLevelOK() || !isModeOK()) && !boolDontObserve)   {
+    	log.trace "Outside specified run time, lux level, or mode. Returning."
 		log.debug "Exiting turnOnOrRestoreLights()."
         return
-    } else if (boolDontObserve) {
-    	log.debug "Outside specified run time or lux level, but configured not to observe. However, this does not apply to turning light on."
+    } else if ((!isRunTimeOK() || !isLuxLevelOK() || !isModeOK()) && boolDontObserve) {
+    	log.trace "Outside specified run time, lux level, or mode, but configured not to observe. However, this does not apply to turning light on. Exiting."
 		log.debug "Exiting turnOnOrRestoreLights()."
     	return
     }
+    
     if (state.mode != "dim" && isOneRealSwitchOn()) {
     	log.trace "Current mode is not 'dim' and at least on swtich is on. Assume this is desired state."
         log.trace "Setting mode to 'on' in case it isn't."
-        state.modeChanging = true
         state.mode = "on"
-        state.modeChanging = false
     }
-    else if (state.mode == "dim" || state.mode == "off") {
-    	if (!isOneSavedSwitchOn) {
-        	log.trace "No switches were saved as 'on' when motion last stopped. Turning all on."            
-       		state.modeChanging = true
-            switches.on
-            state.mode = "on"           
-        	state.modeChanging = false
+    else if (state.mode == "dim" || state.mode == "off" || (state.mode == "on" && !isOneRealSwitchOn())) {
+    	if (!isOneSavedSwitchOn() || !boolRemember) {
+        	log.trace "No switches were saved as 'on' when motion last stopped or app configured to not remember individual light on/off states. Turning all on and restoring to saved dim level."
+            switches.each {
+            	it.on()
+                setDimmerLevel(it, getSavedDimLevelState(it))
+            }
+            switches.on()
+            state.mode = "on"
         } else { 
-        	log.trace "Mode is either 'dim' or 'off' and at leat one switch was saved as on, so restore lights to last known state."
-            state.modeChanging = true
+        	log.trace "Mode is either 'dim' or 'off,' at leat one switch was saved as on, and app configured to restore states, so restore lights to last known state."
             switches.each {
                 def savedLightState = getSavedLightOnOffState(it)
                 if (savedLightState != "off") {
-                    log.trace "${it} was saved as on. Turning on."
-                    it.on()
-                    def dm = getDimmerForSwitch(it)
-                    if (dm) {
-                        def prevLevel = getSavedDimLevelState(it)
-                        log.trace "Dimmer found for ${it}. Previous level: ${prevLevel}. Setting."
-                        dm.setLevel(prevLevel)
-                    } else {
-                        log.trace "No dimmer found for ${it}. Turning on switch but cannot restore dim level."
-                        it.on()
-                    }
+                    log.trace "${it} was saved as on. Turning on and resotring previous dimmer level."
+                    it.on()                    
+                    def prevLevel = getSavedDimLevelState(it)
+                    setDimmerLevel(it, prevLevel)
                 } else {
                     log.trace "${it} was saved as off. Not turning on."
                 }
             }
-            state.modeChanging = false
         }
     }
-    if (state.mode == "unknown") {
+    else if (state.mode == "unknown") {
     	log.trace "State unknown. Turning on all switches."
-        state.modeChanging = true
         switches.on()
-        state.modeChanging = false
     }
-    
-    state.modeChanging = true
-    state.mode = "on"
-    state.modeChanging = false
+    state.mode = "on"    
     log.info "state.mode = ${state.mode}"
     log.debug "Exiting turnOnOrRestoreLights()."
 }
 
 /**
-  * Dims lights (those configured to be dimmed, which for most users is probably all of them).
+  * Dims lights to pre-specified dimming level.
   * Intended to be called when motion has been inactive for a period of time between the "dim" and "off" thresholds.
   */
 def dimLights() {
 	log.debug "Running dimLights()..."
     log.info "state.mode = ${state.mode}"
-    state.modeChanging = true
-    if ((!isRunTimeOK() || !isLuxLevelOK()) && !boolDontObserve)  {
-    	log.debug "Outside specified run time or lux level. Returning."
+    if ((!isRunTimeOK() || !isLuxLevelOK() || !isModeOK()) && !boolDontObserve)  {
+    	log.debug "Outside specified run time, lux level, or mode. Returning."
         return
     } else if (boolDontObserve) {
-    	log.debug "Outside specified run time or lux level, but configured not to observe. Continuing..."
+    	log.debug "Outside specified run time, lux level, or mode, but configured not to observe. Continuing..."
     }
     state.switchStates = [:]
     for (sw in switches) {    
     	log.trace "Saving light state for ${sw}"
     	saveLightState(sw)
     	log.trace "Dimming ${sw}"
-        def dm = getDimmerForSwitch(sw)
-        if (dm) {
-            log.trace "Found ${dm}, currently at level ${dm.currentLevel}"
-            if (sw.currentSwitch != "off") {
-            	def toLevel = dimToLevel
-                if (dm.currentLevel <= toLevel) {
-                	// If light is currently at or less than "dim to" level, dim it as low as possible
-                	toLevel = 1
-                } 
-            	dm.setLevel(toLevel)
-                log.trace "Dimmed ${dm} to ${toLevel}"
-            } else {
-            	log.trace "Not dimming ${sw} because is off."
-            }
-            log.trace "${dm} now at level ${dm.currentLevel}"
+        if (sw.currentSwitch != "off") {
+            def toLevel = dimToLevel
+            if (getDimmerLevel(sw) <= toLevel) {
+                // If light is currently at or less than "dim to" level, dim it as low as possible
+                toLevel = 1
+            } 
+            setDimmerLevel(sw, toLevel)
+            log.trace "Dimmed ${sw} to ${toLevel}"
         } else {
-        	log.trace "No dimmer found for ${sw}"
-        }
+            log.trace "Not dimming ${sw} because is off."
+        } 
     }
     state.mode = "dim"
-    state.modeChanging = false
     log.info "state.mode = ${state.mode}"
     log.debug "Exiting dimLights()."
 }
@@ -464,13 +464,12 @@ def dimLights() {
   */
 def turnOffLights() {
 	log.debug "Running turnOffLights()..."
-    state.modeChanging = true
     log.info "state.mode = ${state.mode}"
-    if ((!isRunTimeOK() || !isLuxLevelOK()) && !boolDontObserve)  {
-    	log.debug "Outside specified run time or lux level. Returning."
+    if ((!isRunTimeOK() || !isLuxLevelOK() || !isModeOK()) && !boolDontObserve)  {
+    	log.debug "Outside specified run time, lux level, or mode. Returning."
         return
     } else if (boolDontObserve) {
-    	log.debug "Outside specified run time or lux level, but configured not to observe. Continuing..."
+    	log.debug "Outside specified run time, lux level, or mode, but configured not to observe. Continuing..."
     }
     switches.each {
     	log.trace "Saving on/off state then turning off: ${it}"
@@ -479,7 +478,6 @@ def turnOffLights() {
     }
     state.mode = "off"
     log.trace "Turned off all lights."
-    state.modeChanging = false
     log.info "state.mode = ${state.mode}"
     log.debug "Exiting turnOffLights()."
 }
