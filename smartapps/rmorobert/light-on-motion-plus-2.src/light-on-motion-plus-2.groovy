@@ -19,7 +19,7 @@ definition(
     name: "Light on Motion Plus 2",
     namespace: "RMoRobert",
     author: "Robert Morris",
-    description: "Turn on one or more lights on when motion is detected and off after motion stops. Optionally dim before turning off and remember on/off states of invididual lights when motion stops to restore these states when turning back on rather than turning on all. v2 adds 0-minute 'off' option.",
+    description: "Turn on one or more lights on when motion is detected and off after motion stops. Optionally dim before turning off and remember on/off states of invididual lights when motion stops to restore these states when turning back on rather than turning on all. Version 2 includes code refactoring.",
     category: "Convenience",
     iconUrl: "https://s3.amazonaws.com/smartapp-icons/Meta/light_motion-outlet.png",
     iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Meta/light_motion-outlet@2x.png"
@@ -434,8 +434,8 @@ def turnOnOrRestoreLights() {
     	if (!isOneSavedSwitchOn() || !boolRemember) {
         	log.trace "No switches were saved as 'on' when motion last stopped or app configured to not remember individual light on/off states. Turning all on and restoring to saved dim level."
             switches.each {
+                setDimmerLevel(it, getSavedDimLevelState(it))                
             	it.on()
-                setDimmerLevel(it, getSavedDimLevelState(it))
             }
             switches.on()
             state.mode = "on"
@@ -444,10 +444,10 @@ def turnOnOrRestoreLights() {
             switches.each {
                 def savedLightState = getSavedLightOnOffState(it)
                 if (savedLightState != "off") {
-                    log.trace "${it} was saved as on. Turning on and resotring previous dimmer level."
-                    it.on()                    
+                    log.trace "${it} was saved as on. Turning on and resotring previous dimmer level."         
                     def prevLevel = getSavedDimLevelState(it)
-                    setDimmerLevel(it, prevLevel)
+                    setDimmerLevel(it, prevLevel)                    
+                    it.on()           
                 } else {
                     log.trace "${it} was saved as off. Not turning on."
                 }
