@@ -45,11 +45,11 @@ def mainPage() {
 			input ("setpointCool", "number", title: "Cooling setpoint", required: true)
 			//input ("boolAlwaysChange", "bool", title: "Change to configured setpoint even if above cooling setpoint or below heating setpoint")
 		}
-		section("Restrictions (TODO: Not yet implemented)", hideable: true, hidden: false) {
+		section("Restrictions", hideable: true, hidden: false) {
 			// TODO: Make dynamic?
 			input "starting", "time", title: "Only between this time", required: false
         	input "ending", "time", title: "and this time", required: false
-			input "onlyInModes", "mode", title: "Only during these modes (NOT YET IMPLEMENTED)", multiple: true, required: false			
+			input "onlyInModes", "mode", title: "Only during these modes", multiple: true, required: false			
 		}
    
 		section("Notify when changed") {
