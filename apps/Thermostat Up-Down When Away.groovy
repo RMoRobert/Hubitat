@@ -10,7 +10,11 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
+ *  Last modified: 2018-11-02
+ *  Changes: added time/mode restructions 
+ *
  */
+ 
 definition(
 name: "Thermostat Up/Down When Away",
 namespace: "RMoRobert",
@@ -43,8 +47,8 @@ def mainPage() {
 		}
 		section("Restrictions (TODO: Not yet implemented)", hideable: true, hidden: false) {
 			// TODO: Make dynamic?
-			input "onlyBeforeTime", "time", title: "Only before this time", required: false
-        	input "onlyAfterTime", "time", title: "Only after time", required: false
+			input "starting", "time", title: "Only between this time", required: false
+        	input "ending", "time", title: "and this time", required: false
 			input "onlyInModes", "mode", title: "Only during these modes (NOT YET IMPLEMENTED)", multiple: true, required: false			
 		}
    
@@ -74,16 +78,45 @@ def initialize() {
 	subscribe(motions, "motion", motionHandler)
 }
 
+def isModeOK() {
+    if (debugLogging) log.debug "Running isModeOK()..."
+    def retVal = !modes || modes.contains(location.mode)
+    if (debugLogging) log.debug "Exiting isModeOK(). Return value = ${retVal}"
+    return retVal
+}
+
+// Returns false if user has specified "run between" times and the current time
+// is outside those times. Otherwise, returns true.
+def isTimeOK() {
+    if (logEnable) log.trace "Checking if time constraints specified and time is OK..."
+    def retVal = true
+    if (starting && ending) {
+        def currTime = new Date()
+        def startTime = timeToday(starting, location.timeZone)
+        def stopTime = timeToday(ending, location.timeZone)
+        retVal = timeOfDayIsBetween(startTime, stopTime, currTime, location.timeZone)
+    }
+    if (logEnable) log.trace "Done checking time constraints. Time OK = ${retVal}"
+    return retVal
+}
+
 def motionHandler(evt){
-	if (debugLogging) log.debug ("Motion sensor state changed: ${evt.descriptionText}")
-	def activeMotionSensors = motions.findAll { it?.latestValue("motion") == "active" }
-	if (!activeMotionSensors) {
-		log.debug "No active motion sensors; scheduling execution of adjustment in ${minutesToDelay} minutes"
-		runIn(minutesToDelay * 60, adjustThermostat)
+	if (debugLogging) 
+	if (isModeOK() && isTimeOK()) {
+		def activeMotionSensors = motions.findAll { it?.latestValue("motion") == "active" }
+		if (!activeMotionSensors) {
+			log.debug "No active motion sensors; scheduling execution of adjustment in ${minutesToDelay} minutes"
+			runIn(minutesToDelay * 60, adjustThermostat)
+		}
+		else {
+			if (debugLogging) log.debug "Some motion sensors still active; unsubscribing from scheduled adjustment"
+			unschedule(adjustThermostat)
+		}
 	}
 	else {
-		if (debugLogging) log.debug "Some motion sensors still active; unsubscribing from scheduled adjustment"
-		unschedule(adjustThermostat)
+		if (debugLogging) {
+			log.debug ("Not handling motion because outside specified mode and/or time constraints (mode OK = ${isModeOK()}; time OK = ${isTimeOK()})")
+		}
 	}
 }
 
