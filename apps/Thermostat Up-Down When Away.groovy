@@ -1,5 +1,5 @@
 /**
- *  Programmable Thermostat
+ *  Thermostat Up/Down When Away
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -15,7 +15,7 @@ definition(
 name: "Thermostat Up/Down When Away",
 namespace: "RMoRobert",
 author: "RMoRboert",
-description: "Automatically turn thermostat up/down when you're not home, based on motion sensors",
+description: "Automatically turn thermostat up/down when you're not home based on motion sensors",
 category: "Convenience",
 iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
 iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
@@ -23,23 +23,33 @@ iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@
 )
 
 preferences {
+	mainPage()
+}
+
+def mainPage() {
 	page(name:"mainPage", title:"Settings", install: true, uninstall: true) {
-		section() {
+		section("Turn this thermostat up/down") {
 			input (name:"thermostat", type: "capability.thermostat", title: "Select thermostat", required: true, multiple: false)
 		}
-		section("Select sensors and time") {
+		section("When these sensors are inactive") {
 	   		input (name:"motions", type: "capability.motionSensor", title: "Select motion sensors", required: false, multiple: true)
 	   		//input (name:"contacts", type: "capability.contactSensor", title: "Select contact sensors", required: false, multiple: true)			
-			input ("minutesToDelay", "number", title: "When inactive for this many minutes", required: true)
+			input ("minutesToDelay", "number", title: "for this many minutes", required: true)
 		}
-		section("Away setpoint") {
-			input ("setpointHeat", "number", title: "Desired heating setpoint", required: true)
-			input ("setpointCool", "number", title: "Desired cooling setpoint", required: true)
+		section("Setpoints when away") {
+			input ("setpointHeat", "number", title: "Heating setpoint", required: true)
+			input ("setpointCool", "number", title: "Cooling setpoint", required: true)
 			//input ("boolAlwaysChange", "bool", title: "Change to configured setpoint even if above cooling setpoint or below heating setpoint")
 		}
+		section("Restrictions (TODO: Not yet implemented)", hideable: true, hidden: false) {
+			// TODO: Make dynamic?
+			input "onlyBeforeTime", "time", title: "Only before this time", required: false
+        	input "onlyAfterTime", "time", title: "Only after time", required: false
+			input "onlyInModes", "mode", title: "Only during these modes (NOT YET IMPLEMENTED)", multiple: true, required: false			
+		}
    
-		section("Notifications", hideable: true, hidden: true) {
-		  input (name: "notifySpeechDevices", type: "capability.speechSynthesis", title: "Announce/notify on these devices", required: false, multiple: true)
+		section("Notify when changed") {
+		  input (name: "notifySpeechDevices", type: "capability.speechSynthesis", title: "Select devices for notifications/announcements", required: false, multiple: true)
 		  //input (name:"notifyDevices", type: "capability.notification", title: "Notify these devices", required: false, multiple: true)
 		}
 		
@@ -47,7 +57,6 @@ preferences {
 			input ("debugLogging", "bool", title: "Enable verbose/debug logging")
 		}
 	}
-	page(name: "mainPage")
 }
 
 def installed() {
@@ -106,7 +115,7 @@ def adjustThermostat() {
 		else if (thermostatMode == "heat") {
 			if (debugLogging) log.debug "Thermostat in heat mode"
 			if (currSetpoint > targetSetpoint - 0.9 && currSetpoint < targetSetpoint + 0.9) {
-				if (debugLogging) log.debug "Thermostat not changed because setpoint of ${targetSetpoint} is already close to target of ${targetSetpoint}"
+				if (debugLogging) log.debug "Thermostat not changed because setpoint of ${currSetpoint} is already close to target of ${targetSetpoint}"
 			}
 			else {
 				thermostat.setHeatingSetpoint(targetSetpoint)
