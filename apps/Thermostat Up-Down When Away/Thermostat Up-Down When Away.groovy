@@ -80,7 +80,7 @@ def initialize() {
 
 def isModeOK() {
     if (debugLogging) log.debug "Running isModeOK()..."
-    def retVal = !modes || modes.contains(location.mode)
+    def retVal = !onlyInModes || onlyInModes.contains(location.mode)
     if (debugLogging) log.debug "Exiting isModeOK(). Return value = ${retVal}"
     return retVal
 }
