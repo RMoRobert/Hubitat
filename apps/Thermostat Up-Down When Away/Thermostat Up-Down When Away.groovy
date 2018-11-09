@@ -10,8 +10,10 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *  Last modified: 2018-11-02
- *  Changes: added time/mode restructions 
+ *  Last modified: 2018-11-08
+ *  Changes:
+ *   20181108: bug fixes when debug logging disabled
+ *   20181102: added time/mode restructions 
  *
  */
  
@@ -88,7 +90,7 @@ def isModeOK() {
 // Returns false if user has specified "run between" times and the current time
 // is outside those times. Otherwise, returns true.
 def isTimeOK() {
-    if (logEnable) log.trace "Checking if time constraints specified and time is OK..."
+    if (debugLogging) log.debug "Checking if time constraints specified and time is OK..."
     def retVal = true
     if (starting && ending) {
         def currTime = new Date()
@@ -96,12 +98,11 @@ def isTimeOK() {
         def stopTime = timeToday(ending, location.timeZone)
         retVal = timeOfDayIsBetween(startTime, stopTime, currTime, location.timeZone)
     }
-    if (logEnable) log.trace "Done checking time constraints. Time OK = ${retVal}"
+    if (debugLogging) log.debug "Done checking time constraints. Time OK = ${retVal}"
     return retVal
 }
 
-def motionHandler(evt){
-	if (debugLogging) 
+def motionHandler(evt) {
 	if (isModeOK() && isTimeOK()) {
 		def activeMotionSensors = motions.findAll { it?.latestValue("motion") == "active" }
 		if (!activeMotionSensors) {
@@ -114,9 +115,7 @@ def motionHandler(evt){
 		}
 	}
 	else {
-		if (debugLogging) {
-			log.debug ("Not handling motion because outside specified mode and/or time constraints (mode OK = ${isModeOK()}; time OK = ${isTimeOK()})")
-		}
+		if (debugLogging) log.debug ("Not handling motion because outside specified mode and/or time constraints (mode OK = ${isModeOK()}; time OK = ${isTimeOK()})")
 	}
 }
 
@@ -126,6 +125,9 @@ def adjustThermostat() {
 	def changed = false
 	if (thermostatMode == "off") {		
 		log.debug "Not adjusting because thermostat is off"
+	}
+	else if (!isModeOK() || !isTimeOK()) {
+		log.debug "Thermostat not adjusted because outside of specified mode or time restrictions"
 	}
 	else {
 		def targetSetpoint = setpointHeat
@@ -141,19 +143,19 @@ def adjustThermostat() {
 				} else {
 				thermostat.setCoolingSetpoint(targetSetpoint)
 				changed = true
-				if (debugLogging) log.debug "Set thermostat cooling setpoint to ${targetSetpoint}"
+				log.debug "Set thermostat cooling setpoint to ${targetSetpoint}"
 			}			
 		}
 		// HEAT MODE LOGIC
 		else if (thermostatMode == "heat") {
 			if (debugLogging) log.debug "Thermostat in heat mode"
 			if (currSetpoint > targetSetpoint - 0.9 && currSetpoint < targetSetpoint + 0.9) {
-				if (debugLogging) log.debug "Thermostat not changed because setpoint of ${currSetpoint} is already close to target of ${targetSetpoint}"
+				log.debug "Thermostat not changed because setpoint of ${currSetpoint} is already close to target of ${targetSetpoint}"
 			}
 			else {
 				thermostat.setHeatingSetpoint(targetSetpoint)
 				changed = true
-				if (debugLogging) log.debug "Set thermostat heating setpoint to ${targetSetpoint}"
+				log.debug "Set thermostat heating setpoint to ${targetSetpoint}"
 			}
 		}
 		// OTHER
@@ -167,6 +169,6 @@ def adjustThermostat() {
 			//if (notifySpeechDevices) notifySpeechDevices.speak("Thermostat adjusted at ${new Date().toLocaleString()} because of inactivity")
 		}
 		if (debugLogging) "Changed = ${changed}"
-		log.debug "Finished thermostat adjustment"
+		if (debugLogging) log.debug "Finished thermostat adjustment"
 	}
 }
