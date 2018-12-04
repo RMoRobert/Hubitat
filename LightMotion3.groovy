@@ -1,6 +1,10 @@
 /**
- *  Copyright 2018 Robert Morris
+ * ==========================  Lights on Motion Plus (Child App) ==========================
+ *  TO INSTALL:
+ *  Add code for parent app first and then and child app (this). To use, install/create new
+ *  instance of parent app.
  *
+ *  Copyright 2018 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -10,18 +14,17 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
+ * =======================================================================================
  *
- *  Author: Robert Morris
- *
- * Version: 3.0 Beta 2
- *
- * CHANGELOG
+ *  Last modified: 2018-12-04
+ * 
+ *  Changelog:
+ * 
  * 3.0: Moved to parent/child app model; bug fixes/improvements for when motion detected/lights on after mode changed
-*  2.0: Code refactoring, better handling of light changes when motion inactive
+ * 
  * WISHLIST: multiuple motion sensors, introduction of different level for "night mode", possible default settings/scene support
-
  *
- */
+ */ 
 
 definition(
         name: "Lights on Motion Plus (Child App)",
@@ -35,56 +38,51 @@ definition(
 )
 
 preferences {
-    page(name: "pageBasic", title: "When there's activity on sensor", nextPage: "pageAdvanced", uninstall: true) {
-        section("Choose a motion sensor...") {
-            input "motion1", "capability.motionSensor", title: "Which motion sensor(s)?", multiple: true
+    page(name: "pageMain", title: "Lights on Motion Plus", install: true, uninstall: true) {
+		section("Debug") {
+			href(name: "pageDebugHref", page: "pageDEBUG", title: "Open debug page")
+		}
+        section("Choose lights and sensors") {
+            input "motion1", "capability.motionSensor", title: "When motion is detected on this sensor", multiple: true
+            input "switches", "capability.switch", title: "Turn on these lights", multiple: true
+            input "minutes1", "number", title: "Turn off after this many minutes"
+            input "boolDim", "bool", defaultValue: true, title: "Dim lights before turning off"
         }
-        section("Turn on/off light(s)...") {
-            input "switches", "capability.switch", multiple: true
-        }
-        section("And off when there's been no movement for...") {
-            input "minutes1", "number", title: "Minutes?"
-        }
-        section("Dim for 30 seconds before turning off...") {
-            input "boolDim", "bool", defaultValue: true, required: true, title: "Dim before turning off"
-        }
-        section("Only during certain times...") {
+        section("Restrictions") {
             //TODO: Would be nice to have sunset/sunrise as options here
-            input "starting", "time", title: "Starting", required: false
-            input "ending", "time", title: "Ending", required: false
+            input "starting", "time", title: "Ony after this time", required: false
+            input "ending", "time", title: "Only before this time", required: false
+            input "lightSensor", "capability.illuminanceMeasurement", title: "Only when illuminance on this light sensor", required: false
+            input "lightLevel", "number", title: "is below this illuminance level", required: false
         }
+		
+		section("Customizations") {
+            input "boolDontObserve", "bool", defaultValue: true, title: "Always turn off after motion stops, even if outside specified time/motion/lux/etc. conditions"
+            input "boolRemember", "bool", defaultValue: true, title: "Remember states of indiviudal lights before dimming and turning off (do not necessarily turn all back on with motion)"
+	    	input "postDimTime", "number", defaultValue: 30, required: true, title: "Number of seconds to dim before turning off"
+			input "boolDisable", "bool", defaultValue: false, title: "Disable app (switch on to disable)"
+		}
 
-        section("Only when illuminance is less than....") {
-            input "lightSensor", "capability.illuminanceMeasurement", required: false
-            input "lightLevel", "number", title: "Below level", required: false
-        }
-    }
-    page(name: "pageAdvanced", title: "Advanced options", nextPage: "pageFinal") {
-
-        section("Always turn off lights after motion stops, even if outside of specifed time, illuminance, or mode conditions?") {
-            input "boolDontObserve", "bool", defaultValue: false, required: true, title: "Always turn off after motion stops"
-        }
-        section("If multiple lights are selected, remember on/off state of individual lights when motion stops and restore when motion starts?"){
-            input "boolRemember", "bool", defaultValue: true, required: true, title: "Remember states?"
-            paragraph "By default, this app remembers the on/off state of each light chosen previously and restores the on/off state of each light when motion resumes after inactivity, rather than turning all lights back on (unless all were off, then all are turned back on)."
-        }
-        
-        section("Logging") {
-            input "logEnable", "bool", title: "Enable verbose/debug logging", required: false
-        }
-        
-        section("Disable app? (Use this to temporarily prevent this app from effecting changes on the lights without needing to actually uninstall the app.)") {
-            input "boolDisable", "bool", defaultValue: false, required: true, title: "Disable app"
-        }
-    }
-
-    page(name: "pageFinal", title: "Name app and configure modes", install: true, uninstall: true) {
-        section([mobileOnly:true]) {
+        section("Name and modes") {
             label title: "Assign a name", required: false
-            input "modes", "mode", title: "Only turn on/off lights when mode is", multiple: true, required: false
-            //input "nightModes", "mode", title: 'Turn lights on/off with "night mode" setting if mode is', multiple: true, required: false
+            input "modes", "mode", title: "Only turn on lights when mode is (may still turn off; see above)", multiple: true, required: false
+            input "logEnable", "bool", title: "Enable verbose/debug logging", required: false
+			//input "nightModes", "mode", title: 'Turn lights on/off with "night mode" setting if mode is', multiple: true, required: false
         }
     }
+	
+	page(name: "pageDEBUG", title: "Debug Page", nextPage: "pageMain") {
+		section("Debug Page") {
+			paragraph("Check the logs to see debug information.")
+			log.debug "*** DEBUG PAGE INFORMATION ***"
+			switches.each {
+				log.debug "${it} is ${it.currentSwitch}"
+				log.debug "${it} level is ${getDimmerLevel(it)}"
+				log.debug "       - - - - - -     "
+			}
+			log.trace "*** END DEBUG PAGE INFORMATION ***"
+		}
+	}
 }
 
 //=========================================================================
@@ -104,10 +102,10 @@ def getOffRunDelay() {
     return minutes1 * 60
 }
 
-// Number of seconds that should elapse between dimming (if enabled) and light turning off
-def getPostDimOffRunDelay() {
-    return 30
-}
+//// Number of seconds that should elapse between dimming (if enabled) and light turning off
+//def getPostDimOffRunDelay() {
+//    return 30
+//}
 
 // Number of seconds that shoud elapse between motion inactivity and light dimming
 def getDimRunDelay() {
@@ -130,6 +128,7 @@ def installed() {
 
 def updated() {
     unsubscribe()
+	state.switchStates = [:]
     subscribe(motion1, "motion", motionHandler)
     log.trace "****** App updated *****"
     state.isDimmed = false
@@ -249,11 +248,11 @@ def getDimmerLevel(sw) {
 }
 
 /**
- * Sets "level" attribute on device if supports Switch Level capabilities. Otherwise sets "switch" attribute to "on" if lvl > 0 or "off" if = 0.
+ * Sets "level" attribute on device if supports Switch Level capabilities. Otherwise sets "switch" attribute to "on" if lvl > 0 or "off" if == 0
  * Returns "true" if appears to have succeeded.
  */
 def setDimmerLevel(sw, lvl) {
-    if (logEnable) log.trace "Running setDimmerLevel for '${sw}' with '${lvl}'..."
+    if (logEnable) log.trace "** Running setDimmerLevel for '${sw}' with '${lvl}'; level data type is ${lvl.toInteger()}..."
     def retVal
     def supportedAttributes
     retVal = -1
@@ -300,13 +299,13 @@ def saveLightState(forSwitch) {
             state.switchStates.put(forSwitch.id, ["switch": "on", "level": dimmerLevel])
         } else {
             state.switchStates.put(forSwitch.id, ["switch": "on", "level": 100])   // Guess just store 100 for brightness if can't tell and getDimmerLevel also failed
-            log.debug "Couldn't find 'level' capability for ${forSwitch}, using 100 instead"
+            log.warn "Couldn't find 'level' capability for ${forSwitch}, using 100 instead"
             // Can't dim bulb, so I guess don't do anything here
         }
     } else {
         state.switchStates.put(forSwitch.id, ["switch": "off"])
     }
-    if (logEnable) log.debug "Just saved for ${forSwitch}: " + state.switchStates.get(forSwitch.id)
+    if (logEnable) log.debug "***** Just saved for ${forSwitch}: " + state.switchStates.get(forSwitch.id)
     log.trace "Exiting saveLightState()."
 }
 
@@ -315,16 +314,22 @@ def saveLightState(forSwitch) {
  * Parameter forSwitch: a Switch-capable object (supporting on/off) to remember.
  */
 def saveLightOnOffState(forSwitch) {
-    if (logEnable) log.trace "Running saveLightOnOffState()..."
+    if (logEnable) log.trace "---------------  <b>Running saveLightOnOffState()...</b> ------------"
     //if (logEnable) log.trace "Switch ${forSwitch.id} currently saved as ${state.switchStates.(forSwitch.id)}"
     if (!state.switchStates) {
         state.switchStates = [:]
     }
-    state.switchStates.(forSwitch.id).switch = forSwitch.currentSwitch
+	if (logEnable) log.debug "Switch ${forSwitch} is ${forSwitch.currentSwitch}"
+	if (state.switchStates.get(forSwitch.id) && state.switchStates.get(forSwitch.id).get("switch")) {
+    	state.switchStates.get(forSwitch.id).put("switch", forSwitch.currentSwitch)
+	}
+	else {
+    	state.switchStates.put(forSwitch.id, ["switch": forSwitch.currentSwitch])
+	}
     if (logEnable) {
-        log.debug "Just saved for ${forSwitch}: " + state.switchStates.get(forSwitch.id)
+        log.debug "***** Just saved for ${forSwitch}: " + state.switchStates.get(forSwitch.id)
         log.trace "Exiting saveLightOnOffState()."
-    }
+    }	
 }
 
 /**
@@ -380,8 +385,16 @@ def motionHandler(evt) {
                 }
             }
         } else {
-            log.trace "Outside specified run time, lux level, or mode; not doing anything."
-            return
+			if (state.isDimmed) {
+				if (logEnable) log.trace "Outside specified run time, lux level, or mode but lights are dimmed; restoring if any are on."
+				if (isOneRealSwitchOn()) {
+					log.trace "Outside specified mode, time, etc., but lights were dimmed and still on; restoring state" 
+					restoreAllLights()
+				}
+			} else {
+            	log.trace "Outside specified run time, lux level, or mode; not doing anything."
+			}
+				return
         }
     } else if (evt.value == "inactive") {
         log.trace "Motion inactive; cancelling timers"
@@ -428,10 +441,10 @@ def restoreAllLights() {
             if (savedState != "off") {
                 def savedLevel = getSavedDimLevelState(it)
                 if (logEnable) log.trace "  Saved light level was ${savedLevel}"
-                if (savedLevel <= 0) {
+                if (savedLevel.toString() == "0") {
                     // Just in case this happens...
                     savedLevel = 100
-                    if (logEnable) log.trace "  Brightness was saved as 0; set to ${savedLevel}"
+                    if (logEnable) log.trace "  Brightness was returned as 0; set to ${savedLevel}"
                 }
                 setDimmerLevel(it, savedLevel)
                 it.on()
@@ -463,12 +476,12 @@ def dimLights() {
     state.isDimmed = true
     state.switchStates = [:]
     for (sw in switches) {
-        if (isAllOK()) {
+        //if (isAllOK()) {
             if (logEnable) log.debug "  Saving light state for ${sw}"
             saveLightState(sw)
-        } else {
-            log.debug "  Not saving state because outside specified mode/lux/etc. conditions"
-        }
+        //} else {
+        //    log.debug "  Not saving state because outside specified mode/lux/etc. conditions"
+        //}
         log.debug "    Dimming ${sw}"
         if (sw.currentSwitch != "off") {
             def toLevel = dimToLevel
@@ -483,10 +496,10 @@ def dimLights() {
         }
     }
     state.isDimmed = true
-    if (logEnable) log.debug "  Setting 'off' timer for ${getPostDimOffRunDelay()}s"
+    if (logEnable) log.debug "  Setting 'off' timer for ${postDimTime}s"
     unschedule(dimLights)
     unschedule(turnOffLights)
-    runIn(getPostDimOffRunDelay(), turnOffLights)
+    runIn(postDimTime, turnOffLights)
     if (logEnable) log.trace "Exiting dimLights()."
 }
 
@@ -508,7 +521,8 @@ def turnOffLights() {
     switches.each {
         if (isAllOK()) {
             if (logEnable) log.trace "  Saving on/off state then turning off: ${it}"
-            saveLightOnOffState(it)
+            //saveLightOnOffState(it)
+			//pauseExecution(150)   // Below seems to sometimes run before this if no slight pause...
             it.off()
         }
         else {
