@@ -4,11 +4,11 @@
  *  DESCRIPTION:
  *  This app is designed to be used to turn on lights/switches according to the state of
  *  motion sensor. It extends the ability of most existing similar apps by adding the
- *  ability to dim the lights for 30 seconds as a "warning" before turning off, and it is
- *  also capable of "remembering" the levels and on/off states of individual bulbs (or
- *  switches or dimmers) so that all associated lights will not turn on simply because
- *  motion is detected if one or more are already on (useful for multiple bulbs in a room
- *  where you want them to all turn off after motion stops and turn on only those that
+ *  ability to dim the lights as a "warning" before turning off, and it is also capable
+ *  of "remembering" the levels and on/off states of individual bulbs (or switches or
+ *  dimmers) so that all associated lights will not turn on simply because motion is
+ *  detected again if one or more are already on (useful for multiple bulbs in a room
+ *  where you want them to all turn off after motion stops but turn on only those that
  *  were previously on when motion resumes rather than the entire set of bulbs--useful
  *  if not all bulbs are usually used).
  
@@ -28,49 +28,10 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2018-10-05
+ *  Last modified: 2018-12-04
  * 
  *  Changelog:
  * 
  *  3.0 - Initial release of v3 app
  *
  */ 
- 
-definition(
-    name: "Lights on Motion Plus",
-    namespace: "RMoRobert",
-    author: "Robert Morris",
-    singleInstance: true,
-    description: "Turn lights on/off based on motion; optionally dim before turning off and remember/restore previous state of lights when motion resumes",
-    category: "Convenience",        
-    iconUrl: "",
-    iconX2Url: "",
-    iconX3Url: "",
-)   
-
-preferences {
-  section ("") {
-    paragraph title: "Lights on Motion Plus", "Turn lights on/off based on motion; optionally dim before turning off and remember/restore previous state of lights when motion resumes"
-  }
-  section {
-    app(name: "childApps", appName: "Lights on Motion Plus (Child App)", namespace: "RMoRobert", title: "Add Lights on Motion Plus automation...", multiple: true)
-  }
-}
-
-def installed() {
-    log.debug "Installed with settings: ${settings}"
-    initialize()
-}
-
-def updated() {
-    log.debug "Updated with settings: ${settings}"
-    unsubscribe()
-    initialize()
-}
-
-def initialize() {
-    log.debug "Initializing; there are ${childApps.size()} child apps installed"
-    childApps.each {child ->
-        log.debug "  child app: ${child.label}"
-    }
-}
