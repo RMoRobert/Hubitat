@@ -17,7 +17,7 @@
  * Version: 0.9 Beta
  *
  * CHANGELOG
- * 0.9tgith Beta - First public release
+ * 0.9 Beta - (2018-12-15) First public release
  *
  */
 
