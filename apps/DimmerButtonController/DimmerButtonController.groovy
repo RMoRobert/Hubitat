@@ -67,7 +67,6 @@ def pageMain() {
 			input(name: "dimStep", type: "number", title: "Dimming buttons change level +/- by", description: "0-100", required: true, defaultValue: 10)
 			input(name: "debugLogging", type: "bool", description: "", title: "Enable debug logging")
 			input(name: "traceLogging", type: "bool", description: "", title: "Enable verbose/trace logging (for development)")
-			href url:"https://community.hubitat.com/t/release-lights-on-motion-plus-dim-before-off-remember-individual-bulb-states-etc/7178", style:"embedded", required:false, title:"View User Guide", description: ""
 		}
 	}
 }
