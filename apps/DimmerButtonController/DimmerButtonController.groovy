@@ -14,10 +14,10 @@
  *
  *  Author: Robert Morris
  *
- * Version: 0.9.1 Beta
+ * Version: 0.9 Beta
  *
  * CHANGELOG
- * 0.9.1 Beta - (2018-12-15) Public beta release (bugfix from 0.9)
+ * 0.9 Beta - (2018-12-15) First public release
  *
  */
 
@@ -67,7 +67,7 @@ def pageMain() {
 			input(name: "dimStep", type: "number", title: "Dimming buttons change level +/- by", description: "0-100", required: true, defaultValue: 10)
 			input(name: "debugLogging", type: "bool", description: "", title: "Enable debug logging")
 			input(name: "traceLogging", type: "bool", description: "", title: "Enable verbose/trace logging (for development)")
-			
+			href url:"https://community.hubitat.com/t/release-lights-on-motion-plus-dim-before-off-remember-individual-bulb-states-etc/7178", style:"embedded", required:false, title:"View User Guide", description: ""
 		}
 	}
 }
@@ -76,7 +76,7 @@ def pageFinal() {
 	dynamicPage(name: "pageFinal", title: "Dimmer Button Controller", uninstall: true, install: true) {
 		section("Name app and configure modes") {
 				label(title: "Assign a name", required: true)
-				input("modes", "mode", title: "Only when mode is", multiple: true, required: false)
+				input("modes", "mode", title: "Only when s is", multiple: true, required: false)
 		}
 	}
 }
@@ -225,7 +225,7 @@ def isModeOK() {
 
 def buttonHandler(evt) {
 	logTrace "Running buttonHandler..."
-	if (!isModeOK) {
+	if (!isModeOK()) {
 		return
 	}
 	def btnNum = evt.value
