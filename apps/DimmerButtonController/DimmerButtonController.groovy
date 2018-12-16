@@ -14,10 +14,10 @@
  *
  *  Author: Robert Morris
  *
- * Version: 0.9 Beta
+ * Version: 0.9.1 Beta
  *
  * CHANGELOG
- * 0.9 Beta - (2018-12-15) First public release
+ * 0.9.1 Beta - (2018-12-15) Public beta release (bugfix from 0.9)
  *
  */
 
@@ -64,7 +64,7 @@ def pageMain() {
 		
 		section("Advanced options", hideable: true, hidden: true) {
 			input(name: "transitionTime", type: "number", title: "Transition time", description: "Number of seconds (0 for fastest bulb/dimmer driver allows)", required: true, defaultValue: 0)
-			input(name: "dimStep", type: "number", title: "Dimming buttons change level +/- by", description: "0-100", required: true, defaultValue: 5)
+			input(name: "dimStep", type: "number", title: "Dimming buttons change level +/- by", description: "0-100", required: true, defaultValue: 10)
 			input(name: "debugLogging", type: "bool", description: "", title: "Enable debug logging")
 			input(name: "traceLogging", type: "bool", description: "", title: "Enable verbose/trace logging (for development)")
 			
@@ -266,10 +266,14 @@ def buttonHandler(evt) {
 		logDebug "Action \"turn off\" specified for button ${btnNum} press ${pressNum}"
 		try {
 			turnOff(bulbs)
+			(1..buttonDevice.currentValue('numberOfButtons')).each {
+				if (getPressNum(it)) {
+					resetPressNum(["btnNum": it])
+				}
+			}
 		} catch (e) {
 			log.warn "Error when running turn-off action: ${e}"
 		}
-		resetPressNum(["btnNum": btnNum])
 		break
 	case "Dim":
 		logDebug "Action \"dim\" specified for button ${btnNum}"
@@ -358,7 +362,7 @@ def setHSB(devices, hueVal, satVal, briVal) {
 def setCT(devices, ct) {
     logDebug "Running setCT with $ct for $devices..."
 	try {
-    	devices.setColorTemperature(temp)
+    	devices.setColorTemperature(ct)
 	} catch (e) {
 		log.warn("Unable to set color temperature for ${devices}: ${e}")
 	}
@@ -379,7 +383,7 @@ def getPressNum(buttonNum) {
 			return pressNum
 			break
 		default:
-			logDebug "getPressNum for button ${buttonNum} was called but ${buttonNum} is not a special button"
+			logTrace "getPressNum for button ${buttonNum} was called but ${buttonNum} is not a special button"
 	}
 }
 
@@ -417,7 +421,7 @@ def resetPressNum(params) {
 	else {
 		log.error "resetPressNum called with improper parameters: ${params}"
 	}
-	logTrace "Button press reset for button ${btnNum} to ${atomicState["pressNum${btnNum}"]}"
+	logTrace "Button press reset for button ${btnNum} to " + atomicState["pressNum${btnNum}"]
 }
 
 def getDoesPressNumHaveAction(btnNum, pressNum) {
