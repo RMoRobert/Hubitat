@@ -25,7 +25,7 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2018-12-15
+ *  Last modified: 2018-12-27
  * 
  *  Changelog:
  * 
@@ -38,7 +38,7 @@ definition(
     namespace: "RMoRobert",
     author: "Robert Morris",
     singleInstance: true,
-    description: "Easily onfigure a button device such as a Pico remote to control one or more bulbs/dimmers/switches",
+    description: "Easily onfigure a button device such as a Pico remote to control one or more bulbs/dimmers/switches with on/off, scene switching, and dimming",
     category: "Convenience",        
     iconUrl: "",
     iconX2Url: "",
@@ -46,12 +46,12 @@ definition(
 )   
 
 preferences {
-  section ("") {
-    paragraph title: "Dimmer Button Controller", 'This app helps you create automations that control one or more bulbs/dimmers/switches with a button controller device (a 5-button Pico with the "fast" driver is recommended, though any button device should work)'
-  }
-  section {
-    app(name: "childApps", appName: "Dimmer Button Controller (Child App)", namespace: "RMoRobert", title: "Add new Dimmer Button Controller automation", multiple: true)
-  }
+	section ("About Dimmer Button Controller") {
+    	paragraph title: "Dimmer Button Controller", 'This app helps you create automations that control one or more bulbs/dimmers/switches with a button controller device (a 5-button Pico with the "fast" driver is recommended, though any button device should work).'
+	}
+	section("Dimmer Button Controller Child Apps") {
+    	app(name: "childApps1", appName: "Dimmer Button Controller (Child App)", namespace: "RMoRobert", title: "Add new Dimmer Button Controller automation", multiple: true)
+	}
 }
 
 def installed() {
