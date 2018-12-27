@@ -17,7 +17,7 @@
  * Version: 0.9 Beta
  *
  * CHANGELOG
- * 0.9 Beta - (2018-12-15) First public release
+ * 0.9 Beta - (2018-12-27) First public release
  *
  */
 
@@ -40,11 +40,10 @@ preferences {
 
 def pageMain() {
     dynamicPage(name: "pageMain", title: "Dimmer Button Controller", uninstall: true, install: false, nextPage: "pageFinal") {
-        section("Choose devices") {            
-            input(name: "buttonDevice", type: "capability.pushableButton", title: "Select button controller:",
-                  description: "", multiple: false, required: true, submitOnChange: true)
-            input(name: "bulbs", type: "capability.switch", title: "Select lights for this controller:",
-                  description: "", multiple: true, required: true, submitOnChange: true)
+        section("Choose devices") {
+            input(name: "buttonDevice", type: "capability.pushableButton", title: "Select button controller:", multiple: false, required: true, submitOnChange: true)
+            input(name: "bulbs", type: "capability.switch", title: "Select lights for this controller:", multiple: true, required: true, submitOnChange: true)
+			paragraph("Actions to turn on and off lights below allow you to choose scenes; the above lights will be used for dim/brighten actions and non-scene \"off\" actions. It is recommended you choose all bulbs used in your scenes (though it is optional if you do not use dim/brighten and use only scene-enabled features below).")
 		}
 		
         if(buttonDevice && bulbs) {
@@ -52,7 +51,6 @@ def pageMain() {
 			section("Configure buttons") {
 				(1..buttonDevice.currentValue('numberOfButtons')).each {
 					def num = it
-					//buttonSection(["btnNum": num])
 					 href(name: "pageButtonConfigHref",
 						page: "pageButtonConfig",
 						params: [btnNum: num],
@@ -65,8 +63,8 @@ def pageMain() {
 		section("Advanced options", hideable: true, hidden: true) {
 			input(name: "transitionTime", type: "number", title: "Transition time", description: "Number of seconds (0 for fastest bulb/dimmer driver allows)", required: true, defaultValue: 0)
 			input(name: "dimStep", type: "number", title: "Dimming buttons change level +/- by", description: "0-100", required: true, defaultValue: 10)
-			input(name: "debugLogging", type: "bool", description: "", title: "Enable debug logging")
-			input(name: "traceLogging", type: "bool", description: "", title: "Enable verbose/trace logging (for development)")
+			input(name: "debugLogging", type: "bool", title: "Enable debug logging")
+			//input(name: "traceLogging", type: "bool", title: "Enable verbose/trace logging (for development)")
 		}
 	}
 }
@@ -75,7 +73,7 @@ def pageFinal() {
 	dynamicPage(name: "pageFinal", title: "Dimmer Button Controller", uninstall: true, install: true) {
 		section("Name app and configure modes") {
 				label(title: "Assign a name", required: true)
-				input("modes", "mode", title: "Only when s is", multiple: true, required: false)
+				input("modes", "mode", title: "Only when mode is", multiple: true, required: false)
 		}
 	}
 }
@@ -94,18 +92,27 @@ def pageButtonConfig(params) {
         if(settings["buttonDevice"] && settings["bulbs"] && params?.btnNum) {
 			section("Actions for button ${params.btnNum}") {
 				input(name: "btn${params.btnNum}Action", type: "enum", title: "Do...",
-					  options: ["Turn on","Brighten","Dim","Turn off"], submitOnChange: true)
+					  options: ["Turn on", "Turn on scene", "Brighten", "Dim", "Turn off last used scene", "Turn off scene", "Turn off"], submitOnChange: true)
 			}
 			if (settings["btn${params.btnNum}Action"]) {
 				switch(settings["btn${params.btnNum}Action"]) {
 					case "Turn on":
 						makeTurnOnSection(params.btnNum)
 						break
+					case "Turn on scene":
+						makeTurnOnSceneSection(params.btnNum)
+						break
 					case "Brighten":
 						makeDimUpSection()
 					break
 					case "Dim":
 						makeDimDownSection()
+					break
+					case "Turn off last used scene":
+						makeTurnOffLastSceneSection()
+					break					
+					case "Turn off scene":
+						makeTurnOffSceneSection(params.btnNum)
 					break
 					case "Turn off":
 						makeTurnOffSection()
@@ -115,31 +122,6 @@ def pageButtonConfig(params) {
 				}
 			}
         }
-	}
-}
-	
-def buttonSection(params) {
-	def btnNum = params.btnNum
-	section(title: "Button ${btnNum}") {
-			input(name: "btn${btnNum}Action", type: "enum", title: "Do...", options: ["Turn on","Brighten","Dim","Turn off"], submitOnChange: true)
-	}	
-	if (settings["btn${btnNum}Action"]) {
-		switch(settings["btn${btnNum}Action"]) {
-			case "Turn on":
-				makeTurnOnSection(btnNum)
-				break
-			case "Brighten":
-				makeDimUpSection()
-			break
-			case "Dim":
-				makeDimDownSection()
-			break
-			case "Turn off":
-				makeTurnOffSection()
-			break
-			default:
-				paragraph("Not set")
-		}
 	}
 }
 
@@ -173,6 +155,22 @@ def getButtonConfigDescription(btnNum) {
 			}
 		}
 	}
+	else if (settings["btn${btnNum}Action"] == "Turn on scene") {
+		for (pressNum in 1..getMaxPressNum()) {
+			if (getDoesPressNumHaveAction(btnNum, pressNum)) {
+				desc += "\nPRESS ${pressNum}:"
+				def sc = settings["btn${btnNum}_Scene_press${pressNum}"]
+				desc += "Turn on scene: ${sc}"				
+			}
+		}
+	}
+	else if (settings["btn${btnNum}Action"] == "Turn off scene") {
+		def sc = settings["btn${btnNum}_SceneOff"]
+		desc += "Turn off scene: ${sc}"				
+	}
+	else if (settings["btn${btnNum}Action"] == "Turn off last used scene") {
+		desc += "Turn off last used scene"				
+	}
 	else {
 		if (settings["btn${btnNum}Action"]) {
 			desc += settings["btn${btnNum}Action"]
@@ -186,33 +184,57 @@ def makeTurnOnSection(btnNum) {
 		if (pressNum == 1 || getDoesPressNumHaveAction(btnNum, pressNum-1)) {
 			section("Press ${pressNum}" , hideable: true, hidden: false) {
 				for (j in bulbs) {
-					paragraph("<b>Turn on ${j}</b>")
-					input(name: "btn${btnNum}_${j.id}B_press${pressNum}", type: "number", title: "and set to this brightness:", description: "0-100 (0 to turn/keep off)", submitOnChange: true, required: false)
-					input(name: "btn${btnNum}_${j.id}CT_press${pressNum}", type: "number", title: "and set to this color temperature:", description: "2000-6500", submitOnChange: true, required: false)
-					input(name: "btn${btnNum}_${j.id}H_press${pressNum}", type: "number", title: "and set to this color with hue value:", description: "0-100", required: false)
-					input(name: "btn${btnNum}_${j.id}S_press${pressNum}", type: "number", title: "and saturation value:", description: "0-100", submitOnChange: true, required: false)
+					paragraph("<b>Turn on ${j}</b> and set to...")
+					input(name: "btn${btnNum}_${j.id}B_press${pressNum}", type: "number", title: "brightness or level:", description: "0-100 (0 to turn/keep off)", submitOnChange: true, width: 3, required: false)
+					input(name: "btn${btnNum}_${j.id}CT_press${pressNum}", type: "number", title: "color temperature:", description: "2000-6500", submitOnChange: true, width: 3, required: false)
+					input(name: "btn${btnNum}_${j.id}H_press${pressNum}", type: "number", title: "color with hue value:", description: "0-100", width: 3, required: false)
+					input(name: "btn${btnNum}_${j.id}S_press${pressNum}", type: "number", title: "saturation value:", description: "0-100", submitOnChange: true, width: 3, required: false)
 					}
-				paragraph("All fields optional; hue and saturation values will be ignored if all HSB values not set, and color temperature takes precedence over hue and saturation.")
+			}
+		}
+	}
+	section {
+		paragraph("All fields optional; hue and saturation values will be ignored if all HSL values not set. Color temperature takes precedence over hue and saturation.")
+	}
+}
+
+def makeTurnOnSceneSection(btnNum) {
+	for (pressNum in 1..getMaxPressNum()) {
+		if (pressNum == 1 || getDoesPressNumHaveAction(btnNum, pressNum-1)) {
+			section("Press ${pressNum}" , hideable: true, hidden: false) {
+						input(name: "btn${btnNum}_Scene_press${pressNum}", type: "device.SceneActivator", title: "Activate scene(s):", multiple: true)
 			}
 		}
 	}
 }
 
+def makeTurnOffLastSceneSection() {
+	section {
+		paragraph("Turn off last scene turned on by this app (will not track scenes turned on by other apps/automations, including other Dimmer Button Controller instances).")
+	}
+}
+
+def makeTurnOffSceneSection(btnNum) {
+	section {
+		input(name: "btn${btnNum}_SceneOff", type: "device.SceneActivator", title: "Turn off scene(s):", multiple: true)
+	}
+}
+
 def makeTurnOffSection() {
 	section {
-		paragraph("Turn off all (TODO: Will allow choosing individual bulbs here soon)")
+		paragraph("Turn off all selected lights.")
 	}
 }
 
 def makeDimUpSection() {
 	section {
-		paragraph("Dim all bulbs/dimmers up if on (TODO: Will allow choosing individual or all bulbs here soon)")
+		paragraph("Brighten/dim up all selected lights if on")
 	}
 }
 
 def makeDimDownSection() {
 	section {
-		paragraph("Dim all bulbs/dimmers down if on (TODO: Will allow choosing individual or all bulbs here soon)")
+		paragraph("Dim all selected lights down if on")
 	}
 }
 
@@ -260,16 +282,36 @@ def buttonHandler(evt) {
 		}
 		incrementPressNum(btnNum)
 		runIn(15, resetPressNum, [data: ["btnNum": btnNum]])
+		break		
+	case "Turn on scene":		
+		def pressNum = getPressNum(btnNum)
+		logDebug "Action \"Turn on scene\" specified for button ${btnNum} press ${pressNum}"	
+		def sc = settings["btn${btnNum}_Scene_press${pressNum}"]
+		atomicState.lastScene = "btn${btnNum}_Scene_press${pressNum}"
+		sc.push()
+		incrementPressNum(btnNum)
+		runIn(15, resetPressNum, [data: ["btnNum": btnNum]])
+		break
+	case "Turn off last used scene":
+		if (atomicState.lastScene) {	
+			logDebug("Action \"Turn off last used scene\" specified for button ${btnNum}; turning off scene ${settings[atomicState.lastScene]}")
+			settings[atomicState.lastScene].off()
+		} else {
+			log.debug ("Configured to turn off last used scene but no scene was previously used; not doing anything.")
+		}
+		resetAllPressNums()
+		break
+	case "Turn off scene":
+		logDebug "Action \"Turn off scene\" specified for button ${btnNum}"	
+		def sc = settings["btn${btnNum}_SceneOff"]
+		sc.off()
+		resetAllPressNums()
 		break
 	case "Turn off":
-		logDebug "Action \"turn off\" specified for button ${btnNum} press ${pressNum}"
+		logDebug "Action \"turn off\" specified for button ${btnNum}"
 		try {
 			turnOff(bulbs)
-			(1..buttonDevice.currentValue('numberOfButtons')).each {
-				if (getPressNum(it)) {
-					resetPressNum(["btnNum": it])
-				}
-			}
+			resetAllPressNums()
 		} catch (e) {
 			log.warn "Error when running turn-off action: ${e}"
 		}
@@ -283,7 +325,7 @@ def buttonHandler(evt) {
 		dimUpIfOn(bulbs, dimStep)
 		break
 	default:
-		logDebug "Action not specified for button ${btnNum} press ${pressNum}"
+		logDebug "Action not specified for button ${btnNum}"
 	}
 }
 
@@ -333,6 +375,7 @@ def dimDownIfOn(devices, changeBy) {
 	devs.each {
 		try {
 			def currLvl = it.currentLevel
+			if (currLvl <= 1) return
 			def newLevel
 			if (currLvl && currLvl > 0) {
 				newLevel = currLvl - changeBy
@@ -372,6 +415,8 @@ def setCT(devices, ct) {
  * the current press number for the provided button number.  */
 def getPressNum(buttonNum) {
 	switch(settings["btn${buttonNum}Action"]) {
+		case "Turn on scene":
+			//intentionally continuing
 		case "Turn on":
 			def pressNum = atomicState["pressNum${buttonNum}"]
 			if (!pressNum) {
@@ -408,7 +453,7 @@ def incrementPressNum(buttonNum) {
 }
 
 /* Resets next press for specified button to 1, intended to be called after
- * timeout has elapsed or "off"-type button pressed to reset the count.
+ * timeout has elapsed to "reset" count for specific button
  * Usage: params with map; key = "btnNum" and value = button number as integer,
  * e.g., params = {btnNum: 1} */
 def resetPressNum(params) {
@@ -423,6 +468,17 @@ def resetPressNum(params) {
 	logTrace "Button press reset for button ${btnNum} to " + atomicState["pressNum${btnNum}"]
 }
 
+/* Resets all press counts to first press, intended to be called after "off"-type
+ * button pressed to reset all button-press counts
+*/
+def resetAllPressNums() {
+	(1..buttonDevice.currentValue('numberOfButtons')).each {
+		if (getPressNum(it)) {
+			resetPressNum(["btnNum": it])
+		}
+	}
+}
+
 def getDoesPressNumHaveAction(btnNum, pressNum) {
 	logTrace "Running getDoesPressNumHaveAction for btn ${btnNum} press ${pressNum}"
 	def hasAction = false
@@ -430,22 +486,30 @@ def getDoesPressNumHaveAction(btnNum, pressNum) {
 		hasAction = true
 	}
 	else {
-		for (j in bulbs) {
-			def bulbSettingB = "btn${btnNum}_${j.id}B_press${pressNum}"
-			def bVal = settings["${bulbSettingB}"]
-			def bulbSettingCT = "btn${btnNum}_${j.id}CT_press${pressNum}"
-			def ctVal = settings["${bulbSettingCT}"]
-			def bulbSettingH = "btn${btnNum}_${j.id}H_press${pressNum}"
-			def hVal = settings["${bulbSettingH}"]
-			def bulbSettingS = "btn${btnNum}_${j.id}S_press${pressNum}"
-			def sVal = settings["${bulbSettingS}"]
-			if (bVal && (!hVal || !sVal)) {
-				hasAction = true
+		if (settings["btn${btnNum}Action"] == "Turn on") {
+			for (j in bulbs) {
+				def bulbSettingB = "btn${btnNum}_${j.id}B_press${pressNum}"
+				def bVal = settings["${bulbSettingB}"]
+				def bulbSettingCT = "btn${btnNum}_${j.id}CT_press${pressNum}"
+				def ctVal = settings["${bulbSettingCT}"]
+				def bulbSettingH = "btn${btnNum}_${j.id}H_press${pressNum}"
+				def hVal = settings["${bulbSettingH}"]
+				def bulbSettingS = "btn${btnNum}_${j.id}S_press${pressNum}"
+				def sVal = settings["${bulbSettingS}"]
+				if (bVal && (!hVal || !sVal)) {
+					hasAction = true
+				}
+				if (ctVal) {
+					hasAction = true
+				}
+				if (hVal && sVal && bVal && !ctVal) {
+					hasAction = true
+				}
 			}
-			if (ctVal) {
-				hasAction = true
-			}
-			if (hVal && sVal && bVal && !ctVal) {
+		}
+		else if (settings["btn${btnNum}Action"] == "Turn on scene") {
+			def sc = settings["btn${btnNum}_Scene_press${pressNum}"]
+			if (sc) {
 				hasAction = true
 			}
 		}
