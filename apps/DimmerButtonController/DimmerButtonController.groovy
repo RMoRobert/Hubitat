@@ -14,10 +14,10 @@
  *
  *  Author: Robert Morris
  *
- * Version: 1.5
+ * Version: 1.5b
  *
  * CHANGELOG
- * 1.5 (2019-01-02) - New press/release dimming action
+ * 1.5 (2019-01-02) - New press/release dimming action (plus minor bugfix in 1.5b)
  * 0.9 Beta - (2018-12-27) First public release
  *
  */
@@ -340,22 +340,22 @@ def buttonHandler(evt) {
 	case "Dim":
 		logDebug "Action \"dim\" specified for button ${btnNum}"
 		if (settings["btn${btnNum}_RampDown"]) {
-			log.trace "Ramp-down dimming option enabled for button ${btnNum}"
+			//logTrace "Ramp-down dimming option enabled for button ${btnNum}"
 			startLevelChangeDownIfOn(bulbs)
 		}
 		else {
-			log.trace "Ramp-down dimming option NOT enabled for button ${btnNum}" 
+			//log.trace "Ramp-down dimming option NOT enabled for button ${btnNum}" 
 			dimDownIfOn(bulbs, dimStep)
 		}
 		break
 	case "Brighten":
 		logDebug "Action \"brighten\" specified for button ${btnNum}"
 		if (settings["btn${btnNum}_RampUp"]) {
-			log.trace "Ramp-up dimming option enabled for button ${btnNum}"
+			//logTrace "Ramp-up dimming option enabled for button ${btnNum}"
 			startLevelChangeUpIfOn(bulbs)
 		}
 		else {
-			log.trace "Ramp-up dimming option NOT enabled for button ${btnNum}" 
+			//log.trace "Ramp-up dimming option NOT enabled for button ${btnNum}" 
 			dimUpIfOn(bulbs, dimStep)
 		}
 		break
@@ -379,13 +379,14 @@ def releasedHandler(evt) {
 		logTrace "Action \"dim\" specified for button ${btnNum}, and button was released"
 		if (settings["btn${btnNum}_RampDown"]) {
 			stopLevelChangeIfOn(bulbs)
-			logTrace "Finished sending stopLevelChange to all bulbs that were on"
+			//logDebug "Stopped level change"
 		}
+		break
 	case "Brighten":
 		logTrace "Action \"brighten\" specified for button ${btnNum}, and button was released"
 		if (settings["btn${btnNum}_RampUp"]) {
 			stopLevelChangeIfOn(bulbs)
-			logTrace "Finished sending stopLevelChange to all bulbs that were on"
+			//logDebug "Stopped level change"
 		}
 		
 		break
@@ -461,7 +462,7 @@ def stopLevelChangeIfOn(bulbs) {
 	} catch (e) {
 	 	log.warn("Unable to start level change down on ${bulbs}: ${e}")
 	}
-	logTrace "Stopped level change on: ${bulbs}"
+	logTrace "Finished stopping level change on all bulbs"
 }
 
 def startLevelChangeUpIfOn(bulbs) {
@@ -474,10 +475,11 @@ def startLevelChangeUpIfOn(bulbs) {
 	devs.each {
 		try {
 			it.startLevelChange("up")
+			//logTrace("Starting level change up on: ${it}")
 		} catch (e) {
 			log.warn("Unable to start level change up on ${it}: ${e}")
 		}
-		logDebug "Finished starting level change for ${it}"
+		logDebug "Started level change up for ${it}"
 	}
 }
 
@@ -486,10 +488,11 @@ def startLevelChangeDownIfOn(bulbs) {
 	// none I've tested will dim anyway (makes sense)
 	try {
 		bulbs.startLevelChange("down")
+		//logTrace("Starting level change down on: ${bulbs}")
 	} catch (e) {
 	 	log.warn("Unable to start level change down on ${bulbs}: ${e}")
 	}
-	logTrace("Finished starting level change")
+	logTrace("Started level change down on all bulbs")
 }
 
 def setHSB(devices, hueVal, satVal, briVal) {
