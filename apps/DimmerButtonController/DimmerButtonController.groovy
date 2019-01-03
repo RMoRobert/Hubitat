@@ -466,9 +466,8 @@ def stopLevelChangeIfOn(bulbs) {
 
 def startLevelChangeUpIfOn(bulbs) {
 	devs = []
-	devices.each {
+	bulbs.each {
 		if (it.currentSwitch == "on") devs.add(it)
-		logTrace("Switch ${it} on, adding to device list for changes")
 	}
 	logTrace("Starting level change up on: ${devs}")
 	// TODO: Would it be faster to do all at same time if all on?
