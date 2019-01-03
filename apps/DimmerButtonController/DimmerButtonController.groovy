@@ -14,9 +14,10 @@
  *
  *  Author: Robert Morris
  *
- * Version: 0.9 Beta
+ * Version: 1.5
  *
  * CHANGELOG
+ * 1.5 (2019-01-02) - New press/release dimming action
  * 0.9 Beta - (2018-12-27) First public release
  *
  */
@@ -92,7 +93,7 @@ def pageButtonConfig(params) {
         if(settings["buttonDevice"] && settings["bulbs"] && params?.btnNum) {
 			section("Actions for button ${params.btnNum}") {
 				input(name: "btn${params.btnNum}Action", type: "enum", title: "Do...",
-					  options: ["Turn on", "Turn on scene", "Brighten", "Dim", "Turn off last used scene", "Turn off scene", "Turn off"], submitOnChange: true)
+					options: ["Turn on", "Turn on scene", "Brighten", "Dim", "Turn off last used scene", "Turn off scene", "Turn off"], submitOnChange: true)
 			}
 			if (settings["btn${params.btnNum}Action"]) {
 				switch(settings["btn${params.btnNum}Action"]) {
@@ -103,10 +104,10 @@ def pageButtonConfig(params) {
 						makeTurnOnSceneSection(params.btnNum)
 						break
 					case "Brighten":
-						makeDimUpSection()
+						makeDimUpSection(params.btnNum)
 					break
 					case "Dim":
-						makeDimDownSection()
+						makeDimDownSection(params.btnNum)
 					break
 					case "Turn off last used scene":
 						makeTurnOffLastSceneSection()
@@ -226,15 +227,35 @@ def makeTurnOffSection() {
 	}
 }
 
-def makeDimUpSection() {
-	section {
-		paragraph("Brighten/dim up all selected lights if on")
+def makeDimUpSection(btnNum) {
+	section("<strong>Description</strong>") {
+		paragraph("Brightens (dims up) any specified lights that are on when button ${btnNum} is pressed")
+	}
+	section("<strong>Options</strong>") {
+		if (buttonDevice.hasCapability("ReleasableButton")) {			
+			input(name: "btn${btnNum}_RampUp", type: "bool", title: "Start dimming when button pressed, stop dimming when button is released")
+			paragraph("If enabled, the above will continuously increase the brightness level while the button is held. The button " +
+					  "device must support \"pressed\" and \"released\" actions for this button, and the lights must support " +
+					  "the \"start level change\" and \"stop level change\" commands. If you enable and notice problems, disable this option.")
+		} else {
+			paragraph("No additional options avaiable for this action with this button device")
+		}
 	}
 }
 
-def makeDimDownSection() {
-	section {
-		paragraph("Dim all selected lights down if on")
+def makeDimDownSection(btnNum) {	
+	section("<strong>Description</strong>") {
+		paragraph("Dims (decreases bightness on) any specified lights that are on when button ${btnNum} is pressed")
+	}
+	section("<strong>Options</strong>") {
+		if (buttonDevice.hasCapability("ReleasableButton")) {			
+			input(name: "btn${btnNum}_RampDown", type: "bool", title: "Start dimming when button pressed, stop dimming when button is released")
+			paragraph("If enabled, the above will continuously decrease the brightness level while the button is held. The button " +
+					  "device must support \"pressed\" and \"released\" actions for this button, and the lights must support " +
+					  "the \"start level change\" and \"stop level change\" commands. If you enable and notice problems, disable this option.")
+		} else {
+			paragraph("No additional options avaiable for this action with this button device")
+		}
 	}
 }
 
@@ -318,14 +339,58 @@ def buttonHandler(evt) {
 		break
 	case "Dim":
 		logDebug "Action \"dim\" specified for button ${btnNum}"
-		dimDownIfOn(bulbs, dimStep)
+		if (settings["btn${btnNum}_RampDown"]) {
+			log.trace "Ramp-down dimming option enabled for button ${btnNum}"
+			startLevelChangeDownIfOn(bulbs)
+		}
+		else {
+			log.trace "Ramp-down dimming option NOT enabled for button ${btnNum}" 
+			dimDownIfOn(bulbs, dimStep)
+		}
 		break
 	case "Brighten":
 		logDebug "Action \"brighten\" specified for button ${btnNum}"
-		dimUpIfOn(bulbs, dimStep)
+		if (settings["btn${btnNum}_RampUp"]) {
+			log.trace "Ramp-up dimming option enabled for button ${btnNum}"
+			startLevelChangeUpIfOn(bulbs)
+		}
+		else {
+			log.trace "Ramp-up dimming option NOT enabled for button ${btnNum}" 
+			dimUpIfOn(bulbs, dimStep)
+		}
 		break
 	default:
 		logDebug "Action not specified for button ${btnNum}"
+	}
+}
+
+def releasedHandler(evt) {
+// 
+	logTrace "Running releaseHandler..."
+	if (!isModeOK()) {
+		return
+	}
+	def btnNum = evt.value
+	def pressType = evt.name
+	//logTrace "Button ${btnNum} was ${pressType}"
+	def action = settings["btn${btnNum}Action"]
+	switch (action) {
+	case "Dim":
+		logTrace "Action \"dim\" specified for button ${btnNum}, and button was released"
+		if (settings["btn${btnNum}_RampDown"]) {
+			stopLevelChangeIfOn(bulbs)
+			logTrace "Finished sending stopLevelChange to all bulbs that were on"
+		}
+	case "Brighten":
+		logTrace "Action \"brighten\" specified for button ${btnNum}, and button was released"
+		if (settings["btn${btnNum}_RampUp"]) {
+			stopLevelChangeIfOn(bulbs)
+			logTrace "Finished sending stopLevelChange to all bulbs that were on"
+		}
+		
+		break
+	default:
+		logTrace "No action set to occur for release button ${btnNum}"
 	}
 }
 
@@ -361,7 +426,7 @@ def dimUpIfOn(devices, changeBy) {
 				it.setLevel(currLvl + changeBy, transitionTime)
 			}
 		} catch (e) {
-			log.warn("Unable to dim up ${devices}: ${e}")
+			log.warn("Unable to dim up ${it}: ${e}")
 		}
 	}
 }
@@ -383,9 +448,49 @@ def dimDownIfOn(devices, changeBy) {
 			if (newLevel <= 0) newLevel = 1
 			it.setLevel(newLevel, transitionTime)
 		} catch (e) {
-			log.warn("Unable to dim ${devices}: ${e}")
+			log.warn("Unable to dim ${it}: ${e}")
 		}	
 	}
+}
+
+def stopLevelChangeIfOn(bulbs) {
+	// Skipping the usual check to see if bulbs are on. If they are not on,
+	// this should have no effect anyway
+	try {
+		bulbs.stopLevelChange()
+	} catch (e) {
+	 	log.warn("Unable to start level change down on ${bulbs}: ${e}")
+	}
+	logTrace "Stopped level change on: ${bulbs}"
+}
+
+def startLevelChangeUpIfOn(bulbs) {
+	devs = []
+	devices.each {
+		if (it.currentSwitch == "on") devs.add(it)
+		logTrace("Switch ${it} on, adding to device list for changes")
+	}
+	logTrace("Starting level change up on: ${devs}")
+	// TODO: Would it be faster to do all at same time if all on?
+	devs.each {
+		try {
+			it.startLevelChange("up")
+		} catch (e) {
+			log.warn("Unable to start level change up on ${it}: ${e}")
+		}
+		logDebug "Finished starting level change for ${it}"
+	}
+}
+
+def startLevelChangeDownIfOn(bulbs) {
+	// Skipping the usual check to see if bulbs are on. If they are not on,
+	// none I've tested will dim anyway (makes sense)
+	try {
+		bulbs.startLevelChange("down")
+	} catch (e) {
+	 	log.warn("Unable to start level change down on ${bulbs}: ${e}")
+	}
+	logTrace("Finished starting level change")
 }
 
 def setHSB(devices, hueVal, satVal, briVal) {
@@ -529,13 +634,15 @@ def installed() {
 
 def updated() {
     log.trace "Updated"
-    unsubscribe()
+    unschedule()
     initialize()
 }
 
 def initialize() {
 	log.trace "Initialized"
-	subscribe(buttonDevice, "pushed", buttonHandler)	
+	subscribe(buttonDevice, "pushed", buttonHandler)
+	subscribe(buttonDevice, "released", releasedHandler)
+	//subscribe(buttonDevice, "held", heldHandler)
 }
 				   
 // Helper methods
