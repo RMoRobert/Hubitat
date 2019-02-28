@@ -1,5 +1,7 @@
 /**
  *  Thermostat Up/Down When Away
+ * 
+ *  Raw code import URL:  https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/Thermostat%20Up-Down%20When%20Away/Thermostat%20Up-Down%20When%20Away.groovy
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -10,8 +12,9 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *  Last modified: 2018-11-08
+ *  Last modified: 2019-02-27
  *  Changes:
+ *   20190227: added ability to use presence sensors (in addition to or instead of motion)
  *   20181108: bug fixes when debug logging disabled
  *   20181102: added time/mode restructions 
  *
@@ -21,7 +24,7 @@ definition(
 name: "Thermostat Up/Down When Away",
 namespace: "RMoRobert",
 author: "RMoRboert",
-description: "Automatically turn thermostat up/down when you're not home based on motion sensors",
+description: "Automatically turn thermostat up/down when you're not home based on motion sensors and/or presence",
 category: "Convenience",
 iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
 iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
@@ -38,9 +41,12 @@ def mainPage() {
 			input (name:"thermostat", type: "capability.thermostat", title: "Select thermostat", required: true, multiple: false)
 		}
 		section("When these sensors are inactive") {
-	   		input (name:"motions", type: "capability.motionSensor", title: "Select motion sensors", required: false, multiple: true)
+	   		input (name:"motions", type: "capability.motionSensor", title: "Select motion sensor(s)", required: false, multiple: true)
 	   		//input (name:"contacts", type: "capability.contactSensor", title: "Select contact sensors", required: false, multiple: true)			
-			input ("minutesToDelay", "number", title: "for this many minutes", required: true)
+			input ("minutesToDelay", "number", title: "for this many minutes", required: false)
+		}
+		section("And/or when this/these presence sensor(s) change(s) to away") {
+			input (name:"presences", type: "capability.presenceSensor", title: "Select presence sensor(s)", required: false, multiple: true)
 		}
 		section("Setpoints when away") {
 			input ("setpointHeat", "number", title: "Heating setpoint", required: true)
@@ -55,8 +61,8 @@ def mainPage() {
 		}
    
 		section("Notify when changed") {
-		  input (name: "notifySpeechDevices", type: "capability.speechSynthesis", title: "Select devices for notifications/announcements", required: false, multiple: true)
-		  //input (name:"notifyDevices", type: "capability.notification", title: "Notify these devices", required: false, multiple: true)
+		  //input (name: "notifySpeechDevices", type: "capability.speechSynthesis", title: "Select devices for notifications/announcements", required: false, multiple: true)
+		  input (name:"notifyDevices", type: "capability.notification", title: "Notify these devices", required: false, multiple: true)
 		}
 		
 		section("Logging", hideable: true, hidden: true) {
@@ -77,7 +83,9 @@ def updated() {
 
 def initialize() {
 	log.debug "Initializing"
+	state.isMotionOK = false
 	subscribe(motions, "motion", motionHandler)
+	subscribe(presences, "presence", presenceHandler)
 }
 
 def isModeOK() {
@@ -104,18 +112,58 @@ def isTimeOK() {
 
 def motionHandler(evt) {
 	if (isModeOK() && isTimeOK()) {
-		def activeMotionSensors = motions.findAll { it?.latestValue("motion") == "active" }
+		def activeMotionSensors = motions?.findAll { it?.latestValue("motion") == "active" }
 		if (!activeMotionSensors) {
-			log.debug "No active motion sensors; scheduling execution of adjustment in ${minutesToDelay} minutes"
-			runIn(minutesToDelay * 60, adjustThermostat)
+			if (debugLogging) log.debug "No active motion sensors; setting isMotionOK to true in ${minutesToDelay ?: 0} minutes"
+			runIn((minutesToDelay ?: 0) * 60, setMotionOK)
 		}
 		else {
-			if (debugLogging) log.debug "Some motion sensors still active; unsubscribing from scheduled adjustment"
-			unschedule(adjustThermostat)
+			if (debugLogging) log.debug "Some motion sensors still active; setting isMotionOK to false and unscheduling any future changes"
+			unschedule(setMotionOK)
+			state.isMotionOK = false
 		}
 	}
 	else {
 		if (debugLogging) log.debug ("Not handling motion because outside specified mode and/or time constraints (mode OK = ${isModeOK()}; time OK = ${isTimeOK()})")
+	}
+}
+
+def presenceHandler(evt) {
+	if (evt.value == "present") {
+		if (debugLogging) log.debug "Skipping presenceHandler because presence event is an arrival"
+		return
+	}
+	if (isModeOK() && isTimeOK()) {
+		if (isPresenceOK() && (!motions || state.isMotionOK)) {
+			log.debug "Motion and presence conditions met after presence change; adjusting thermostat"
+			adjustThermostat()
+		}
+		else {
+			if (debugLogging) log.debug "Motion or presence not OK, not adjusting (presence OK = ${isPresenceOK()}, motion OK = ${!motions || state.isMotionOK})"
+		}
+	}
+	else {
+		if (debugLogging) log.debug ("Not handling presence because outside specified mode and/or time constraints (mode OK = ${isModeOK()}; time OK = ${isTimeOK()})")
+	}
+}
+
+def isPresenceOK() {
+	def presentSensors = presences?.findAll { it?.latestValue("presence") == "present" }
+	if (!presentSensors) {
+		if (debugLogging) log.debug "All presence sensors away"
+		return true
+	}
+	else {
+		if (debugLogging) log.debug "Some presence sensors still present"
+	}
+	return false
+}
+
+def setMotionOK() {
+	state.isMotionOK = true
+	if (isPresenceOK()) {
+		log.debug "Motion and presence conditions met after motion timeout; adjusting thermostat"
+		adjustThermostat()
 	}
 }
 
@@ -143,7 +191,9 @@ def adjustThermostat() {
 				} else {
 				thermostat.setCoolingSetpoint(targetSetpoint)
 				changed = true
-				log.debug "Set thermostat cooling setpoint to ${targetSetpoint}"
+				log.debug "Set thermostat cooling setpoint to ${targetSetpoint}"				
+				//Doing again because I swear sometimes it doesn't work...
+				thermostat.setCoolingSetpoint(targetSetpoint)
 			}			
 		}
 		// HEAT MODE LOGIC
@@ -156,6 +206,8 @@ def adjustThermostat() {
 				thermostat.setHeatingSetpoint(targetSetpoint)
 				changed = true
 				log.debug "Set thermostat heating setpoint to ${targetSetpoint}"
+				//Doing again because I swear sometimes it doesn't work...
+				thermostat.setHeatingSetpoint(targetSetpoint)
 			}
 		}
 		// OTHER
@@ -165,7 +217,7 @@ def adjustThermostat() {
 		if (changed) {
 			def strDirection = "up"
 			if (currSetpoint > targetSetpoint) strDirection = "down"
-			if (notifySpeechDevices) notifySpeechDevices.speak("Thermostat turned ${strDirection} to ${targetSetpoint} because of inactivity")
+			if (notifyDevices) notifyDevices.deviceNotification("Thermostat turned ${strDirection} to ${targetSetpoint} because of inactivity")
 			//if (notifySpeechDevices) notifySpeechDevices.speak("Thermostat adjusted at ${new Date().toLocaleString()} because of inactivity")
 		}
 		if (debugLogging) "Changed = ${changed}"
