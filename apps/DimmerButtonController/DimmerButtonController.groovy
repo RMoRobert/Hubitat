@@ -585,7 +585,17 @@ def setBri(devices, level) {
 	try {
 		devices.setLevel(level, transitionTime)
 	} catch (e) {
-		log.debug("Unable to set brightness level on ${devices}: ${e}")
+		logDebug("Unable to set brightness level on ${devices}: ${e}\nTrying on/off instead.")
+		try{
+			if(level>0){
+				devices.on()
+			}else{
+				devices.off();
+			}
+
+		}catch(err){
+			log.debug("Unable to turn on/off device ${devices}: ${err}")
+		}
 	}
 }
 
@@ -830,3 +840,5 @@ def logTrace(string) {
 	}
 }
 				   
+
+
