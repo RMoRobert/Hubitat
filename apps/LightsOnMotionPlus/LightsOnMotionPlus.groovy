@@ -4,7 +4,7 @@
  *  Add code for parent app first and then and child app (this). To use, install/create new
  *  instance of parent app.
  *
- *  Copyright 2018 Robert Morris
+ *  Copyright 2018-2019 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -16,17 +16,16 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2018-12-30
+ *  Last modified: 2019-04-18
  * 
  *  Changelog:
  * 
+ * 4.0: - Added "night mode" lighting option (turns on to specified level/settings if run in "night" mode[s]; restores "normal"/previous settings when next run in non-night mode in mode that will turn lights on)
  * 3.1: - Added "kill switch" option (completely disables app regardless of any other options selected in app)
  * 	- Changed boolean in-app "disable app" option to "soft kill switch" option (if switch on, app will not turn lights on; turn-off behavior determined by other app options)
  *      - Added option for additional sensors to keep (but not turn) lights on;
  *	- Fixed bug with multiple "turn on" sensors
  * 3.0: Moved to parent/child app model; bug fixes/improvements for when motion detected/lights on after mode changed
- * 
- * WISHLIST: multiuple motion sensors, introduction of different level for "night mode", possible default settings/scene support
  *
  */ 
 
@@ -50,7 +49,7 @@ preferences {
             input "boolDim", "bool", defaultValue: true, title: "Dim lights before turning off"
 			input "motion2", "capability.motionSensor", title: "Select additional motion sensors to keep lights on (but not turn them on)", multiple: true, required: false
         }
-        section("Restrictions") {
+        section("Restrictions", hideable: true, hidden: false) {
             //TODO: Would be nice to have sunset/sunrise as options here
             input "starting", "time", title: "Ony after this time", required: false
             input "ending", "time", title: "Only before this time", required: false
@@ -60,19 +59,30 @@ preferences {
 			input "killSwitch", "capability.switch", title: "Do not turn lights on or off when this switch is on (no exceptions; \"kill switch\")"
         }
 		
-		section("Customizations") {
+		section("Night Mode", hideable: true, hidden: true ) {
+			input "nightModes", "mode", title: 'Select mode(s) to consider "night mode"', multiple: true, required: false
+			paragraph("In night mode(s), turn lights on to...")
+			input(name: "nightBri", type: "number", title: "brightness/level:", description: "1-100", width: 3, required: false)
+			input(name: "nightCt", type: "number", title: "color temperature:", description: "~2000-6500", width: 3, required: false)
+			input(name: "nightHue", type: "number", title: "color with hue value:", description: "0-100", width: 3, required: false)
+			input(name: "nightSat", type: "number", title: "saturation value:", description: "0-100", width: 3, required: false)
+			paragraph("You must set brightnes and/or color temperature <em>or</em> all of brightness, hue and saturation")
+            input "nightIgnoreSwitches", "capability.switch", title: "Do NOT turn on these lights in night mode (optional; will otherwise turn on all lights selected for non-night modes)", multiple: true, required: false
+			paragraph("Note that lights will immediately turn off (ater delay) in night mode(s) rather than dimming first.")
+		}
+		
+		section("Customizations", hideable: true, hidden: true) {
 			input "postDimTime", "number", defaultValue: 30, required: true, title: "Number of seconds to dim before turning off"
 			input "dimToLevel", "number", defaultValue: 10, required: true, description: "0-100", title: "Dim to this level"
             input "boolDontObserve", "bool", defaultValue: true, title: "Always turn off after motion stops, even if outside specified time/motion/lux/etc. or \"do not turn on\"-switch conditions (unless \"kill switch\" restriction enabled)"
             input "boolRemember", "bool", defaultValue: true, title: "Remember states of indiviudal lights before dimming and turning off (do not necessarily turn all back on with motion)"
 		}
 
-        section("Name and modes") {
+        section("Name and modes", hideable: true, hidden: false) {
             label title: "Assign a name", required: false
             input "modes", "mode", title: "Only turn on lights when mode is (may still turn off; see above)", multiple: true, required: false
             input "enableDebugLogging", "bool", title: "Enable debug logging", required: false
             //input "enableTraceLogging", "bool", title: "Enable verbose/trace logging (for development)", required: false
-			//input "nightModes", "nightModes", title: 'Turn lights on/off with "night mode" setting if mode is', multiple: true, required: false
         }
     }
 }
@@ -124,6 +134,14 @@ def initialize() {
 	
 }
 
+def isNightMode() {
+    logTrace("Running isNightMode()...")
+    def retVal = nightModes && nightModes.contains(location.mode)
+    logTrace("Exiting isNightMode(). Return value = ${retVal}")
+    return retVal
+}
+
+// Returns true if mode in one of specified "turn on" modes (does NOT include night modes)
 def isModeOK() {
     logTrace("Running isModeOK()...")
     def retVal = !modes || modes.contains(location.mode)
@@ -178,9 +196,9 @@ def isSoftKillSwitchOK() {
 	return retVal
 }
 
-// Returns true if time, mode, and lux, and hard and soft killswitches are all OK; otherwise, false.
+// Returns true if time, mode, and lux, and hard and soft killswitches are all OK; otherwise, false. (Night mode considered OK.)
 def isAllOK() {
-    return (isRunTimeOK() && isLuxLevelOK() && isModeOK() && isKillSwitchOK() && isSoftKillSwitchOK())
+    return (isRunTimeOK() && isLuxLevelOK() && (isModeOK() || isNightMode()) && isKillSwitchOK() && isSoftKillSwitchOK())
 }
 
 // Returns true if time, mode, lux, and hard killswitch are all OK; otherwise, false.
@@ -309,7 +327,12 @@ def saveLightState(forSwitch) {
     if (forSwitch.currentSwitch == "on") {
         def dimmerLevel = getDimmerLevel(forSwitch)
         if (dimmerLevel) {
-            state.switchStates.put(forSwitch.id, ["switch": "on", "level": dimmerLevel])
+			def ct = getColorTemperature(forSwitch)
+			if (ct) {
+				state.switchStates.put(forSwitch.id, ["switch": "on", "level": dimmerLevel, "ct": ct])
+			} else {
+            	state.switchStates.put(forSwitch.id, ["switch": "on", "level": dimmerLevel])
+			}
         } else {
             state.switchStates.put(forSwitch.id, ["switch": "on", "level": 100])   // Guess just store 100 for brightness if can't tell and getDimmerLevel also failed
             logDebug("Couldn't find 'level' capability for ${forSwitch}, using 100 instead")
@@ -328,6 +351,10 @@ def saveLightState(forSwitch) {
  */
 def saveLightOnOffState(forSwitch) {
     logTrace("---------------  <b>Running saveLightOnOffState()...</b> ------------")
+	if (isNightMode()) {
+		log.warn "Night mode, not saving light state even though called to"
+		return
+	}
     if (!state.switchStates) {
         state.switchStates = [:]
     }
@@ -341,6 +368,22 @@ def saveLightOnOffState(forSwitch) {
     logTrace("Just saved for ${forSwitch}: " + state.switchStates.get(forSwitch.id))
     logTrace("Exiting saveLightOnOffState().")	
 }
+
+/**
+ * Returns color temperature of given switch/bulb *if* colorTemperature attribute exists, otherwise returns null
+ */
+def getColorTemperature(forSwitch) {
+    logTrace("Running getColorTemperature()...")
+	def retVal = null
+	forSwitch.getSupportedAttributes().each {
+		if (it.getName() == "colorTemperature") {
+			retVal = forSwitch.currentValue("colorTemperature")
+		}
+	}
+	logTrace("Exiting getColorTemperature(), returning ${retVal}")
+	return retVal
+}
+
 
 /**
  * Gets on/off status for a saved light
@@ -409,9 +452,14 @@ def motionHandler(evt) {
                 if (isOneRealSwitchOn()) {
                     logDebug("Lights not changed/turned on because one or more already on")
                 } else {
-                    log.debug "No lights on; restoring lights..."
-                    restoreAllLights()
-                }
+					if (isNightMode()) {
+						logTrace("All OK and in night mode. Turning on to night mode settings.")
+						turnOnToNightMode()
+					} else {
+						log.debug "No lights on; restoring lights..."
+						restoreAllLights()
+					}
+				}
             }
         } else {
 			if (state.isDimmed) {
@@ -434,20 +482,20 @@ def motionHandler(evt) {
         unschedule(dimLights)
         unschedule(turnOffLights)
         if (isAllOK()) {
-            if (boolDim) {
+            if (boolDim && !isNightMode()) {
                 logDebug("Setting dim timer for ${getDimRunDelay()}s because motion inactive")
                 runIn(getDimRunDelay(), dimLights)
             } else {
-                logDebug("Setting off timer for ${getOffRunDelay()}s because motion inactive and dimming disabled")
+				logDebug("Setting off timer for ${getOffRunDelay()}s because motion inactive and ${isNightMode ? 'is night mode' : 'dimming disabled'}")
                 runIn(getOffRunDelay(), turnOffLights)
             }
         } else if (isKillSwitchOK() && boolDontObserve) {
             logDebug("Motion inactive but outside of specified mode/time/lux/soft kill/etc., but configured to not observe for \"off\"")
-                if (boolDim) {
+                if (boolDim && !isNightMode()) {
                     logDebug("Configured to always turn off lights; setting \"dim\" timer for {$getDimRunDelay()}s")
                     runIn(getDimRunDelay(), dimLights)
                 } else {
-                    logDebug("Configured to always turn off lights and dimming disabled; setting \"off\" timer for {$getDimRunDelay()}s")
+                    logDebug("Configured to always turn off lights and dimming disabled or is night mode; setting \"off\" timer for {$getDimRunDelay()}s")
                     runIn(getOffRunDelay(), turnOffLights)
                 }
         }
@@ -479,6 +527,10 @@ def restoreAllLights() {
                     logTrace("  Brightness was returned as 0; set to ${savedLevel}")
                 }
                 setDimmerLevel(it, savedLevel)
+				if (state.switchStates.get(it.id).ct) {
+					it.setColorTemperature(state.switchStates.get(it.id).ct)
+					logTrace("  Color temperature restored")
+				}
                 it.on()
                 logTrace("  Restored previous brightness and turned on ${it}")
             } else {
@@ -493,6 +545,61 @@ def restoreAllLights() {
 
     state.isDimmed = false
     logTrace("Exiting turnOnOrRestoreLights().")
+}
+
+/**
+ * Turns lights on with "night mode" settings
+ */
+def turnOnToNightMode() {
+	logTrace "-- Running turnOnToNightMode() --"
+	
+	//input(name: "nightBri"
+	//input(name: "nightCt"
+	//input(name: "nightHue"
+	//input(name: "nightSat"
+	//input(name: "nightIgnoreSwitches"
+	switches.each { sw ->
+		def ignore = false
+		nightIgnoreSwitches.each { x ->
+			if (sw.id == x.id) {
+				ignore = true
+				logTrace ("${sw} configured to be ignored in night mode")
+			}
+		}
+		if (!ignore) {
+			if (nightCt && !nightBri)  {
+				try {
+					sw.setColorTemperature(nightCt)
+				} catch (e) {
+					log.warn("Unable to set color temperature for ${it}: ${e}")
+				}
+			} else if (nightCt && nightBri) {
+				try {
+					sw.setLevel(nightBri, 0)
+					sw.setColorTemperature(nightCt)
+				} catch (e) {
+					log.warn("Unable to set color temperature or level for ${it}: ${e}")
+				}
+				
+			} else if (nightBri && nightHue && nightSat) {
+				def targetColor = [:]
+				try {
+					targetColor.hue = nightHue.toInteger()
+					targetColor.saturation = nightSat.toInteger()
+					targetColor.level = nightBri.toInteger()
+					sw.setColor(targetColor)
+				} catch (e) {
+					log.warn("Unable to set color for ${it}: ${e}")
+				}				
+			}
+			else {
+				log.warn "CT, CT+Bri, or Bri+Hue+Sat not set for ${it}; turning on without using night mode settings"
+				sw.on()
+			}
+		}
+	}
+	
+	logTrace "-- Exiting turnOnToNightMode() --"
 }
 
 /**
@@ -542,19 +649,19 @@ def turnOffLights() {
         logDebug("  Outside specified run time, lux level, or mode and configured to observe; returning without turning off lights.")
         return
     } else if (boolDontObserve) {
-        logDebug("  Outside specified run time, lux level, or mode, but configured not to observe. Continuing.")
+        logDebug("  Outside specified run time, lux level, or mode, but configured not to observe. Turning off all lights without saving.")
         switches.off()
 
     }
     switches.each {
-        if (isAllOK()) {
+        if (isAllOK() && !isNightMode) {
             logTrace("  Saving on/off state then turning off: ${it}")
-            //saveLightOnOffState(it)
-			//pauseExecution(150)   // Below seems to sometimes run before this if no slight pause...
+            saveLightOnOffState(it)
+			//pauseExecution(1)   // Below seems to sometimes run before this if no slight pause on ST; not sure if needed on Hubitat
             it.off()
         }
         else {
-            logTrace("  Outside specified mode/time/lux/etc. conditions; turning off without saving state: ${it}")
+            logTrace("  Outside specified mode/time/lux/etc. conditions or is night mode; turning off without saving state: ${it}")
             it.off()
         }
     }
