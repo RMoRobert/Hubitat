@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2019-04-18
+ *  Last modified: 2019-04-20
  * 
  *  Changelog:
  * 
+ * 4.1: - Improved logic for "keep on" sensors
  * 4.0: - Added "night mode" lighting option (turns on to specified level/settings if run in "night" mode[s]; restores "normal"/previous settings when next run in non-night mode in mode that will turn lights on)
  * 3.1: - Added "kill switch" option (completely disables app regardless of any other options selected in app)
  * 	- Changed boolean in-app "disable app" option to "soft kill switch" option (if switch on, app will not turn lights on; turn-off behavior determined by other app options)
@@ -438,7 +439,7 @@ def motionHandler(evt) {
 			isTurnOnSensor = true
 		}
 	}
-    if (isTurnOnSensor && evt.value == "active") {
+    if (evt.value == "active") {
         log.debug "Motion detected; cancelling dim/off timers and deciding what to do"
         unschedule(dimLights)
         unschedule(turnOffLights)
@@ -452,12 +453,16 @@ def motionHandler(evt) {
                 if (isOneRealSwitchOn()) {
                     logDebug("Lights not changed/turned on because one or more already on")
                 } else {
-					if (isNightMode()) {
-						logTrace("All OK and in night mode. Turning on to night mode settings.")
-						turnOnToNightMode()
+					if (isTurnOnSensor) {
+						if (isNightMode()) {
+							logTrace("All OK and in night mode. Turning on to night mode settings.")
+							turnOnToNightMode()
+						} else {
+							log.debug "No lights on; restoring lights..."
+							restoreAllLights()
+						}
 					} else {
-						log.debug "No lights on; restoring lights..."
-						restoreAllLights()
+						logDebug('Not changing lights because active motion was not from "turn-on" sensor')
 					}
 				}
             }
@@ -481,7 +486,8 @@ def motionHandler(evt) {
         logTrace("Motion inactive; cancelling timers")
         unschedule(dimLights)
         unschedule(turnOffLights)
-        if (isAllOK()) {
+		def anyOn = isOneRealSwitchOn()
+        if (isAllOK() && anyOn) {
             if (boolDim && !isNightMode()) {
                 logDebug("Setting dim timer for ${getDimRunDelay()}s because motion inactive")
                 runIn(getDimRunDelay(), dimLights)
@@ -489,7 +495,7 @@ def motionHandler(evt) {
 				logDebug("Setting off timer for ${getOffRunDelay()}s because motion inactive and ${isNightMode ? 'is night mode' : 'dimming disabled'}")
                 runIn(getOffRunDelay(), turnOffLights)
             }
-        } else if (isKillSwitchOK() && boolDontObserve) {
+        } else if (isKillSwitchOK() && boolDontObserve && anyOn) {
             logDebug("Motion inactive but outside of specified mode/time/lux/soft kill/etc., but configured to not observe for \"off\"")
                 if (boolDim && !isNightMode()) {
                     logDebug("Configured to always turn off lights; setting \"dim\" timer for {$getDimRunDelay()}s")
@@ -499,8 +505,12 @@ def motionHandler(evt) {
                     runIn(getOffRunDelay(), turnOffLights)
                 }
         }
+		else if (!anyOn)
+		{
+			logDebug('Motion inactive, but no "dim" or "off" actions scheduled because no lights currently on')
+		}
 		else {
-			logDebug("Motion inactive but restrictions have prevented any actions")
+			logDebug("Motion inactive, but restrictions have prevented any actions")
 		}
     }
     logTrace("----------------End handling of ${evt.name}: ${evt.value}----------------")
