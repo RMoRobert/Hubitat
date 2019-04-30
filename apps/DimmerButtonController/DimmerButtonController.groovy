@@ -1,6 +1,6 @@
 /**
  * ==========================  Dimmer Button Controller (Child  App) ==========================
- *  Copyright 2018 Robert Morris
+ *  Copyright 2018-2019 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -14,9 +14,10 @@
  *
  *  Author: Robert Morris
  *
- * Version: 1.6
+ * Version: 1.7
  *
  * CHANGELOG
+ * 1.7 (2019-04-29) - Added "toggle" action, "additional switches for 'off'" option; bug fixes (dimming, scene off)
  * 1.6 (2019-01-14) - New "held" functionality
  * 1.5 (2019-01-02) - New press/release dimming action
  * 0.9 Beta - (2018-12-27) First public release
@@ -44,8 +45,9 @@ def pageMain() {
     dynamicPage(name: "pageMain", title: "Dimmer Button Controller", uninstall: true, install: false, nextPage: "pageFinal") {
         section("Choose devices") {
             input(name: "buttonDevice", type: "capability.pushableButton", title: "Select button controller:", multiple: false, required: true, submitOnChange: true)
-            input(name: "bulbs", type: "capability.switch", title: "Select lights for this controller:", multiple: true, required: true, submitOnChange: true)
-			paragraph("Actions to turn on and off lights below allow you to choose scenes; the above lights will be used for dim/brighten actions and non-scene \"off\" actions. It is recommended you choose all bulbs used in your scenes (though it is optional if you do not use dim/brighten and use only scene-enabled features below).")
+            input(name: "bulbs", type: "capability.switch", title: "Select lights to turn on/off and dim with below actions:", multiple: true, required: true, submitOnChange: true)
+			input(name: "offBulbs", type: "capability.switch", title: /Additional lights to turn off with "off" actions:/, multiple: true, required: false)
+			paragraph("Actions to turn on and off lights below allow you to choose scenes or use the above selected lights. Dim/brighten actions apply to above selected lights (except off-only lights). It is recommended you choose all bulbs used in your scenes (though it is optional if you do not use dim/brighten and use only scene-enabled features below).")
 		}
 		
         if(buttonDevice && bulbs) {
@@ -76,7 +78,7 @@ def pageMain() {
 			input(name: "transitionTime", type: "number", title: "Transition time", description: "Number of seconds (0 for fastest bulb/dimmer driver allows)", required: true, defaultValue: 0)
 			input(name: "dimStep", type: "number", title: "Dimming buttons change level +/- by (unless \"dim while holding\" enabled on supported devices)", description: "0-100", required: true, defaultValue: 10)
 			input(name: "debugLogging", type: "bool", title: "Enable debug logging")
-			//input(name: "traceLogging", type: "bool", title: "Enable verbose/trace logging (for development)")
+			input(name: "traceLogging", type: "bool", title: "Enable verbose/trace logging (for development)")
 		}
 	}
 }
@@ -116,7 +118,7 @@ def pageButtonConfig(params) {
 			section("Actions for button ${params.btnNum}") {
 				if (params.action == "held") btnActionSettingName = "btn${params.btnNum}HeldAction"
 				input(name: btnActionSettingName, type: "enum", title: "Do...",
-					options: ["Turn on", "Turn on scene", "Brighten", "Dim", "Turn off last used scene", "Turn off scene", "Turn off"], submitOnChange: true)
+					options: ["Turn on", "Turn on scene", "Brighten", "Dim", "Toggle", "Turn off last used scene", "Turn off scene", "Turn off"], submitOnChange: true)
 			}
 			if (settings[btnActionSettingName]) {
 				switch(settings[btnActionSettingName]) {
@@ -131,6 +133,9 @@ def pageButtonConfig(params) {
 					break
 					case "Dim":
 						makeDimDownSection(params.btnNum, params.action)
+					break
+					case "Toggle":
+						makeToggleSection()
 					break
 					case "Turn off last used scene":
 						makeTurnOffLastSceneSection()
@@ -294,6 +299,12 @@ def makeTurnOnSceneSection(btnNum, strAction = "pushed") {
 	}
 }
 
+def makeToggleSection() {
+	section {
+		paragraph("Turn all lights off if any on; otherwise, turn all on.")
+	}
+}
+
 def makeTurnOffLastSceneSection() {
 	section {
 		paragraph("Turn off last scene turned on by this app (will not track scenes turned on by other apps/automations, including other Dimmer Button Controller instances).")
@@ -402,9 +413,13 @@ def pushedHandler(evt) {
 		logDebug "Action \"Turn on scene\" specified for button ${btnNum} press ${pressNum}"	
 		def sc = settings["btn${btnNum}_Scene_press${pressNum}"]
 		atomicState.lastScene = "btn${btnNum}_Scene_press${pressNum}"
-		sc.push()
+		sc.on()
+		logTrace "Scene turned on for ${sc}"
 		incrementPressNum(btnNum)
 		runIn(15, resetPressNum, [data: ["btnNum": btnNum]])
+		break
+	case "Toggle":
+		toggle(bulbs)
 		break
 	case "Turn off last used scene":
 		if (atomicState.lastScene) {	
@@ -417,15 +432,16 @@ def pushedHandler(evt) {
 		break
 	case "Turn off scene":
 		logDebug "Action \"Turn off scene\" specified for button ${btnNum}"	
-		def sc = settings["btn${btnNum}Held_SceneOff"]
+		def sc = settings["btn${btnNum}_SceneOff"]
 		sc.off()
 		resetAllPressNums()
 		break
 	case "Turn off":
 		logDebug "Action \"turn off\" specified for button ${btnNum}"
 		try {
-			turnOff(bulbs)
 			resetAllPressNums()
+			turnOff(bulbs)
+			turnOff(offBulbs)
 		} catch (e) {
 			log.warn "Error when running turn-off action: ${e}"
 		}
@@ -499,6 +515,9 @@ def heldHandler(evt) {
 		atomicState.lastScene = "btn${btnNum}_Scene_Held"
 		sc.push()
 		break
+	case "Toggle":
+		toggle(bulbs)
+		break
 	case "Turn off last used scene":
 		if (atomicState.lastScene) {	
 			logDebug("Action \"Turn off last used scene\" specified for button ${btnNum}; turning off scene ${settings[atomicState.lastScene]}")
@@ -517,8 +536,9 @@ def heldHandler(evt) {
 	case "Turn off":
 		logDebug "Action \"turn off\" specified for button ${btnNum} held"
 		try {
-			turnOff(bulbs)
 			resetAllPressNums()
+			turnOff(bulbs)
+			turnOff(offBulbs)
 		} catch (e) {
 			log.warn "Error when running turn-off action: ${e}"
 		}
@@ -580,6 +600,16 @@ def turnOff(devices) {
 	devices.off()
 }
 
+def toggle(devices) {
+	logDebug "Running toggle for $devices"
+	if (devices*.currentValue('switch').contains('on')) {
+		devices.off()
+	}
+	else  {
+		devices.on()
+	}
+}
+
 def setBri(devices, level) {
 	logDebug "Dimming (to $level with rate ${transitionTime}): $devices"
 	try {
@@ -598,8 +628,15 @@ def dimUpIfOn(devices, changeBy) {
 	devs.each {
 		try {
 			def currLvl = it.currentLevel
+			def newLvl = currLvl + changeBy
+			if (newLvl > 100) {
+				newLvl = 100
+			}
+			else if (newLvl <= 0) {
+				newLvl = 1
+			}
 			if (currLvl && currLvl < 100) {
-				it.setLevel(currLvl + changeBy, transitionTime)
+				it.setLevel(newLvl, transitionTime)
 			}
 		} catch (e) {
 			log.warn("Unable to dim up ${it}: ${e}")
@@ -617,11 +654,16 @@ def dimDownIfOn(devices, changeBy) {
 		try {
 			def currLvl = it.currentLevel
 			if (currLvl <= 1) return
-			def newLevel
+			def newLevel = 1
 			if (currLvl && currLvl > 0) {
 				newLevel = currLvl - changeBy
 			}
-			if (newLevel <= 0) newLevel = 1
+			if (newLevel <= 0) {
+				newLevel = 1
+			}
+			else if (newLevel > 100) {
+				newLevel = 100
+			}
 			it.setLevel(newLevel, transitionTime)
 		} catch (e) {
 			log.warn("Unable to dim ${it}: ${e}")
@@ -829,4 +871,3 @@ def logTrace(string) {
 		log.trace(string)
 	}
 }
-				   
