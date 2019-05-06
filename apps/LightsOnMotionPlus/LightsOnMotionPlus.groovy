@@ -170,11 +170,11 @@ def isRunTimeOK() {
 def isLuxLevelOK() {
     logTrace("Running is LuxLevelOK()...")
     def retVal = true
-    if (lightSensor && lightValue) {
+    if (lightSensor && lightLevel) {
         def currLum = lightSensor.currentValue("illuminance").toInteger()
-        if (currLum >= lightValue.toInteger()) {
+        if (currLum >= lightLevel.toInteger()) {
             retVal = false
-            logTrace("Lux level not OK because current value of ${currLum} is greter than threshold of ${lightValue}")
+            logTrace("Lux level not OK because current value of ${currLum} is greter than threshold of ${lightLevel}")
         } else {
 			logTrace("Lux level is OK or not configured")
         }
