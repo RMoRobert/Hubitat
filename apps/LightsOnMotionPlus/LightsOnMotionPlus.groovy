@@ -20,7 +20,7 @@
  * 
  *  Changelog:
  * 
- * 4.1: - Improved logic for "keep on" sensors
+ * 4.1a: - Improved logic for "keep on" sensors (4.1a contains small bugfix for lux levels/sensors)
  * 4.0: - Added "night mode" lighting option (turns on to specified level/settings if run in "night" mode[s]; restores "normal"/previous settings when next run in non-night mode in mode that will turn lights on)
  * 3.1: - Added "kill switch" option (completely disables app regardless of any other options selected in app)
  * 	- Changed boolean in-app "disable app" option to "soft kill switch" option (if switch on, app will not turn lights on; turn-off behavior determined by other app options)
@@ -170,11 +170,11 @@ def isRunTimeOK() {
 def isLuxLevelOK() {
     logTrace("Running is LuxLevelOK()...")
     def retVal = true
-    if (lightSensor && lightValue) {
+    if (lightSensor && lightLevel) {
         def currLum = lightSensor.currentValue("illuminance").toInteger()
-        if (currLum >= lightValue.toInteger()) {
+        if (currLum >= lightLevel.toInteger()) {
             retVal = false
-            logTrace("Lux level not OK because current value of ${currLum} is greter than threshold of ${lightValue}")
+            logTrace("Lux level not OK because current value of ${currLum} is greter than threshold of ${lightLevel}")
         } else {
 			logTrace("Lux level is OK or not configured")
         }
