@@ -21,7 +21,7 @@
 import com.hubitat.zigbee.DataType
 
 metadata {
-	definition (name: "Ikea Tradfri Dimmer (Puck)", namespace: "RMoRobert", author: "SmartThings") {
+	definition (name: "Ikea Tradfri Dimmer (Puck)", namespace: "RMoRobert", author: "SmartThings", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/IkeaTradfriPuck/IkeaTradfriPuck.groovy") {
 		capability "Actuator"
 		capability "Battery"
 		capability "Configuration"
