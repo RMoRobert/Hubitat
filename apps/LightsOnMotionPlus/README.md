@@ -1,4 +1,6 @@
 # LightsOnMotionPlus3
 Designed for Hubitat (previous version for SmartThings), the "Lights on Motion Plus" app was intended to recreate and add additional featueres (e.g., remembering on/off states for a group of lights when motion stops and restoring it when motion resumes, rather than turning all back on) compared to stock light/motion apps. This is useful if, for example, you want all bulbs in a room to turn off when motion stops but don't always want all to turn on when motion starts.
 
-Lights on Motion Plus also supports dimming the bulbs before turning them off to "warn" occupants. Lights will be restored to previous states if motion resumes.
+Lights on Motion Plus also supports dimming the bulbs before turning them off to "warn" occupants. Lights will be restored to previous states if motion resumes. Additional features include "night mode" settings that will turn bulbs on to specific settings during selected "night" modes (while turning back on to previous "regular" settings the next time motion is activated and lights are configured to turn on in a "regular" mode), a "hard" kill switch (prevents app from turning any lights on or off), a "soft" kill switch (prevents app from turning lights on), the ability to turn lights off when motion stops even if the app did not turn them on (useful if you want to manually turn lights on but might forget to turn them off), and more.
+
+See Hubitat Community thread for more details or support: https://community.hubitat.com/t/release-lights-on-motion-plus-dim-before-off-remember-individual-bulb-states-etc/7178 
