@@ -397,8 +397,7 @@ def pushedHandler(evt) {
 				def bulbSettingS = "btn${btnNum}_${j.id}S_press${pressNum}"
 				def sVal = settings["${bulbSettingS}"]
                 def numCmds = boolDblCmd ? 2 : 1
-                def count = 1
-                while(count <= numCmds) {
+                for (count = 0; count < numCmds; count++) {
 				    if (bVal != null && (!hVal || !sVal)) {
 					    setBri(j, bVal)
 				    }
@@ -521,8 +520,7 @@ def heldHandler(evt) {
 					setHSB(j, hVal, sVal, bVal)
 				}
                 def numCmds = boolDblCmd ? 2 : 1
-                def count = 1
-                while(count <= numCmds) {
+                for (count = 0; count < numCmds; count++) {
 				    if (bVal != null && (!hVal || !sVal)) {
 					    setBri(j, bVal)
 				    }
