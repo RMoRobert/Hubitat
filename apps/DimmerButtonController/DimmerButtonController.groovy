@@ -1,5 +1,7 @@
 /**
  * ==========================  Dimmer Button Controller (Child  App) ==========================
+ *  Platform: Hubitat Elevation
+ *
  *  Copyright 2018-2019 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -14,9 +16,10 @@
  *
  *  Author: Robert Morris
  *
- * Version: 1.7
+ * Version: 1.8 BETA
  *
  * CHANGELOG
+ * 1.8 (2019-08-02) - Added option to send commands twice (shouldn't be needed but is bug fix for apparent Hubitat problem)
  * 1.7 (2019-04-29) - Added "toggle" action, "additional switches for 'off'" option; bug fixes (dimming, scene off)
  * 1.6 (2019-01-14) - New "held" functionality
  * 1.5 (2019-01-02) - New press/release dimming action
@@ -75,10 +78,11 @@ def pageMain() {
 		}
 		
 		section("Advanced options", hideable: true, hidden: true) {
-			input(name: "transitionTime", type: "number", title: "Transition time", description: "Number of seconds (0 for fastest bulb/dimmer driver allows)", required: true, defaultValue: 0)
+			input(name: "transitionTime", type: "decimal", title: "Transition time", description: "Number of seconds (0 for fastest bulb/dimmer driver allows)", required: true, defaultValue: 0)
 			input(name: "dimStep", type: "number", title: "Dimming buttons change level +/- by (unless \"dim while holding\" enabled on supported devices)", description: "0-100", required: true, defaultValue: 10)
-			input(name: "debugLogging", type: "bool", title: "Enable debug logging")
-			input(name: "traceLogging", type: "bool", title: "Enable verbose/trace logging (for development)")
+			input(name: "boolDblCmd", type: "bool", title: "Send on/off and level commands twice (workaround for possible Hubitat bug if bulbs don't change first time")
+            input(name: "debugLogging", type: "bool", title: "Enable debug logging")
+			//input(name: "traceLogging", type: "bool", title: "Enable verbose/trace logging (for development)")
 		}
 	}
 }
@@ -392,15 +396,20 @@ def pushedHandler(evt) {
 				def hVal = settings["${bulbSettingH}"]
 				def bulbSettingS = "btn${btnNum}_${j.id}S_press${pressNum}"
 				def sVal = settings["${bulbSettingS}"]
-				if (bVal != null && (!hVal || !sVal)) {
-					setBri(j, bVal)
-				}
-				if (ctVal) {
-					setCT(j, ctVal)
-				}
-				if (hVal && sVal && bVal != null && !ctVal) {
-					setHSB(j, hVal, sVal, bVal)
-				}
+                def numCmds = boolDblCmd ? 2 : 1
+                def count = 1
+                while(count >= numCmds) {
+				    if (bVal != null && (!hVal || !sVal)) {
+					    setBri(j, bVal)
+				    }
+				    if (ctVal) {
+					    setCT(j, ctVal)
+			    	}
+			    	if (hVal && sVal && bVal != null && !ctVal) {
+			    		setHSB(j, hVal, sVal, bVal)
+			    	}
+                    count++
+                }
 			}
 		} catch (e) {
 			log.debug "Error when running turn-on action: ${e}"
@@ -414,6 +423,7 @@ def pushedHandler(evt) {
 		def sc = settings["btn${btnNum}_Scene_press${pressNum}"]
 		atomicState.lastScene = "btn${btnNum}_Scene_press${pressNum}"
 		sc.on()
+        if (boolDblCmd) sc.on()
 		logTrace "Scene turned on for ${sc}"
 		incrementPressNum(btnNum)
 		runIn(15, resetPressNum, [data: ["btnNum": btnNum]])
@@ -425,6 +435,7 @@ def pushedHandler(evt) {
 		if (atomicState.lastScene) {	
 			logDebug("Action \"Turn off last used scene\" specified for button ${btnNum}; turning off scene ${settings[atomicState.lastScene]}")
 			settings[atomicState.lastScene].off()
+            if (boolDblCmd) settings[atomicState.lastScene].off()
 		} else {
 			log.debug ("Configured to turn off last used scene but no scene was previously used; not doing anything.")
 		}
@@ -434,6 +445,7 @@ def pushedHandler(evt) {
 		logDebug "Action \"Turn off scene\" specified for button ${btnNum}"	
 		def sc = settings["btn${btnNum}_SceneOff"]
 		sc.off()
+        if (boolDblCmd) sc.off()
 		resetAllPressNums()
 		break
 	case "Turn off":
@@ -442,6 +454,10 @@ def pushedHandler(evt) {
 			resetAllPressNums()
 			turnOff(bulbs)
 			turnOff(offBulbs)
+            if (boolDblCmds) {
+                turnOff(bulbs)
+                turnOff(offBulbs)
+            }
 		} catch (e) {
 			log.warn "Error when running turn-off action: ${e}"
 		}
@@ -504,6 +520,20 @@ def heldHandler(evt) {
 				if (hVal && sVal && bVal != null && !ctVal) {
 					setHSB(j, hVal, sVal, bVal)
 				}
+                def numCmds = boolDblCmd ? 2 : 1
+                def count = 1
+                while(count >= numCmds) {
+				    if (bVal != null && (!hVal || !sVal)) {
+					    setBri(j, bVal)
+				    }
+				    if (ctVal) {
+					    setCT(j, ctVal)
+			    	}
+			    	if (hVal && sVal && bVal != null && !ctVal) {
+			    		setHSB(j, hVal, sVal, bVal)
+			    	}
+                    count++
+                }
 			}
 		} catch (e) {
 			log.debug "Error when running turn-on action: ${e}"
@@ -514,6 +544,7 @@ def heldHandler(evt) {
 		def sc = settings["btn${btnNum}_Scene_Held"]
 		atomicState.lastScene = "btn${btnNum}_Scene_Held"
 		sc.push()
+        if (boolDblCmds) sc.push()
 		break
 	case "Toggle":
 		toggle(bulbs)
@@ -531,6 +562,7 @@ def heldHandler(evt) {
 		logDebug "Action \"Turn off scene\" specified for button ${btnNum} held"	
 		def sc = settings["btn${btnNum}_SceneOff"]
 		sc.off()
+        if (boolDblCmds) sc.off()
 		resetAllPressNums()
 		break
 	case "Turn off":
@@ -539,6 +571,10 @@ def heldHandler(evt) {
 			resetAllPressNums()
 			turnOff(bulbs)
 			turnOff(offBulbs)
+            if (boolDblCmds) {
+                turnOff(bulbs)
+                turnOff(offBulbs)
+            }
 		} catch (e) {
 			log.warn "Error when running turn-off action: ${e}"
 		}
@@ -614,6 +650,7 @@ def setBri(devices, level) {
 	logDebug "Dimming (to $level with rate ${transitionTime}): $devices"
 	try {
 		devices.setLevel(level, transitionTime)
+        if (boolDblCmds) devices.setLevel(level, 0)
 	} catch (e) {
 		log.debug("Unable to set brightness level on ${devices}: ${e}")
 	}
@@ -637,6 +674,7 @@ def dimUpIfOn(devices, changeBy) {
 			}
 			if (currLvl && currLvl < 100) {
 				it.setLevel(newLvl, transitionTime)
+                if (boolDblCmds) it.setLevel(newLvl, 0)
 			}
 		} catch (e) {
 			log.warn("Unable to dim up ${it}: ${e}")
@@ -665,6 +703,7 @@ def dimDownIfOn(devices, changeBy) {
 				newLevel = 100
 			}
 			it.setLevel(newLevel, transitionTime)
+            if (boolDblCmds) it.setLevel(newLevel, 0)
 		} catch (e) {
 			log.warn("Unable to dim ${it}: ${e}")
 		}	
@@ -714,6 +753,9 @@ def setHSB(devices, hueVal, satVal, briVal) {
 		targetColor.saturation = satVal.toInteger()
 		targetColor.level = briVal.toInteger()
 		devices.setColor(targetColor)
+        if (boolDblCmds) {
+		    devices.setColor(targetColor)
+        }
 	} catch (e) {
 		log.warn("Unable to set color for ${devices}: ${e}")
 	}
@@ -723,6 +765,9 @@ def setCT(devices, ct) {
     logDebug "Running setCT with $ct for $devices..."
 	try {
     	devices.setColorTemperature(ct)
+        if (boolDblCmds) {
+            devices.setColorTemperature(ct)
+        }
 	} catch (e) {
 		log.warn("Unable to set color temperature for ${devices}: ${e}")
 	}
