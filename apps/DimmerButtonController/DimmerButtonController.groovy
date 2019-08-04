@@ -398,7 +398,7 @@ def pushedHandler(evt) {
 				def sVal = settings["${bulbSettingS}"]
                 def numCmds = boolDblCmd ? 2 : 1
                 def count = 1
-                while(count >= numCmds) {
+                while(count <= numCmds) {
 				    if (bVal != null && (!hVal || !sVal)) {
 					    setBri(j, bVal)
 				    }
@@ -522,7 +522,7 @@ def heldHandler(evt) {
 				}
                 def numCmds = boolDblCmd ? 2 : 1
                 def count = 1
-                while(count >= numCmds) {
+                while(count <= numCmds) {
 				    if (bVal != null && (!hVal || !sVal)) {
 					    setBri(j, bVal)
 				    }
