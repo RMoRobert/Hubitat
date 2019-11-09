@@ -25,7 +25,7 @@
  */
  
 metadata {
-    definition (name: "Releasable Inovelli Dimmer Red Series LZW31-SN", namespace: "RMoRobert", author: "Robert Morris", vid: "generic-dimmer", importUrl:"https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/inovelli-dimmer-red-series-lzw31-sn-releasable.groovy") {
+    definition (name: "Releasable Inovelli Dimmer Red Series LZW31-SN", namespace: "RMoRobert", author: "Eric Maycock, Robert Morris", vid: "generic-dimmer", importUrl:"https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/inovelli-dimmer-red-series-lzw31-sn-releasable.groovy") {
         capability "Switch"
         capability "Refresh"
         capability "Polling"
