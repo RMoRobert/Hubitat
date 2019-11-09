@@ -30,7 +30,7 @@
  */
  
 metadata {
-    definition (name: "Releaseable Inovelli Switch Red Series LZW30-SN", namespace: "RMoRobert", author: "Eric Maycock, Robert Morris", importURL: importUrl:"https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/inovelli-switch-red-series-lzw30-sn-releasable.groovy") {
+    definition (name: "Releaseable Inovelli Switch Red Series LZW30-SN", namespace: "RMoRobert", author: "Eric Maycock, Robert Morris", importURL: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/inovelli-switch-red-series-lzw30-sn-releasable.groovy") {
         capability "Switch"
         capability "Refresh"
         capability "Actuator"
