@@ -1,7 +1,6 @@
 /**
  *  Releasable Inovelli Dimmer Red Series LZW31-SN
- *  (Fork of Inovelli driver to create separate button events and add held/release for holds)
- *  Original Author: Eric Maycock (erocm123)
+ *  Author: Eric Maycock (erocm123)
  *  Date: 2019-11-05 (Modified 2019-11-09)
  *
  *  Original Copyright 2019 Eric Maycock / Inovelli
@@ -16,8 +15,6 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- * 
- * 
  * 2019-11-09:  Added hold and release events, modified buttons as follows:
  *              1-5 taps up = buttons 1, 3, 5, 7, 9 pushed
  *              1-5 taps dn = buttons 2, 4, 6, 8, 10 pushed
@@ -28,7 +25,7 @@
  */
  
 metadata {
-    definition (name: "Releasable Inovelli Dimmer Red Series LZW31-SN", namespace: "RMoRobert", author: "Robert Morris", vid: "generic-dimmer", importUrl:"https://raw.githubusercontent.com/InovelliUSA/Hubitat/master/Drivers/inovelli-dimmer-red-series-lzw31-sn.src/inovelli-dimmer-red-series-lzw31-sn.groovy") {
+    definition (name: "Releasable Inovelli Dimmer Red Series LZW31-SN", namespace: "RMoRobert", author: "Robert Morris", vid: "generic-dimmer", importUrl:"https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/inovelli-dimmer-red-series-lzw31-sn-releasable.groovy") {
         capability "Switch"
         capability "Refresh"
         capability "Polling"
@@ -899,7 +896,7 @@ def holdDown() {
 }
 
 def releaseDown() {
-    sendEvent(buttonEvent(1, "released"))
+    sendEvent(buttonEvent(2, "released"))
 }
 
 def pressConfig() {
