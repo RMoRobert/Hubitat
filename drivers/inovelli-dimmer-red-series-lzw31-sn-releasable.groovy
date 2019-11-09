@@ -271,7 +271,7 @@ def updated() {
 
 def initialize() {
     sendEvent(name: "checkInterval", value: 3 * 60 * 60 + 2 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID, offlinePingable: "1"])
-    sendEvent(name: "numberOfButtons", value: 7, displayed: true)
+    sendEvent(name: "numberOfButtons", value: 11, displayed: true)
     
     if (enableDefaultLocalChild && !childExists("ep8")) {
     try {
