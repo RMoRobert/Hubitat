@@ -1,10 +1,10 @@
 /**
- *  Releasable Inovelli Dimmer Red Series LZW31-SN
- *  Author: Eric Maycock (erocm123)
- *  Date: 2019-11-05 (Modified 2019-11-09)
+ *  Advanced Inovelli Dimmer Red Series LZW31-SN
+ *  Original Author: Eric Maycock (erocm123)
+ *  Additions by Robert Morris
+ *  Date: 2019-11-05 (Modified 2019-11-11)
  *
  *  Original Copyright 2019 Eric Maycock / Inovelli
- *  Modified by Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -15,6 +15,8 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
+ * 2010-11-12:  Added commands to set notification LED (color, level, duration, effect)
+ * 2019-11-11:  Added commands to set default LED color and level
  * 2019-11-09:  Added hold and release events, modified buttons as follows:
  *              1-5 taps up = buttons 1, 3, 5, 7, 9 pushed
  *              1-5 taps dn = buttons 2, 4, 6, 8, 10 pushed
@@ -25,7 +27,7 @@
  */
  
 metadata {
-    definition (name: "Releasable Inovelli Dimmer Red Series LZW31-SN", namespace: "RMoRobert", author: "Eric Maycock, Robert Morris", vid: "generic-dimmer", importUrl:"https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/inovelli-dimmer-red-series-lzw31-sn-releasable.groovy") {
+    definition (name: "Advanced Inovelli Dimmer Red Series LZW31-SN", namespace: "RMoRobert", author: "Robert Morris, Eric Maycock", vid: "generic-dimmer", importUrl:"https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/inovelli-dimmer-red-series-lzw31-sn-releasable.groovy") {
         capability "Switch"
         capability "Refresh"
         capability "Polling"
@@ -44,21 +46,21 @@ metadata {
         attribute "lastEvent", "String"
         attribute "firmware", "String"
         attribute "voltage", "number"
+		
+	    command "push", [[name:"btnNum*", type:"NUMBER", description: "Button number", constraints:["NUMBER"]]]
+		command "hold", [[name:"btnNum*", type:"NUMBER", description: "Button number", constraints:["NUMBER"]]]
+		command "release", [[name:"btnNum*", type:"NUMBER", description: "Button number", constraints:["NUMBER"]]]
         
-        command "pressUpX1"
-        command "pressDownX1"
-        command "pressUpX2"
-        command "pressDownX2"
-        command "pressUpX3"
-        command "pressDownX3"
-        command "pressUpX4"
-        command "pressDownX4"
-        command "pressUpX5"
-        command "pressDownX5"
-        command "holdUp"
-        command "holdDown"
-		command "releaseUp"
-		command "releaseDown"
+
+		command "setDefaultLED", [[name:"color*",type:"STRING", description:"Color (red, orange, yellow, green, cyan, blue, violet, pink)", constraints:["STRING"]],
+								  [name:"level",type:"NUMBER", description:"LED level (0-10)", constraints:["NUMBER"]]]
+		command "setNotificationLED", [[name:"color*", type:"STRING", description:"Color (red, orange, yellow, green, cyan, blue, violet, pink)", constraints: ["STRING"]],
+									   [name:"level*", type:"NUMBER", description:"LED level (0-10)", constraints:["NUMBER"]],
+									   [name:"duration", type:"NUMBER", description:"Effect duration (optional; 1-254 = number of seconds, 255 = indefinitely)", constraints:["NUMBER"]],
+									   //[name:"effect", type: "ENUM", description: "LED effect (optional)", constraints: ["off","solid","chase","fast-blink","slow-blink","pulse"]]]
+									   [name:"effect", type: "STRING", description: "LED effect (optional)", constraints: ["STRING"]]]
+		
+		
 		
 		command "childOn"
         command "childOff"
@@ -749,7 +751,7 @@ def zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification cm
 def buttonEvent(button, value, type = "digital") {
     sendEvent(name:"lastEvent", value: "Button ${button} ${value}", displayed:false)
     if (infoEnable) log.info "${device.label?device.label:device.name}: Button ${button} was ${value}"
-    [name: value, value: button, isStateChange:true]
+    return [name: value, value: button, isStateChange:true]
 }
 
 def zwaveEvent(hubitat.zwave.Command cmd) {
@@ -841,66 +843,17 @@ private commands(commands, delay=1000) {
     delayBetween(commands.collect{ command(it) }, delay)
 }
 
-def pressUpX1() {
-    sendEvent(buttonEvent(1, "pushed"))
+def push(btnNum) {
+	return sendEvent(buttonEvent(btnNum, "pushed", "digital"))
 }
 
-def pressDownX1() {
-    sendEvent(buttonEvent(2, "held"))
+def hold(btnNum) {
+	return sendEvent(buttonEvent(btnNum, "held", "digital"))
 }
 
-def pressUpX2() {
-    sendEvent(buttonEvent(3, "pushed"))
+def release(btnNum) {
+	return sendEvent(buttonEvent(btnNum, "released", "digital"))
 }
-
-def pressDownX2() {
-    sendEvent(buttonEvent(4, "held"))
-}
-
-def pressUpX3() {
-    sendEvent(buttonEvent(5, "pushed"))
-}
-
-def pressDownX3() {
-    sendEvent(buttonEvent(6, "held"))
-}
-
-def pressUpX4() {
-    sendEvent(buttonEvent(7, "pushed"))
-}
-
-def pressDownX4() {
-    sendEvent(buttonEvent(8, "held"))
-}
-
-def pressUpX5() {
-    sendEvent(buttonEvent(9, "pushed"))
-}
-
-def pressDownX5() {
-    sendEvent(buttonEvent(10, "held"))
-}
-
-def holdUp() {
-    sendEvent(buttonEvent(1, "held"))
-}
-
-def releaseUp() {
-    sendEvent(buttonEvent(1, "released"))
-}
-
-def holdDown() {
-    sendEvent(buttonEvent(2, "held"))
-}
-
-def releaseDown() {
-    sendEvent(buttonEvent(2, "released"))
-}
-
-def pressConfig() {
-    sendEvent(buttonEvent(11, "pushed"))
-}
-
 
 def setDefaultAssociations() {
     def smartThingsHubID = (zwaveHubNodeId.toString().format( '%02x', zwaveHubNodeId )).toUpperCase()
@@ -961,6 +914,77 @@ def processAssociations(){
       }
    }
    return cmds
+}
+
+def setDefaultLED(BigDecimal color, BigDecimal level) {
+	def number = 13
+	def value = (color >= 0 && color <= 255 ? color : 170)
+	def size = 2
+	//def cmds = []
+    //cmds << new hubitat.device.HubAction(command(setParameter(number, value, size)), hubitat.device.Protocol.ZWAVE)
+	def number2 = 14
+	def value2 = (level >= 0 && level <= 10) ? level : 10
+	def size2 = 1
+	return delayBetween([
+	    	command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value, parameterNumber: number, size: size)),
+	    	command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value2, parameterNumber: number2, size: size2)),
+	    	command(zwave.configurationV1.configurationGet(parameterNumber: number)),
+			command(zwave.configurationV1.configurationGet(parameterNumber: number2))
+		], 500)
+}
+
+def setDefaultLEDColor(BigDecimal color) {
+	def number = 13
+	def value = (color >= 0 && color <= 255 ? color : 170)
+	def size = 2
+	//def cmds = []
+	return delayBetween([
+	    	command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value, parameterNumber: number, size: size)),
+	    	command(zwave.configurationV1.configurationGet(parameterNumber: number))
+		], 500)
+}
+
+def setDefaultLED(String color, BigDecimal level) {
+	return setDefaultLED(convertLEDColorStringToInt(color), level)	
+}
+
+def setDefaultLED(String color) {
+	return setDefaultLED(convertLEDColorStringToInt(color))
+}
+
+def setNotificationLED(BigDecimal color, BigDecimal level, BigDecimal duration, BigDecimal type) {
+	def number = 16
+	def size = 4
+	def value = 0
+	color = (color >= 0 && color <= 255) ? color : 255
+	level = (level >= 0 && level <= 10) ? level : 10
+	duration = (duration >= 1 && duration <= 255) ? duration : 255
+	type = (type >= 0 && type <= 5) ? type : 4
+	value += (color as int) * 1
+    value += (number as int) * 256
+    value += (duration as int) * 65536
+    value += (type as int) * 16777216
+	return delayBetween([
+	    	command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value, parameterNumber: number, size: size)),
+	    	command(zwave.configurationV1.configurationGet(parameterNumber: number))
+		], 500)
+}
+
+def setNotificationLED(String color, BigDecimal level, BigDecimal duration=1, String type="slow-blink") {
+	def typeMap = ["off": 0, "solid": 1, "chase": 2, "fast-blink": 3, "slow-blink": 4, "pulse": 5]
+	def numType = typeMap[type] != null ? typeMap[type] : 1
+	return setNotificationLED(convertLEDColorStringToInt(color), level, duration, numType)
+}
+
+def clearNotificationLED() {
+	def cmds = []
+	cmds << new hubitat.device.HubAction(command(setParameter(16, 0, 4)), hubitat.device.Protocol.ZWAVE)
+    return cmds
+}
+
+private convertLEDColorStringToInt(String color) {
+	def colorMap = ["red": 0, "red-orange": 5, "orange": 21, "yellow": 42, "green": 85, "cyan": 127, "light-blue": 155, "blue": 170, "violet": 212, "pink": 234]
+	return colorMap[color] != null ? colorMap[color] : 170
 }
 
 def zwaveEvent(hubitat.zwave.commands.associationv2.AssociationReport cmd) {
