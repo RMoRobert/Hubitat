@@ -1,9 +1,10 @@
 /**
- *  HomeSeer HS-WS200+
+ *  Advanced HomeSeer HS-WS200+
  *
- *  Copyright 2018 HomeSeer, modified by RMoRobert
+ *  Original Copyright 2018 HomeSeer
  *
- *  Modified from HomeSeer ST DTH, which was based the work by DarwinsDen device handler for the WD100 version 1.03
+ *  Modified from HomeSeer fork of WS-200+ ST DTH based on work by DarwinsDen DTH
+ *  originally for the WD100 version 1.03
  *
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -15,68 +16,78 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *	Author: HomeSeer, modified by RMoRobert
- *	Date: 12/2017 (original), 12/2018 (modification)
+ *	Original Author: HomeSeer
+ *	Original Date: 12/2017
+ *  Modified Date: 11/2019
  *
  *	Changelog:
  *
- *	1.0	(HomeSeer) Initial Version
- *  Modified for Hubitat
+ *	Based on HomeSeer 1.0 Initial Version code
+ *
+ *  11/2019: Modified button events/numbers (odds = up paddle, events = down paddle) and events (pushed/held) for
+ *           better use with Hubitat; ported ST namespaces and capabilities to Hubitat model
+ *           Added "released" events (undocumented but switch appears to send them, so might as well make use)
  *
  *
- *   Button Mappings -- note differences from HomeSeer driver!
+ *   Button Mappings:
  *
- * 
- *   ACTION          BUTTON#    BUTTON ACTION
- *   1 tap up          1        pushed (also, switch: on)
- *   2 taps up         2        pushed
- *   3 taps up         3        pushed
- *   4 taps up         4        pushed
- *   5 taps up         5        pushed
- *   Hold up           1        held   (also, switch: on)
- *   1 tap down        6        pushed (also, switch: off)
- *   2 taps down       7        pushed
- *   3 taps down       8        pushed
- *   4 taps down       9        pushed
+ *   ACTION          BUTTON #   EVENT
+ *   Single-Tap Up     1        pushed (also does switch "on")
+ *   Single-Tap Down   2        pushed (also does switch "off")
+ *   Double-Tap Up     3        pushed
+ *   Double-Tap Down   4        pushed
+ *   3 taps up  	   5        pushed
+ *   3 taps down	   6        pushed
+ *   4 taps up         7        pushed
+ *   4 taps down       8        pushed
+ *   5 taps up         9        pushed
  *   5 taps down       10       pushed
- *   Hold down         6        held   (also, switch: off)
+ *   Hold Up           1 	    held (followed by released); also does switch "on"
+ *   Hold Down         2 	    held (followed by released); also does switch "off"
  *
  */
  
 metadata {
-	definition (name: "HomeSeer WS200+ Switch (for Hubitat)", namespace: "RMoRobert", author: "HomeSeer, RMoRobert") {
+	definition (name: "Advanced HomeSeer WS200+ Switch", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/HS-WS200%2B-Driver.groovy") {
 		capability "Actuator"
-		capability "Indicator"
+		//capability "Indicator"
 		capability "Switch"
-		capability "Polling"
+		//capability "Polling"
 		capability "Refresh"
 		capability "Sensor"
         capability "PushableButton"
 		capability "HoldableButton"
+		capability "ReleasableButton"
         capability "Configuration"
+		
+		command "push", [[name:"btnNum", type:"NUMBER", description: "Button Number", constraints:["NUMBER"]]]
+		command "hold", [[name:"btnNum", type:"NUMBER", description: "Button Number", constraints:["NUMBER"]]]
+		command "release", [[name:"btnNum", type:"NUMBER", description: "Button Number", constraints:["NUMBER"]]]
+		
         
-        command "tapUp2"
-        command "tapDown2"
-        command "tapUp3"
-        command "tapDown3"
-        command "tapUp4"
-        command "tapDown4"
-        command "tapUp5"
-        command "tapDown5"
-        command "holdUp"
-        command "holdDown"
-        command "setStatusLed"
         command "setSwitchModeNormal"
         command "setSwitchModeStatus"
-        command "setDefaultColor"
+		command "setDefaultLEDColor", [[name:"color", type:"NUMBER", description: "LED color (0=off; 1=red, 2=green, 3=blue, 4=magenta, 5=yellow, 6=cyan, 7=white)", constraints:["NUMBER"]]]
+		command "setStatusLED", [[name:"led",type:"NUMBER", description:"LED (always set to 1 for switch)", constraints:["NUMBER"]],
+								 [name:"color",type:"NUMBER", description:"LED color (0=off; 1=red, 2=green, 3=blue, 4=magenta, 5=yellow, 6=cyan, 7=white)", constraints:["NUMBER"]],
+								 [name:"blink",type:"NUMBER", description:"Blink? (0=no, 1=blink)", constraints:["NUMBER"]]]		
         
         fingerprint mfr: "000C", prod: "4447", model: "3035"
+}
+
+
+    preferences {   
+       input "reverseSwitch", "bool", title: "Reverse Switch",  defaultValue: false, required: false
+       input "bottomled", "bool", title: "Turn on indicator LED when load is off",  defaultValue: false, required: false              
+       input "color", "enum", title: "Default LED Color", options: ["White", "Red", "Green", "Blue", "Magenta", "Yellow", "Cyan"], description: "Select Color", required: false
+       input "enableInfo", "bool", title: "Enable info logging", defaultValue: true, required: false
+	   input "enableDebug", "bool", title: "Enable debug logging", defaultValue: true, required: false
 	}
 }
 
 def parse(String description) {
 	def result = null
-    log.debug (description)
+    logDebug (description)
     if (description != "updated") {
 	    def cmd = zwave.parse(description, [0x20: 1, 0x70: 1])	
         if (cmd) {
@@ -84,10 +95,10 @@ def parse(String description) {
 	    }
     }
     if (!result){
-        log.debug "Parse returned ${result} for command ${cmd}"
+        logDebug("Parse returned ${result} for command ${cmd}")
     }
     else {
-		log.debug "Parse returned ${result}"
+		logDebug("Parse returned ${result}")
     }   
 	return result
 }
@@ -106,7 +117,7 @@ def zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd) {
 
 
 def zwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) {
-	log.debug "ConfigurationReport $cmd"
+	logDebug "ConfigurationReport $cmd"
 	def value = "when off"
 	if (cmd.configurationValue[0] == 1) {value = "when on"}
 	if (cmd.configurationValue[0] == 2) {value = "never"}
@@ -118,11 +129,11 @@ def zwaveEvent(hubitat.zwave.commands.hailv1.Hail cmd) {
 }
 
 def zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.ManufacturerSpecificReport cmd) {
-	log.debug "manufacturerId:   ${cmd.manufacturerId}"
-	log.debug "manufacturerName: ${cmd.manufacturerName}"
+	logDebug "manufacturerId:   ${cmd.manufacturerId}"
+	logDebug "manufacturerName: ${cmd.manufacturerName}"
     state.manufacturer=cmd.manufacturerName
-	log.debug "productId:        ${cmd.productId}"
-	log.debug "productTypeId:    ${cmd.productTypeId}"
+	logDebug "productId:        ${cmd.productId}"
+	logDebug "productTypeId:    ${cmd.productTypeId}"
 	def msr = String.format("%04X-%04X-%04X", cmd.manufacturerId, cmd.productTypeId, cmd.productId)
 	updateDataValue("MSR", msr)	
     setFirmwareVersion()
@@ -131,22 +142,22 @@ def zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.ManufacturerSpecifi
 
 def zwaveEvent(hubitat.zwave.commands.versionv1.VersionReport cmd) {	
     //updateDataValue("applicationVersion", "${cmd.applicationVersion}")
-    log.debug ("received Version Report")
-    log.debug "applicationVersion:      ${cmd.applicationVersion}"
-    log.debug "applicationSubVersion:   ${cmd.applicationSubVersion}"
+    logDebug ("received Version Report")
+    logDebug "applicationVersion:      ${cmd.applicationVersion}"
+    logDebug "applicationSubVersion:   ${cmd.applicationSubVersion}"
     state.firmwareVersion=cmd.applicationVersion+'.'+cmd.applicationSubVersion
-    log.debug "zWaveLibraryType:        ${cmd.zWaveLibraryType}"
-    log.debug "zWaveProtocolVersion:    ${cmd.zWaveProtocolVersion}"
-    log.debug "zWaveProtocolSubVersion: ${cmd.zWaveProtocolSubVersion}"
+    logDebug "zWaveLibraryType:        ${cmd.zWaveLibraryType}"
+    logDebug "zWaveProtocolVersion:    ${cmd.zWaveProtocolVersion}"
+    logDebug "zWaveProtocolSubVersion: ${cmd.zWaveProtocolSubVersion}"
     setFirmwareVersion()
     createEvent([descriptionText: "Firmware V"+state.firmwareVersion, isStateChange: false])
 }
 
 def zwaveEvent(hubitat.zwave.commands.firmwareupdatemdv2.FirmwareMdReport cmd) { 
-    log.debug ("received Firmware Report")
-    log.debug "checksum:       ${cmd.checksum}"
-    log.debug "firmwareId:     ${cmd.firmwareId}"
-    log.debug "manufacturerId: ${cmd.manufacturerId}"
+    logDebug ("received Firmware Report")
+    logDebug "checksum:       ${cmd.checksum}"
+    logDebug "firmwareId:     ${cmd.firmwareId}"
+    logDebug "manufacturerId: ${cmd.manufacturerId}"
     [:]
 }
 
@@ -189,10 +200,10 @@ def off() {
  *          6=cyan
  *          7=white
  */
-def setStatusLed (led,color,blink) {    
+def setStatusLed(led, color, blink) {    
     def cmds= []
     
-    if(state.statusled1==null) {    	
+    if(state.statusled1 == null) {    	
     	state.statusled1=0        
         state.blinkval=0
     }
@@ -202,9 +213,7 @@ def setStatusLed (led,color,blink) {
     	case 1:
         	state.statusled1=color
             break
-        
     }
-    
     
     if(state.statusled1==0)
     {
@@ -264,218 +273,50 @@ def setDefaultColor(color) {
 }
 
 
-def poll() {
-	zwave.switchMultilevelV1.switchMultilevelGet().format()
+def push(btnNum) {
+	return buttonEvent(btnNum, "pushed")
+}
+
+def hold(btnNum) {
+	return buttonEvent(btnNum, "held")
+}
+
+def release(btnNum) {
+	return buttonEvent(btnNum, "released")
 }
 
 def refresh() {
-	log.debug "refresh() called"
+	logDebug "refresh() called"
     configure()
+	zwave.switchMultilevelV1.switchMultilevelGet().format()
 }
 
 def zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification cmd) {
-    log.debug("sceneNumber: ${cmd.sceneNumber} keyAttributes: ${cmd.keyAttributes}")
-    def result = []
-    
-    switch (cmd.sceneNumber) {
-      case 1:
-          // Up
-          switch (cmd.keyAttributes) {
-              case 0:
-                   // Press Once
-                  result += createEvent(tapUp1Response("physical"))  
-                  result += createEvent([name: "switch", value: "on", type: "physical"])   
-                  break
-              case 1:
-                  result=createEvent([name: "switch", value: "on", type: "physical"])
-                  break
-              case 2:
-                  // Hold
-                  result += createEvent(holdUpResponse("physical"))  
-                  result += createEvent([name: "switch", value: "on", type: "physical"])    
-                  break
-              case 3: 
-                  // 2 Times
-                  result +=createEvent(tapUp2Response("physical"))                                  
-                  break
-              case 4:
-                  // 3 times
-                  result=createEvent(tapUp3Response("physical"))
-                  break
-              case 5:
-                  // 4 times
-                  result=createEvent(tapUp4Response("physical"))
-                  break
-              case 6:
-                  // 5 times
-                  result=createEvent(tapUp5Response("physical"))
-                  break
-              default:
-                  log.debug ("unexpected up press keyAttribute: $cmd.keyAttributes")
-          }
-          break
-          
-      case 2:
-          // Down
-          switch (cmd.keyAttributes) {
-              case 0:
-                  // Press Once
-                  result += createEvent(tapDown1Response("physical"))
-                  result += createEvent([name: "switch", value: "off", type: "physical"]) 
-                  break
-              case 1:
-                  result=createEvent([name: "switch", value: "off", type: "physical"])
-                  break
-              case 2:
-                  // Hold
-                  result += createEvent(holdDownResponse("physical"))
-                  result += createEvent([name: "switch", value: "off", type: "physical"]) 
-                  break
-              case 3: 
-                  // 2 Times
-                  result+=createEvent(tapDown2Response("physical"))
-                  if (doubleTapDownToDim)
-                  {
-                     result += setLevel(25)
-                     result += response("delay 5000")
-                     result += response(zwave.switchMultilevelV1.switchMultilevelGet())
-                  }  
-                  break
-              case 4:
-                  // 3 Times
-                  result=createEvent(tapDown3Response("physical"))
-                  break
-              case 5:
-                  // 4 Times
-                  result=createEvent(tapDown4Response("physical"))
-                  break
-              case 6:
-                  // 5 Times
-                  result=createEvent(tapDown5Response("physical"))
-                  break
-              default:
-                  log.debug ("unexpected down press keyAttribute: $cmd.keyAttributes")
-           } 
-           break
-           
-      default:
-           // unexpected case
-           log.debug ("unexpected scene: $cmd.sceneNumber")
-   }  
-   return result
+    if (debugEnable) logDebug "${device.label?device.label:device.name}: ${cmd}"
+    def eventType = "pushed"
+    def btnNum = 0
+	log.error(cmd)
+    if (cmd.sceneNumber == 1) { // Up paddle
+        def mapping = [0: 1, 1: 1, 2: 1, 3: 3, 4: 5, 5: 7, 6: 9]
+        btnNum = mapping[cmd.keyAttributes as int]
+        if (cmd.keyAttributes == 2) eventType = "held"
+        else if (cmd.keyAttributes == 1) eventType = "released"
+    } else if (cmd.sceneNumber == 2) { // Down paddle
+        def mapping = [0: 2, 1: 2, 2: 2, 3: 4, 4: 6, 5: 8, 6: 10]
+        btnNum = mapping[cmd.keyAttributes as int]
+        if (cmd.keyAttributes == 2) eventType = "held"
+        else if (cmd.keyAttributes == 1) eventType = "released"
+    } else {
+        log.warn "Unable to parse: ${cmd}"
+    }
+    createEvent(buttonEvent(btnNum, eventType, "physical"))
 }
 
-def tapUp1Response(String buttonType) {
-    sendEvent(name: "status" , value: "Tap ▲")
-	[name: "pushed", value: "1", descriptionText: "$device.displayName Tap-Up-1 (button 1) pushed", 
-       isStateChange: true, type: "$buttonType"]
+def buttonEvent(button, value, type = "digital") {
+    sendEvent(name:"lastEvent", value: "Button ${button} ${value}", displayed: false)
+    if (infoEnable) logInfo "${device.label?device.label:device.name}: Button ${button} was ${value}"
+    [name: value, value: button, isStateChange:true]
 }
-
-def tapDown1Response(String buttonType) {
-    sendEvent(name: "status" , value: "Tap ▼")
-	[name: "pushed", value: "6", descriptionText: "$device.displayName Tap-Down-1 (button 6) pushed", 
-      isStateChange: true, type: "$buttonType"]
-}
-
-def tapUp2Response(String buttonType) {
-    sendEvent(name: "status" , value: "Tap ▲▲")
-	[name: "pushed", value: "2", descriptionText: "$device.displayName Tap-Up-2 (button 2) pushed", 
-       isStateChange: true, type: "$buttonType"]
-}
-
-def tapDown2Response(String buttonType) {
-    sendEvent(name: "status" , value: "Tap ▼▼")
-	[name: "pushed", value: "7", descriptionText: "$device.displayName Tap-Down-2 (button 7) pushed",
-      isStateChange: true, type: "$buttonType"]
-}
-
-def tapUp3Response(String buttonType) {
-    sendEvent(name: "status" , value: "Tap ▲▲▲")
-	[name: "pushed", value: "3", descriptionText: "$device.displayName Tap-Up-3 (button 3) pushed", 
-    isStateChange: true, type: "$buttonType"]
-}
-
-def tapUp4Response(String buttonType) {
-    sendEvent(name: "status" , value: "Tap ▲▲▲▲")
-	[name: "pushed", value: "4", descriptionText: "$device.displayName Tap-Up-4 (button 4) pushed",
-    isStateChange: true, type: "$buttonType"]
-}
-
-def tapUp5Response(String buttonType) {
-    sendEvent(name: "status" , value: "Tap ▲▲▲▲▲")
-	[name: "pushed", value: "5", descriptionText: "$device.displayName Tap-Up-5 (button 5) pushed", 
-    isStateChange: true, type: "$buttonType"]
-}
-
-def tapDown3Response(String buttonType) {
-    sendEvent(name: "status" , value: "Tap ▼▼▼")
-	[name: "pushed", value: "8", descriptionText: "$device.displayName Tap-Down-3 (button 8) pushed",
-    isStateChange: true, type: "$buttonType"]
-}
-
-def tapDown4Response(String buttonType) {
-    sendEvent(name: "status" , value: "Tap ▼▼▼▼")
-	[name: "pushed", value: "9", descriptionText: "$device.displayName Tap-Down-4 (button 9) pushed", 
-    isStateChange: true, type: "$buttonType"]
-}
-
-def tapDown5Response(String buttonType) {
-    sendEvent(name: "status" , value: "Tap ▼▼▼▼▼")
-	[name: "pushed", value: "10", descriptionText: "$device.displayName Tap-Down-5 (button 10) pushed",
-    isStateChange: true, type: "$buttonType"]
-}
-
-def holdUpResponse(String buttonType) {
-    sendEvent(name: "status" , value: "Hold ▲")	 
-	[name: "pushed", value: "1", descriptionText: "$device.displayName Hold-Up-1 (button 1) held",
-    isStateChange: true, type: "$buttonType"]
-}
-
-def holdDownResponse(String buttonType) {
-    sendEvent(name: "status" , value: "Hold ▼")
-	[name: "pushed", value: "6", descriptionText: "$device.displayName Hold-Down-1 (button 6) held",
-    isStateChange: true, type: "$buttonType"]
-}
-
-def tapUp2() {
-	sendEvent(tapUp2Response("digital"))
-}
-
-def tapDown2() {
-	sendEvent(tapDown2Response("digital"))
-}
-
-def tapUp3() {
-	sendEvent(tapUp3Response("digital"))
-}
-
-def tapDown3() {
-	sendEvent(tapDown3Response("digital"))
-}
-
-def tapUp4() {
-	sendEvent(tapUp4Response("digital"))
-}
-
-def tapDown4() {
-	sendEvent(tapDown4Response("digital"))
-}
-
-def tapUp5() {
-	sendEvent(tapUp5Response("digital"))
-}
-
-def tapDown5() {
-	sendEvent(tapDown5Response("digital"))
-}
-
-def holdUp() {
-	sendEvent(holdUpResponse("digital"))
-}
-
-def holdDown() {
-	sendEvent(holdDownResponse("digital"))
-} 
 
 def setFirmwareVersion() {
    def versionInfo = ''
@@ -495,7 +336,8 @@ def setFirmwareVersion() {
 }
 
 def configure() {
-   log.debug ("configure() called") 
+   logDebug ("configure() called")
+ 
    sendEvent(name: "numberOfButtons", value: 10, displayed: false)
    def commands = []
    commands << setDimRatePrefs()   
@@ -506,7 +348,7 @@ def configure() {
 
 def setDimRatePrefs() 
 {
-   log.debug ("set prefs")
+   logDebug ("set prefs")
    def cmds = []
 
 	if (color)
@@ -571,4 +413,12 @@ def updated()
  def cmds= []
  cmds << setDimRatePrefs
  delayBetween(cmds, 500)
+}
+
+def logDebug(str) {
+	if (enableDebug) log.debug (str)
+}
+
+def logInfo(str) {
+	if (enableInfo) log.info(str)
 }
