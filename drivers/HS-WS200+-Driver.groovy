@@ -295,7 +295,6 @@ def zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification cm
     if (debugEnable) logDebug "${device.label?device.label:device.name}: ${cmd}"
     def eventType = "pushed"
     def btnNum = 0
-	log.error(cmd)
     if (cmd.sceneNumber == 1) { // Up paddle
         def mapping = [0: 1, 1: 1, 2: 1, 3: 3, 4: 5, 5: 7, 6: 9]
         btnNum = mapping[cmd.keyAttributes as int]
