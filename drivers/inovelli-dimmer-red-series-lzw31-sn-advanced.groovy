@@ -2,7 +2,7 @@
  *  Advanced Inovelli Dimmer Red Series LZW31-SN
  *  Original Author: Eric Maycock (erocm123)
  *  Additions by Robert Morris
- *  Date: 2019-11-18
+ *  Date: 2019-11-19
  *
  *  Original Copyright 2019 Eric Maycock / Inovelli
  *
