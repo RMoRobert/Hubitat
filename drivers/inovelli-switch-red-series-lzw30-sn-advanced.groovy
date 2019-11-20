@@ -407,7 +407,7 @@ def calculateParameter(number) {
       break
       default:
           value = settings."parameter${number}"
-      break
+      breakd
     }
     return value
 }
@@ -848,44 +848,46 @@ def zwaveEvent(hubitat.zwave.commands.protectionv2.ProtectionReport cmd) {
     }
 }
 
-def setDefaultLED(BigDecimal color, BigDecimal level) {
-	def number = 13
-	def value = (color >= 0 && color <= 255 ? color : 170)
-	def size = 2
-	//def cmds = []
-    //cmds << new hubitat.device.HubAction(command(setParameter(number, value, size)), hubitat.device.Protocol.ZWAVE)
-	def number2 = 14
-	def value2 = (level >= 0 && level <= 10) ? level : 10
-	def size2 = 1
-	return delayBetween([
-	    	command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value, parameterNumber: number, size: size)),
-	    	command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value2, parameterNumber: number2, size: size2)),
-	    	command(zwave.configurationV1.configurationGet(parameterNumber: number)),
-			command(zwave.configurationV1.configurationGet(parameterNumber: number2))
-		], 500)
-}
-
-def setDefaultLEDColor(BigDecimal color) {
-	def number = 13
-	def value = (color >= 0 && color <= 255 ? color : 170)
-	def size = 2
-	//def cmds = []
-	return delayBetween([
-	    	command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value, parameterNumber: number, size: size)),
-	    	command(zwave.configurationV1.configurationGet(parameterNumber: number))
-		], 500)
-}
-
 def setDefaultLED(String color, BigDecimal level) {
 	return setDefaultLED(convertLEDColorStringToInt(color), level)	
 }
 
 def setDefaultLED(String color) {
+    log.error "2"
 	return setDefaultLED(convertLEDColorStringToInt(color))
 }
 
+def setDefaultLED(BigDecimal color, BigDecimal level) {
+	def number = 5
+	def value = (color >= 0 && color <= 255 ? color : 170)
+	def size = 2
+	def number2 = 6
+	def value2 = (level >= 0 && level <= 10) ? level : 10
+	def size2 = 1
+	return delayBetween([
+	    	//command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value, parameterNumber: number, size: size)),
+	    	command(zwave.configurationV1.configurationSet(configurationValue: integer2Cmd(value.toInteger(),size), parameterNumber: number, size: size)),
+	    	command(zwave.configurationV1.configurationSet(configurationValue: integer2Cmd(value2.toInteger(),size2), parameterNumber: number2, size: size2)),
+	    	//command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value2, parameterNumber: number2, size: size2)),
+	    	command(zwave.configurationV1.configurationGet(parameterNumber: number)),
+			command(zwave.configurationV1.configurationGet(parameterNumber: number2))
+		], 500)
+}
+
+def setDefaultLED(BigDecimal color) {
+    log.error "4"
+	def number = 5
+	def value = (color >= 0 && color <= 255 ? color : 170)
+	def size = 2
+	//def cmds = []
+	return delayBetween([
+	    	command(zwave.configurationV1.configurationSet(configurationValue: integer2Cmd(value.toInteger(),size), parameterNumber: number, size: size)),
+	    	command(zwave.configurationV1.configurationGet(parameterNumber: number))
+		], 500)
+}
+
 def setNotificationLED(BigDecimal color, BigDecimal level, BigDecimal duration, BigDecimal type) {
-	def number = 16
+	def number = 8
 	def size = 4
 	def value = 0
 	color = (color >= 0 && color <= 255) ? color : 255
@@ -902,15 +904,15 @@ def setNotificationLED(BigDecimal color, BigDecimal level, BigDecimal duration, 
 		], 500)
 }
 
-def setNotificationLED(String color, BigDecimal level, BigDecimal duration=1, String type="slow-blink") {
-	def typeMap = ["off": 0, "solid": 1, "chase": 2, "fast-blink": 3, "slow-blink": 4, "pulse": 5]
+def setNotificationLED(String color, BigDecimal level, BigDecimal duration=1, String type="solid") {
+	def typeMap = ["off": 0, "solid": 1, "fast-blink": 2, "slow-blink": 3, "pulse": 4]
 	def numType = typeMap[type] != null ? typeMap[type] : 1
 	return setNotificationLED(convertLEDColorStringToInt(color), level, duration, numType)
 }
 
 def clearNotificationLED() {
 	def cmds = []
-	cmds << new hubitat.device.HubAction(command(setParameter(16, 0, 4)), hubitat.device.Protocol.ZWAVE)
+	cmds << new hubitat.device.HubAction(command(setParameter(8, 0, 4)), hubitat.device.Protocol.ZWAVE)
     return cmds
 }
 
