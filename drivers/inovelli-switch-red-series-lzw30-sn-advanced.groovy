@@ -1,7 +1,7 @@
 /**
- *  Inovelli Switch Red Series
- *  Author: Eric Maycock (erocm123), modified by Robert Morris
- *  Date: 2019-10-15 / 2019-11-04
+ *  Advanced Inovelli Switch Red Series
+ *  Author: Robert Morris, based on Eric Maycock (erocm123)
+ *  Date: 2019-11-19
  *
  *  Original Copyright 2019 Eric Maycock / Inovelli
  *
@@ -14,12 +14,14 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- * 2019-11-04:  Added hold and release events, modified buttons as follows:
- *              1-5 taps up = buttons 1, 3, 5, 7, 9 pushed
- *              1-5 taps dn = buttons 2, 4, 6, 8, 10 pushed
- *              Up buttton held/released = button 1 held/released
- *              Down button held/released = button 2 held/released
- *              Config button pressed = button 11 pushed
+ *  2019-11-19: Merged with latest Inovelli changes; added custom commands to set default and notification LED,
+ *              in addition to previous changes:
+ *                Added hold and release events, modified buttons as follows:
+ *                1-5 taps up = buttons 1, 3, 5, 7, 9 pushed
+ *                1-5 taps dn = buttons 2, 4, 6, 8, 10 pushed
+ *                Up buttton held/released = button 1 held/released
+ *                Down button held/released = button 2 held/released
+ *                Config button pressed = button 11 pushed
  *
  *  2019-10-15: Ability to create child devices for local & rf protection to use in various automations.
  *              Device label is now displayed in logging. 
@@ -30,14 +32,13 @@
  */
  
 metadata {
-    definition (name: "Advanced Inovelli Switch Red Series LZW30-SN", namespace: "RMoRobert", author: "Eric Maycock, Robert Morris", importURL: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/inovelli-switch-red-series-lzw30-sn-advanced.groovy") {
+    definition (name: "Advanced Inovelli Switch Red Series LZW30-SN", namespace: "RMoRobert", author: "Robert Morris, Eric Maycock", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/inovelli-switch-red-series-lzw30-sn-advanced.groovy") {
         capability "Switch"
         capability "Refresh"
         capability "Actuator"
         capability "Sensor"
         capability "PushableButton"
         capability "HoldableButton"
-        capability "ReleasableButton"
         capability "Configuration"
         capability "Energy Meter"
         capability "Power Meter"
@@ -46,30 +47,26 @@ metadata {
         attribute "lastEvent", "String"
         attribute "firmware", "String"
         
-        command "pressUpX1"
-        command "pressDownX1"
-        command "pressUpX2"
-        command "pressDownX2"
-        command "pressUpX3"
-        command "pressDownX3"
-        command "pressUpX4"
-        command "pressDownX4"
-        command "pressUpX5"
-        command "pressDownX5"
-        command "holdUp"
-        command "holdDown"
-		command "releaseUp"
-		command "releaseDown"
-        command "pressConfig"
-        
-        command "childOn"
-        command "childOff"
-        command "childRefresh"
         command "reset"
         
         command "setAssociationGroup", ["number", "enum", "number", "number"] // group number, nodes, action (0 - remove, 1 - add), multi-channel endpoint (optional)
 
-        fingerprint mfr: "031E", prod: "0002", model: "0001", deviceJoinName: "Inovelli Switch Red Series (Custom)" 
+		command "push", [[name:"btnNum*", type:"NUMBER", description: "Button number", constraints:["NUMBER"]]]
+		command "hold", [[name:"btnNum*", type:"NUMBER", description: "Button number", constraints:["NUMBER"]]]
+		command "release", [[name:"btnNum*", type:"NUMBER", description: "Button number", constraints:["NUMBER"]]]
+        
+
+		command "setDefaultLED", [[name:"color*",type:"STRING", description:"Color (red, orange, yellow, green, cyan, blue, violet, pink)", constraints:["STRING"]],
+								  [name:"level",type:"NUMBER", description:"LED level (0-10)", constraints:["NUMBER"]]]
+		command "setNotificationLED", [[name:"color*", type:"STRING", description:"Color (red, orange, yellow, green, cyan, blue, violet, pink)", constraints: ["STRING"]],
+									   [name:"level*", type:"NUMBER", description:"LED level (0-10)", constraints:["NUMBER"]],
+									   [name:"duration", type:"NUMBER", description:"Effect duration (optional; 1-254 = seconds, 255 = indefinitely)", constraints:["NUMBER"]],
+									   //[name:"effect", type: "ENUM", description: "LED effect (optional)", constraints: ["off","solid","fast-blink","slow-blink","pulse"]]]
+									   [name:"effect", type: "STRING", description: "LED effect (optional): 0=off, 1=solid, 3=fast, 4=slow, 5=pulse", constraints: ["STRING"]]]
+		
+
+
+        fingerprint mfr: "031E", prod: "0002", model: "0001", deviceJoinName: "Inovelli Switch Red Series" 
         fingerprint deviceId: "0x1001", inClusters: "0x5E,0x6C,0x55,0x98,0x9F,0x22,0x70,0x85,0x59,0x86,0x32,0x72,0x5A,0x5B,0x73,0x75,0x7A"
         fingerprint deviceId: "0x1001", inClusters: "0x5E,0x70,0x85,0x59,0x55,0x86,0x72,0x5A,0x73,0x32,0x5B,0x98,0x9F,0x25,0x6C,0x75,0x22,0x7A"
         
@@ -111,7 +108,7 @@ def generate_preferences()
         }
     }
     
-    input description: "When each notification set (Color, Level, Duration, Type) is configured, a switch child device is created that can be used in SmartApps to activate that notification.", title: "LED Notifications", displayDuringSetup: false, type: "paragraph", element: "paragraph"
+    input description: "When each notification set (Color, Level, Duration, Type) is configured, a switch child device is created that can be used in apps to activate that notification.", title: "LED Notifications", displayDuringSetup: false, type: "paragraph", element: "paragraph"
     
     [1,2,3,4,5].each { i ->
                 input "parameter8-${i}a", "enum", title: "LED Effect Color - Notification $i", description: "Tap to set", displayDuringSetup: false, required: false, options: [
@@ -166,8 +163,8 @@ def generate_preferences()
     
     }
     input "disableLocal", "enum", title: "Disable Local Control", description: "\nDisable ability to control switch from the wall", required: false, options:[["1": "Yes"], ["0": "No"]], defaultValue: "0"
-    input "disableRemote", "enum", title: "Disable Remote Control", description: "\nDisable ability to control switch from inside SmartThings", required: false, options:[["1": "Yes"], ["0": "No"]], defaultValue: "0"
-    input description: "Use the below options to enable child devices for the specified settings. This will allow you to adjust these settings using SmartApps such as Smart Lighting. If any of the options are enabled, make sure you have the appropriate child device handlers installed.\n(Firmware 1.02+)", title: "Child Devices", displayDuringSetup: false, type: "paragraph", element: "paragraph"
+    input "disableRemote", "enum", title: "Disable Remote Control", description: "\nDisable ability to control switch from inside Hubitat", required: false, options:[["1": "Yes"], ["0": "No"]], defaultValue: "0"
+    input description: "Use the below options to enable child devices for the specified settings. This will allow you to adjust these settings using apps such as Simple Lighting. If any of the options are enabled, make sure you have the appropriate child device handlers installed.\n(Firmware 1.02+)", title: "Child Devices", displayDuringSetup: false, type: "paragraph", element: "paragraph"
     input "enableDisableLocalChild", "bool", title: "Disable Local Control", description: "", required: false, defaultValue: false
     input "enableDisableRemoteChild", "bool", title: "Disable Remote Control", description: "", required: false, defaultValue: false
     input name: "debugEnable", type: "bool", title: "Enable debug logging", defaultValue: true
@@ -289,21 +286,21 @@ def initialize() {
     
     if (enableDisableLocalChild && !childExists("ep101")) {
     try {
-        addChildDevice("Switch Level Child Device", "${device.deviceNetworkId}-ep101",
+        addChildDevice("InovelliUSA", "Switch Level Child Device", "${device.deviceNetworkId}-ep101",
                 [completedSetup: true, label: "${device.displayName} (Disable Local Control)",
                 isComponent: true, componentName: "ep101", componentLabel: "Disable Local Control"])
     } catch (e) {
         runIn(3, "sendAlert", [data: [message: "Child device creation failed. Make sure the device handler for \"Switch Level Child Device\" is installed"]])
     }
     } else if (!enableDisableLocalChild && childExists("ep101")) {
-        if (infoEnable) log.info "${device.label?device.label:device.name}: Trying to delete child device ep101. If this fails it is likely that there is a SmartApp using the child device in question."
+        if (infoEnable) log.info "${device.label?device.label:device.name}: Trying to delete child device ep101. If this fails it is likely that there is an appp using the child device in question."
         def children = childDevices
         def childDevice = children.find{it.deviceNetworkId.endsWith("ep101")}
         try {
             if (infoEnable) log.info "${device.label?device.label:device.name}: SmartThings has issues trying to delete the child device when it is in use. Need to manually delete them."
             //if(childDevice) deleteChildDevice(childDevice.deviceNetworkId)
         } catch (e) {
-            runIn(3, "sendAlert", [data: [message: "Failed to delete child device. Make sure the device is not in use by any SmartApp."]])
+            runIn(3, "sendAlert", [data: [message: "Failed to delete child device. Make sure the device is not in use by any app."]])
         }
     }
     if (enableDisableRemoteChild && !childExists("ep102")) {
@@ -315,14 +312,14 @@ def initialize() {
         runIn(3, "sendAlert", [data: [message: "Child device creation failed. Make sure the device handler for \"Switch Level Child Device\" is installed"]])
     }
     } else if (!enableDisableRemoteChild && childExists("ep102")) {
-        if (infoEnable) log.info "${device.label?device.label:device.name}: Trying to delete child device ep101. If this fails it is likely that there is a SmartApp using the child device in question."
+        if (infoEnable) log.info "${device.label?device.label:device.name}: Trying to delete child device ep101. If this fails it is likely that there is a app using the child device in question."
         def children = childDevices
         def childDevice = children.find{it.deviceNetworkId.endsWith("ep102")}
         try {
             if (infoEnable) log.info "${device.label?device.label:device.name}: SmartThings has issues trying to delete the child device when it is in use. Need to manually delete them."
             //if(childDevice) deleteChildDevice(childDevice.deviceNetworkId)
         } catch (e) {
-            runIn(3, "sendAlert", [data: [message: "Failed to delete child device. Make sure the device is not in use by any SmartApp."]])
+            runIn(3, "sendAlert", [data: [message: "Failed to delete child device. Make sure the device is not in use by any app."]])
         }
     }
     
@@ -336,14 +333,14 @@ def initialize() {
         runIn(3, "sendAlert", [data: [message: "Child device creation failed. Make sure the device handler for \"Switch Child Device\" is installed"]])
     }
     } else if ((settings."parameter8-${i}a"==null || settings."parameter8-${i}b"==null || settings."parameter8-${i}c"==null || settings."parameter8-${i}d"==null) && childExists("ep${i}")) {
-        if (infoEnable) log.info "${device.label?device.label:device.name}: Trying to delete child device ep${i}. If this fails it is likely that there is a SmartApp using the child device in question."
+        if (infoEnable) log.info "${device.label?device.label:device.name}: Trying to delete child device ep${i}. If this fails it is likely that there is a app using the child device in question."
         def children = childDevices
         def childDevice = children.find{it.deviceNetworkId.endsWith("ep${i}")}
         try {
             if (infoEnable) log.info "${device.label?device.label:device.name}: SmartThings has issues trying to delete the child device when it is in use. Need to manually delete them."
             //if(childDevice) deleteChildDevice(childDevice.deviceNetworkId)
         } catch (e) {
-            runIn(3, "sendAlert", [data: [message: "Failed to delete child device. Make sure the device is not in use by any SmartApp."]])
+            runIn(3, "sendAlert", [data: [message: "Failed to delete child device. Make sure the device is not in use by any app."]])
         }
     }}
     if (device.label != state.oldLabel) {
@@ -590,7 +587,7 @@ def integer2Cmd(value, size) {
 }
 
 private getCommandClassVersions() {
-	[0x20: 1, 0x25: 1, 0x70: 1, 0x98: 1, 0x32: 3]
+	[0x20: 1, 0x25: 1, 0x70: 1, 0x98: 1, 0x32: 3, 0x5B: 1]
 }
 
 def zwaveEvent(hubitat.zwave.commands.securityv1.SecurityMessageEncapsulation cmd) {
@@ -675,6 +672,18 @@ def zwaveEvent(hubitat.zwave.Command cmd) {
     null
 }
 
+def push(btnNum) {
+	return sendEvent(buttonEvent(btnNum, "pushed", "digital"))
+}
+
+def hold(btnNum) {
+	return sendEvent(buttonEvent(btnNum, "held", "digital"))
+}
+
+def release(btnNum) {
+	return sendEvent(buttonEvent(btnNum, "released", "digital"))
+}
+
 def reset() {
 	def cmds = []
     cmds << zwave.meterV2.meterReset()
@@ -729,65 +738,6 @@ private commands(commands, delay=500) {
     delayBetween(commands.collect{ command(it) }, delay)
 }
 
-def pressUpX1() {
-    sendEvent(buttonEvent(1, "pushed"))
-}
-
-def pressDownX1() {
-    sendEvent(buttonEvent(2, "held"))
-}
-
-def pressUpX2() {
-    sendEvent(buttonEvent(3, "pushed"))
-}
-
-def pressDownX2() {
-    sendEvent(buttonEvent(4, "held"))
-}
-
-def pressUpX3() {
-    sendEvent(buttonEvent(5, "pushed"))
-}
-
-def pressDownX3() {
-    sendEvent(buttonEvent(6, "held"))
-}
-
-def pressUpX4() {
-    sendEvent(buttonEvent(7, "pushed"))
-}
-
-def pressDownX4() {
-    sendEvent(buttonEvent(8, "held"))
-}
-
-def pressUpX5() {
-    sendEvent(buttonEvent(9, "pushed"))
-}
-
-def pressDownX5() {
-    sendEvent(buttonEvent(10, "held"))
-}
-
-def holdUp() {
-    sendEvent(buttonEvent(1, "held"))
-}
-
-def releaseUp() {
-    sendEvent(buttonEvent(1, "released"))
-}
-
-def holdDown() {
-    sendEvent(buttonEvent(2, "held"))
-}
-
-def releaseDown() {
-    sendEvent(buttonEvent(2, "released"))
-}
-
-def pressConfig() {
-    sendEvent(buttonEvent(11, "pushed"))
-}
 
 def setDefaultAssociations() {
     def smartThingsHubID = (zwaveHubNodeId.toString().format( '%02x', zwaveHubNodeId )).toUpperCase()
@@ -896,4 +846,75 @@ def zwaveEvent(hubitat.zwave.commands.protectionv2.ProtectionReport cmd) {
     if (childDevice) {
         childDevice.sendEvent(name: "switch", value: cmd.rfProtectionState > 0 ? "on" : "off")        
     }
+}
+
+def setDefaultLED(BigDecimal color, BigDecimal level) {
+	def number = 13
+	def value = (color >= 0 && color <= 255 ? color : 170)
+	def size = 2
+	//def cmds = []
+    //cmds << new hubitat.device.HubAction(command(setParameter(number, value, size)), hubitat.device.Protocol.ZWAVE)
+	def number2 = 14
+	def value2 = (level >= 0 && level <= 10) ? level : 10
+	def size2 = 1
+	return delayBetween([
+	    	command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value, parameterNumber: number, size: size)),
+	    	command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value2, parameterNumber: number2, size: size2)),
+	    	command(zwave.configurationV1.configurationGet(parameterNumber: number)),
+			command(zwave.configurationV1.configurationGet(parameterNumber: number2))
+		], 500)
+}
+
+def setDefaultLEDColor(BigDecimal color) {
+	def number = 13
+	def value = (color >= 0 && color <= 255 ? color : 170)
+	def size = 2
+	//def cmds = []
+	return delayBetween([
+	    	command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value, parameterNumber: number, size: size)),
+	    	command(zwave.configurationV1.configurationGet(parameterNumber: number))
+		], 500)
+}
+
+def setDefaultLED(String color, BigDecimal level) {
+	return setDefaultLED(convertLEDColorStringToInt(color), level)	
+}
+
+def setDefaultLED(String color) {
+	return setDefaultLED(convertLEDColorStringToInt(color))
+}
+
+def setNotificationLED(BigDecimal color, BigDecimal level, BigDecimal duration, BigDecimal type) {
+	def number = 16
+	def size = 4
+	def value = 0
+	color = (color >= 0 && color <= 255) ? color : 255
+	level = (level >= 0 && level <= 10) ? level : 10
+	duration = (duration >= 1 && duration <= 255) ? duration : 255
+	type = (type >= 0 && type <= 5) ? type : 4
+	value += (color as int) * 1
+    value += (number as int) * 256
+    value += (duration as int) * 65536
+    value += (type as int) * 16777216
+	return delayBetween([
+	    	command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value, parameterNumber: number, size: size)),
+	    	command(zwave.configurationV1.configurationGet(parameterNumber: number))
+		], 500)
+}
+
+def setNotificationLED(String color, BigDecimal level, BigDecimal duration=1, String type="slow-blink") {
+	def typeMap = ["off": 0, "solid": 1, "chase": 2, "fast-blink": 3, "slow-blink": 4, "pulse": 5]
+	def numType = typeMap[type] != null ? typeMap[type] : 1
+	return setNotificationLED(convertLEDColorStringToInt(color), level, duration, numType)
+}
+
+def clearNotificationLED() {
+	def cmds = []
+	cmds << new hubitat.device.HubAction(command(setParameter(16, 0, 4)), hubitat.device.Protocol.ZWAVE)
+    return cmds
+}
+
+private convertLEDColorStringToInt(String color) {
+	def colorMap = ["red": 0, "red-orange": 5, "orange": 21, "yellow": 42, "green": 85, "cyan": 127, "light-blue": 155, "blue": 170, "violet": 212, "pink": 234]
+	return colorMap[color] != null ? colorMap[color] : 170
 }
