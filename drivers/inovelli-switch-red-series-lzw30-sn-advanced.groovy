@@ -56,13 +56,14 @@ metadata {
 		command "release", [[name:"btnNum*", type:"NUMBER", description: "Button number", constraints:["NUMBER"]]]
         
 
-		command "setDefaultLED", [[name:"color*",type:"STRING", description:"Color (red, orange, yellow, green, cyan, blue, violet, pink)", constraints:["STRING"]],
+		command "setDefaultLED",  [[name:"color*",type:"ENUM", description: "Color", constraints: ["red", "red-orange", "yellow", "green", "cyan", "light-blue", "blue", "violet", "pink"]],
+                                  //[[name:"color*",type:"STRING", description:"Color (red, orange, yellow, green, cyan, blue, violet, pink)", constraints:["STRING"]],
 								  [name:"level",type:"NUMBER", description:"LED level (0-10)", constraints:["NUMBER"]]]
-		command "setNotificationLED", [[name:"color*", type:"STRING", description:"Color (red, orange, yellow, green, cyan, blue, violet, pink)", constraints: ["STRING"]],
+		command "setNotificationLED", [[name:"color*",type:"ENUM", description: "Color", constraints: ["red", "red-orange", "yellow", "green", "cyan", "blue", "violet", "pink"]],
 									   [name:"level*", type:"NUMBER", description:"LED level (0-10)", constraints:["NUMBER"]],
 									   [name:"duration", type:"NUMBER", description:"Effect duration (optional; 1-254 = seconds, 255 = indefinitely)", constraints:["NUMBER"]],
-									   //[name:"effect", type: "ENUM", description: "LED effect (optional)", constraints: ["off","solid","fast-blink","slow-blink","pulse"]]]
-									   [name:"effect", type: "STRING", description: "LED effect (optional): 0=off, 1=solid, 3=fast, 4=slow, 5=pulse", constraints: ["STRING"]]]
+									   [name:"effect", type: "ENUM", description: "LED effect (optional)", constraints: ["off","solid","fast-blink","slow-blink","pulse"]]]
+									   //[name:"effect", type: "STRING", description: "LED effect (optional): off, solid, fast, slow, pulse", constraints: ["STRING"]]]
 		
 
 
