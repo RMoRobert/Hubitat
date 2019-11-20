@@ -15,6 +15,7 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
+ * 2019-11-19:  Fixed child device creation
  * 2019-11-18:  Merge with new changes from Inovelli (new LED preference, other fixes/improvements)
  * 2019-11-12:  Added commands to set notification LED (color, level, duration, effect)
  * 2019-11-11:  Added commands to set default LED color and level
@@ -304,7 +305,7 @@ def initialize() {
     
     if (enableDefaultLocalChild && !childExists("ep9")) {
     try {
-        addChildDevice("Switch Level Child Device", "${device.deviceNetworkId}-ep9", 
+        addChildDevice("InovelliUSA", "Switch Level Child Device", "${device.deviceNetworkId}-ep9", 
                 [completedSetup: true, label: "${device.displayName} (Default Local Level)",
                 isComponent: true, componentName: "ep9", componentLabel: "Default Local Level"])
     } catch (e) {
