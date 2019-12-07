@@ -25,10 +25,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2018-12-27
+ *  Last modified: 2019-12-06
  * 
  *  Changelog:
  * 
+ *  1.1 - Removed mode input
  *  1.0 - Parent app first release
  *
  */ 
@@ -46,12 +47,14 @@ definition(
 )   
 
 preferences {
-	section ("About Dimmer Button Controller") {
-    	paragraph title: "Dimmer Button Controller", 'This app helps you create automations that control one or more bulbs/dimmers/switches with a button controller device (a 5-button Pico with the "fast" driver is recommended, though any button device should work).'
-	}
-	section("Dimmer Button Controller Child Apps") {
-    	app(name: "childApps1", appName: "Dimmer Button Controller (Child App)", namespace: "RMoRobert", title: "Add new Dimmer Button Controller automation", multiple: true)
-	}
+    page(name: "mainPage", title: "Dimmer Button Controller", install: true, uninstall: true) {
+	    section ("About Dimmer Button Controller") {
+        	paragraph title: "Dimmer Button Controller", 'This app helps you create automations that control one or more bulbs/dimmers/switches with a button controller device (a 5-button Pico with the "fast" driver, a Hue Dimmer, or an Eria dimmer are recommended, but any button device should work).'
+    	}
+    	section("Dimmer Button Controller Child Apps") {
+        	app(name: "childApps1", appName: "Dimmer Button Controller (Child App)", namespace: "RMoRobert", title: "Add new Dimmer Button Controller automation", multiple: true)
+        }
+    }
 }
 
 def installed() {
