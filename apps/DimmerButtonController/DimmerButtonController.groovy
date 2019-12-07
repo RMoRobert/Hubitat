@@ -16,9 +16,10 @@
  *
  *  Author: Robert Morris
  *
- * Version: 1.8 BETA
+ * Version: 1.9
  *
  * CHANGELOG
+ * 1.9 (2019-12-06) - Added option to activate CoCoHue scenes
  * 1.8 (2019-08-02) - Added option to send commands twice (shouldn't be needed but is bug fix for apparent Hubitat problem)
  * 1.7 (2019-04-29) - Added "toggle" action, "additional switches for 'off'" option; bug fixes (dimming, scene off)
  * 1.6 (2019-01-14) - New "held" functionality
@@ -61,7 +62,7 @@ def pageMain() {
 					 href(name: "pageButtonConfigHref",
 						page: "pageButtonConfig",
 						params: [btnNum: num, action: "pushed"],
-						  title: "Button ${num} - Pressed",
+						  title: "Button ${num} - Pushed",
 						  description: getButtonConfigDescription(num, "pushed"))
 					if (buttonDevice.hasCapability("HoldableButton")) {
 						href(name: "pageButtonConfigHref",
@@ -80,7 +81,7 @@ def pageMain() {
 		section("Advanced options", hideable: true, hidden: true) {
 			input(name: "transitionTime", type: "decimal", title: "Transition time", description: "Number of seconds (0 for fastest bulb/dimmer driver allows)", required: true, defaultValue: 0)
 			input(name: "dimStep", type: "number", title: "Dimming buttons change level +/- by (unless \"dim while holding\" enabled on supported devices)", description: "0-100", required: true, defaultValue: 10)
-			input(name: "boolDblCmd", type: "bool", title: "Send on/off and level commands twice (workaround for possible Hubitat bug if bulbs don't change first time")
+			input(name: "boolDblCmd", type: "bool", title: "Send on/off and level commands twice (workaround for possible Hubitat bug if bulbs don't change first time)")
             input(name: "debugLogging", type: "bool", title: "Enable debug logging")
 			//input(name: "traceLogging", type: "bool", title: "Enable verbose/trace logging (for development)")
 		}
@@ -119,10 +120,10 @@ def pageButtonConfig(params) {
 	dynamicPage(name: "pageButtonConfig", title: "Button ${params?.btnNum} Configuration", uninstall: true, install: false) {
         if(settings["buttonDevice"] && settings["bulbs"] && params?.btnNum) {
 			def btnActionSettingName = "btn${params.btnNum}Action"
-			section("Actions for button ${params.btnNum}") {
+            section("Actions for button ${params.btnNum} ${params.action}") {
 				if (params.action == "held") btnActionSettingName = "btn${params.btnNum}HeldAction"
 				input(name: btnActionSettingName, type: "enum", title: "Do...",
-					options: ["Turn on", "Turn on scene", "Brighten", "Dim", "Toggle", "Turn off last used scene", "Turn off scene", "Turn off"], submitOnChange: true)
+					options: ["Turn on", "Turn on scene", "Activate CoCoHue scene", "Brighten", "Dim", "Toggle", "Turn off last used scene", "Turn off scene", "Turn off"], submitOnChange: true)
 			}
 			if (settings[btnActionSettingName]) {
 				switch(settings[btnActionSettingName]) {
@@ -131,6 +132,9 @@ def pageButtonConfig(params) {
 						break
 					case "Turn on scene":
 						makeTurnOnSceneSection(params.btnNum, params.action)
+						break
+					case "Activate CoCoHue scene":
+						makeActivateHueSceneSection(params.btnNum, params.action)
 						break
 					case "Brighten":
 						makeDimUpSection(params.btnNum, params.action)
@@ -229,6 +233,20 @@ def getButtonConfigDescription(btnNum, strAction) {
 			desc += "\nTurn on scene: ${sc}"				
 		}
 	}
+	else if (settings[actionSettingName] == "Activate CoCoHue scene") {
+		if (strAction != "held") {
+			for (pressNum in 1..getMaxPressNum()) {
+				if (getDoesPressNumHaveAction(btnNum, pressNum)) {
+					desc += "\nPRESS ${pressNum}: "
+					def sc = settings["btn${btnNum}_HueScene_press${pressNum}"]
+					desc += "Activate Hue scene: ${sc}"				
+				}
+			}
+		} else {
+			def sc = settings["btn${btnNum}_HueScene_Held"]
+			desc += "\nActivate Hue scene: ${sc}"				
+		}
+	}
 	else if (settings[actionSettingName] == "Turn off scene") {
 		def scOffSettingName = "btn${btnNum}_SceneOff"
 		if (strAction == "held") scOffSettingName = "btn${btnNum}Held_SceneOff"
@@ -292,13 +310,29 @@ def makeTurnOnSceneSection(btnNum, strAction = "pushed") {
 		for (pressNum in 1..getMaxPressNum()) {
 			if (pressNum == 1 || getDoesPressNumHaveAction(btnNum, pressNum-1)) {
 				section("Press ${pressNum}" , hideable: true, hidden: false) {
-							input(name: "btn${btnNum}_Scene_press${pressNum}", type: "device.SceneActivator", title: "Activate scene(s):", multiple: true)
+							input(name: "btn${btnNum}_Scene_press${pressNum}", type: "device.SceneActivator", title: "Activate scene(s):", multiple: true, submitOnChange: true)
 				}
 			}
 		}
 	} else {
 		section("Button Held" , hideable: true, hidden: false) {
-			input(name: "btn${btnNum}_Scene_Held", type: "device.SceneActivator", title: "Activate scene(s):", multiple: true)
+			input(name: "btn${btnNum}_Scene_Held", type: "device.SceneActivator", title: "Activate scene(s):", multiple: true, submitOnChange: true)
+		}
+	}
+}
+
+def makeActivateHueSceneSection(btnNum, strAction = "pushed") {
+	if (strAction != "held") {
+		for (pressNum in 1..getMaxPressNum()) {
+			if (pressNum == 1 || getDoesPressNumHaveAction(btnNum, pressNum-1)) {
+				section("Press ${pressNum}" , hideable: true, hidden: false) {
+							input(name: "btn${btnNum}_HueScene_press${pressNum}", type: "device.CoCoHueScene", title: "Activate Hue Bridge scene(s):", multiple: true, submitOnChange: true)
+				}
+			}
+		}
+	} else {
+		section("Button Held" , hideable: true, hidden: false) {
+			input(name: "btn${btnNum}_HueScene_Held", type: "device.CoCoHueScene", title: "Activate Hue Bridge scene(s):", multiple: true, submitOnChange: true)
 		}
 	}
 }
@@ -331,7 +365,7 @@ def makeTurnOffSection() {
 
 def makeDimUpSection(btnNum, strAction = "pushed") {
 	section("<strong>Description</strong>") {
-		paragraph("Brightens (dims up) any specified lights that are on when button ${btnNum} is pressed")
+		paragraph("Brightens (dims up) any specified lights that are on when button ${btnNum} is $strAction")
 	}
 	section("<strong>Options</strong>") {
 		if (buttonDevice.hasCapability("ReleasableButton")) {
@@ -350,7 +384,7 @@ def makeDimUpSection(btnNum, strAction = "pushed") {
 
 def makeDimDownSection(btnNum, strAction = "pushed") {	
 	section("<strong>Description</strong>") {
-		paragraph("Dims (decreases bightness on) any specified lights that are on when button ${btnNum} is pressed")
+		paragraph("Dims (decreases bightness on) any specified lights that are on when button ${btnNum} is $strAction")
 	}
 	section("<strong>Options</strong>") {
 		if (buttonDevice.hasCapability("ReleasableButton")) {
@@ -427,6 +461,15 @@ def pushedHandler(evt) {
 		incrementPressNum(btnNum)
 		runIn(15, resetPressNum, [data: ["btnNum": btnNum]])
 		break
+    case "Activate CoCoHue scene":		
+		def pressNum = getPressNum(btnNum)
+		logDebug "Action \"Turn on CoCoHue scene\" specified for button ${btnNum} press ${pressNum}"
+		def sc = settings["btn${btnNum}_HueScene_press${pressNum}"]
+		sc.on()
+		logTrace "Scene turned on for ${sc}"
+		incrementPressNum(btnNum)
+		runIn(15, resetPressNum, [data: ["btnNum": btnNum]])
+		break        
 	case "Toggle":
 		toggle(bulbs)
 		break
@@ -544,6 +587,13 @@ def heldHandler(evt) {
 		sc.push()
         if (boolDblCmds) sc.push()
 		break
+    case "Activate CoCoHue scene":		
+		def pressNum = getPressNum(btnNum)
+		logDebug "Action \"Turn on CoCoHue scene\" specified for button ${btnNum} held"	
+		def sc = settings["btn${btnNum}_HueScene_Held"]
+		sc.on()
+		logTrace "Hue scene turned on for ${sc}"
+		break     
 	case "Toggle":
 		toggle(bulbs)
 		break
@@ -777,6 +827,7 @@ def setCT(devices, ct) {
 def getPressNum(buttonNum) {
 	switch(settings["btn${buttonNum}Action"]) {
 		case "Turn on scene":
+        case "Activate CoCoHue scene":
 			//intentionally continuing
 		case "Turn on":
 			def pressNum = atomicState["pressNum${buttonNum}"]
@@ -787,6 +838,7 @@ def getPressNum(buttonNum) {
 			logTrace("getPressNum called, returning ${pressNum}")
 			return pressNum
 			break
+        
 		default:
 			logTrace "getPressNum for button ${buttonNum} was called but ${buttonNum} is not a special button"
 	}
@@ -870,6 +922,12 @@ def getDoesPressNumHaveAction(btnNum, pressNum) {
 		}
 		else if (settings["btn${btnNum}Action"] == "Turn on scene") {
 			def sc = settings["btn${btnNum}_Scene_press${pressNum}"]
+			if (sc) {
+				hasAction = true
+			}
+		}
+		else if (settings["btn${btnNum}Action"] == "Activate CoCoHue scene") {
+			def sc = settings["btn${btnNum}_HueScene_press${pressNum}"]
 			if (sc) {
 				hasAction = true
 			}
