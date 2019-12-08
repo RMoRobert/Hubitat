@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2019-04-20
+ *  Last modified: 2019-12-07
  * 
  *  Changelog:
  * 
+ * 4.2 - Added ability to activate Hue Bridge scene (via CoCoHue) for night mode instead of settings
  * 4.1a: - Improved logic for "keep on" sensors (4.1a contains small bugfix for lux levels/sensors)
  * 4.0: - Added "night mode" lighting option (turns on to specified level/settings if run in "night" mode[s]; restores "normal"/previous settings when next run in non-night mode in mode that will turn lights on)
  * 3.1: - Added "kill switch" option (completely disables app regardless of any other options selected in app)
@@ -42,7 +43,11 @@ definition(
 )
 
 preferences {
-    page(name: "pageMain", title: "Lights on Motion Plus", install: true, uninstall: true) {
+    page(name: "pageMain", content: "pageMain")
+}
+
+def pageMain() {
+    dynamicPage(name: "pageMain", title: "Lights on Motion Plus", install: true, uninstall: true) {
         section("Choose lights and sensors") {
             input "motion1", "capability.motionSensor", title: "When motion is detected on sensor(s)", multiple: true
             input "switches", "capability.switch", title: "Turn on these lights (if none already on)", multiple: true, required: true
@@ -50,7 +55,7 @@ preferences {
             input "boolDim", "bool", defaultValue: true, title: "Dim lights before turning off"
 			input "motion2", "capability.motionSensor", title: "Select additional motion sensors to keep lights on (but not turn them on)", multiple: true, required: false
         }
-        section("Restrictions", hideable: true, hidden: false) {
+        section("Restrictions", hideable: true, hidden: true) {
             //TODO: Would be nice to have sunset/sunrise as options here
             input "starting", "time", title: "Ony after this time", required: false
             input "ending", "time", title: "Only before this time", required: false
@@ -60,16 +65,23 @@ preferences {
 			input "killSwitch", "capability.switch", title: "Do not turn lights on or off when this switch is on (no exceptions; \"kill switch\")"
         }
 		
-		section("Night Mode", hideable: true, hidden: true ) {
-			input "nightModes", "mode", title: 'Select mode(s) to consider "night mode"', multiple: true, required: false
-			paragraph("In night mode(s), turn lights on to...")
-			input(name: "nightBri", type: "number", title: "brightness/level:", description: "1-100", width: 3, required: false)
-			input(name: "nightCt", type: "number", title: "color temperature:", description: "~2000-6500", width: 3, required: false)
-			input(name: "nightHue", type: "number", title: "color with hue value:", description: "0-100", width: 3, required: false)
-			input(name: "nightSat", type: "number", title: "saturation value:", description: "0-100", width: 3, required: false)
-			paragraph("You must set brightnes and/or color temperature <em>or</em> all of brightness, hue and saturation")
-            input "nightIgnoreSwitches", "capability.switch", title: "Do NOT turn on these lights in night mode (optional; will otherwise turn on all lights selected for non-night modes)", multiple: true, required: false
-			paragraph("Note that lights will immediately turn off (ater delay) in night mode(s) rather than dimming first.")
+		section("Night Mode", hideable: true, hidden: false ) {
+			input "nightModes", "mode", title: 'Optional: Select mode(s) to consider "night mode"', multiple: true, required: false
+            input(name: "nightSetting", type: "enum", title: "In night mode...", options: [1: "Turn lights on to specific settings", 2: "Activate Hue Bridge scene (CoCoHue required)"], submitOnChange: true)
+            if (nightSetting == "1") {
+			    input(name: "nightBri", type: "number", title: "brightness/level:", description: "1-100", width: 3, required: false)
+			    input(name: "nightCt", type: "number", title: "color temperature:", description: "~2000-6500", width: 3, required: false)
+			    input(name: "nightHue", type: "number", title: "color with hue value:", description: "0-100", width: 3, required: false)
+			    input(name: "nightSat", type: "number", title: "saturation value:", description: "0-100", width: 3, required: false)
+			    paragraph("You must set brightnes and/or color temperature <em>or</em> all of level, hue and saturation")
+                input "nightIgnoreSwitches", "capability.switch", title: "Do NOT turn on these lights in night mode (optional; will otherwise turn on all lights selected for non-night modes)", multiple: true, required: false
+            } else if (nightSetting == "2") {
+                input(name: "nightScene", type: "device.CoCoHueScene", title: "Hue Bridge scene:")
+                paragraph("Make sure all lights used in this scene are selected above, as this app will turn off those lights (there is no way to \"turn off\" a Hue scene).")
+            } else {
+                paragraph("Choose an option for night mode above in order to turn lights on to specific setting in night mode(s). Night mode(s) should <em>not</em> be selected as \"regular\" modes above.")
+            }
+			if (nightSetting) paragraph("Note that lights will immediately turn off (ater delay) in night mode(s) rather than dimming first.")
 		}
 		
 		section("Customizations", hideable: true, hidden: true) {
@@ -77,7 +89,8 @@ preferences {
 			input "dimToLevel", "number", defaultValue: 10, required: true, description: "0-100", title: "Dim to this level"
             input "boolDontObserve", "bool", defaultValue: true, title: "Always turn off after motion stops, even if outside specified time/motion/lux/etc. or \"do not turn on\"-switch conditions (unless \"kill switch\" restriction enabled)"
             input "boolRemember", "bool", defaultValue: true, title: "Remember states of indiviudal lights before dimming and turning off (do not necessarily turn all back on with motion)"
-		}
+		    input "boolSendTwice", "bool", defaultValue: false, title: "Send CT/level commands twice when turning back on (possible Hubitat bug workaround)"
+        }
 
         section("Name and modes", hideable: true, hidden: false) {
             label title: "Assign a name", required: false
@@ -295,6 +308,7 @@ def setDimmerLevel(sw, lvl) {
             logTrace("Device ${sw} supports 'level'")
             sw.setLevel(lvl)
             retVal = true
+            if (boolSendTwice) sw.setLevel(lvl)
         }
     }
     if (retVal == -1) {
@@ -303,6 +317,7 @@ def setDimmerLevel(sw, lvl) {
                 logDebug("Device ${sw} supports 'switch' but not 'level'")
                 if (lvl > 0) {
                     sw.on()
+                    if (boolSendTwice) sw.on()
                 } else {
                     sw.off()
                 }
@@ -517,7 +532,7 @@ def motionHandler(evt) {
 }
 
 /**
- * If configured to save previous light states, attempts to restore those. If can't find, simply turns on light.
+ * If configured to save previous light states, attempts to     b those. If can't find, simply turns on light.
  * Intended to be called when motion is detected
  */
 def restoreAllLights() {
@@ -539,6 +554,7 @@ def restoreAllLights() {
                 setDimmerLevel(it, savedLevel)
 				if (state.switchStates.get(it.id).ct) {
 					it.setColorTemperature(state.switchStates.get(it.id).ct)
+                    if (boolSendTwice) it.setColorTemperature(state.switchStates.get(it.id).ct)
 					logTrace("  Color temperature restored")
 				}
                 it.on()
@@ -567,47 +583,65 @@ def turnOnToNightMode() {
 	//input(name: "nightCt"
 	//input(name: "nightHue"
 	//input(name: "nightSat"
-	//input(name: "nightIgnoreSwitches"
-	switches.each { sw ->
-		def ignore = false
-		nightIgnoreSwitches.each { x ->
-			if (sw.id == x.id) {
-				ignore = true
-				logTrace ("${sw} configured to be ignored in night mode")
-			}
-		}
-		if (!ignore) {
-			if (nightCt && !nightBri)  {
-				try {
-					sw.setColorTemperature(nightCt)
-				} catch (e) {
-					log.warn("Unable to set color temperature for ${it}: ${e}")
-				}
-			} else if (nightCt && nightBri) {
-				try {
-					sw.setLevel(nightBri, 0)
-					sw.setColorTemperature(nightCt)
-				} catch (e) {
-					log.warn("Unable to set color temperature or level for ${it}: ${e}")
-				}
+	//input(name: "nightIgnoreSwitches
+    //input name "nightSetting" (1 or 2)
+    //input name nightScene
+
+    if (!nightSetting) {
+        logDebug("No night mode settings selected; exiting")
+    }
+    else if (nightSetting as int == 1) {
+	    switches.each { sw ->
+		    def ignore = false
+		    nightIgnoreSwitches.each { x ->
+			    if (sw.id == x.id) {
+			    	ignore = true
+			    	logTrace ("${sw} configured to be ignored in night mode")
+		    	}
+		    }
+		    if (!ignore) {
+			    if (nightCt && !nightBri)  {
+			    	try {
+			    		sw.setColorTemperature(nightCt)
+                        if (boolSendTwice) sw.setColorTemperature(nightCt)
+		    		} catch (e) {
+	    				log.warn("Unable to set color temperature for ${it}: ${e}")
+	    			}
+	    		} else if (nightCt && nightBri) {
+	    			try {
+	    				sw.setLevel(nightBri, 0)
+	    				sw.setColorTemperature(nightCt)
+                        if (boolSendTwice) {
+					        sw.setLevel(nightBri, 0)
+					        sw.setColorTemperature(nightCt)
+                        } 
+			    	} catch (e) {
+		    			log.warn("Unable to set color temperature or level for ${it}: ${e}")
+	    			}
 				
-			} else if (nightBri && nightHue && nightSat) {
-				def targetColor = [:]
-				try {
-					targetColor.hue = nightHue.toInteger()
-					targetColor.saturation = nightSat.toInteger()
-					targetColor.level = nightBri.toInteger()
-					sw.setColor(targetColor)
-				} catch (e) {
-					log.warn("Unable to set color for ${it}: ${e}")
-				}				
-			}
-			else {
-				log.warn "CT, CT+Bri, or Bri+Hue+Sat not set for ${it}; turning on without using night mode settings"
-				sw.on()
-			}
-		}
-	}
+			    } else if (nightBri && nightHue && nightSat) {
+				    def targetColor = [:]
+				    try {
+				    	targetColor.hue = nightHue.toInteger()
+			    		targetColor.saturation = nightSat.toInteger()
+		        			targetColor.level = nightBri.toInteger()
+	    				sw.setColor(targetColor)
+                        if (boolSendTwice) sw.setColor(targetColor)
+    				} catch (e) {
+    					log.warn("Unable to set color for ${it}: ${e}")
+    				}				
+    			}
+    			else {
+    				log.warn "CT, CT+Bri, or Bri+Hue+Sat not set for ${it}; turning on without using night mode settings"
+    				sw.on()
+    			}
+		    }
+	    }
+    }
+    else if (nightSetting as int == 2) {
+        logDebug ("Activiating Hue scene: ${settings['nightScene']}")
+        settings['nightScene']?.push(1)
+    }
 	
 	logTrace "-- Exiting turnOnToNightMode() --"
 }
@@ -674,6 +708,9 @@ def turnOffLights() {
             logTrace("  Outside specified mode/time/lux/etc. conditions or is night mode; turning off without saving state: ${it}")
             it.off()
         }
+    }
+    if (boolSendTwice) {
+        switches.off()
     }
     state.isDimmed = false
     log.debug "  Turned off all lights."
