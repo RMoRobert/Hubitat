@@ -39,6 +39,7 @@ metadata {
         capability "Sensor"
         capability "PushableButton"
         capability "HoldableButton"
+		capability "ReleasableButton"
         capability "Configuration"
         capability "Energy Meter"
         capability "Power Meter"
