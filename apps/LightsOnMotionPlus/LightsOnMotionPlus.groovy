@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2019-12-07
+ *  Last modified: 2020-01-04
  * 
  *  Changelog:
- * 
+ *
+ * 4.2b - Fixed issue where 1-minute "off" timer dimmed at 0s instead of 30s
  * 4.2 - Added ability to activate Hue Bridge scene (via CoCoHue) for night mode instead of settings
  * 4.1a: - Improved logic for "keep on" sensors (4.1a contains small bugfix for lux levels/sensors)
  * 4.0: - Added "night mode" lighting option (turns on to specified level/settings if run in "night" mode[s]; restores "normal"/previous settings when next run in non-night mode in mode that will turn lights on)
@@ -117,6 +118,8 @@ def getOffRunDelay() {
 def getDimRunDelay() {
     if (minutes1 < 1) {
         return 1
+    } else if (minutes1 == 1) {
+        return 30
     }
     // or if minutes > 1, then:
     return (minutes1 - 1) * 60
