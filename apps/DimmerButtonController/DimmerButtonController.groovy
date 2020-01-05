@@ -2,7 +2,7 @@
  * ==========================  Dimmer Button Controller (Child  App) ==========================
  *  Platform: Hubitat Elevation
  *
- *  Copyright 2018-2019 Robert Morris
+ *  Copyright 2018-2020 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -16,15 +16,16 @@
  *
  *  Author: Robert Morris
  *
- * Version: 1.9
+ * Version: 1.9a
  *
  * CHANGELOG
- * 1.9 (2019-12-06) - Added option to activate CoCoHue scenes
- * 1.8 (2019-08-02) - Added option to send commands twice (shouldn't be needed but is bug fix for apparent Hubitat problem)
- * 1.7 (2019-04-29) - Added "toggle" action, "additional switches for 'off'" option; bug fixes (dimming, scene off)
- * 1.6 (2019-01-14) - New "held" functionality
- * 1.5 (2019-01-02) - New press/release dimming action
- * 0.9 Beta - (2018-12-27) First public release
+ * 1.9a (2020-01-04) - Changes to eliminate warning if no "additional off" devices selected
+ * 1.9 (2019-12-06)  - Added option to activate CoCoHue scenes
+ * 1.8 (2019-08-02)  - Added option to send commands twice (shouldn't be needed but is bug fix for apparent Hubitat problem)
+ * 1.7 (2019-04-29)  - Added "toggle" action, "additional switches for 'off'" option; bug fixes (dimming, scene off)
+ * 1.6 (2019-01-14)  - New "held" functionality
+ * 1.5 (2019-01-02)  - New press/release dimming action
+ * 0.9 Beta (2018-12-27) - First public release
  *
  */
 
@@ -495,10 +496,10 @@ def pushedHandler(evt) {
 		try {
 			resetAllPressNums()
 			turnOff(bulbs)
-			turnOff(offBulbs)
+			if (offBulbs) turnOff(offBulbs)
             if (boolDblCmds) {
                 turnOff(bulbs)
-                turnOff(offBulbs)
+                if (offBulbs) turnOff(offBulbs)
             }
 		} catch (e) {
 			log.warn "Error when running turn-off action: ${e}"
@@ -618,10 +619,10 @@ def heldHandler(evt) {
 		try {
 			resetAllPressNums()
 			turnOff(bulbs)
-			turnOff(offBulbs)
+			if (offBulbs) turnOff(offBulbs)
             if (boolDblCmds) {
                 turnOff(bulbs)
-                turnOff(offBulbs)
+                if (offBulbs) turnOff(offBulbs)
             }
 		} catch (e) {
 			log.warn "Error when running turn-off action: ${e}"
