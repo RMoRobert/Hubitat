@@ -35,7 +35,7 @@ import groovy.transform.Field
 ]
 
 metadata {
-    definition (name: "Advanced Inovelli Red Series Dimmer (LZW31-SN)", namespace: "RMoRobert", author: "Robert Morris") {
+    definition (name: "Advanced Inovelli Red Series Dimmer (LZW31-SN)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Red-Dimmer-LZW31SN-Advanced.grooy") {
         capability "Actuator"
         capability "Switch"
         capability "SwitchLevel"
@@ -548,7 +548,7 @@ def createChildDevicesIfNeeded() {
     def offLEDDNI = "${device.deviceNetworkId}-OffLED"
     if (!getChildDevice(notificationLEDDNI)) {
         try {
-            def dev = addChildDevice("Inovelli Red Series Notification LED", notificationLEDDNI,
+            def dev = addChildDevice("Inovelli Notification LED", notificationLEDDNI,
                             ["label": "${device.displayName} Notification LED",
                              "isComponent": true])
             dev.installed()
@@ -565,7 +565,7 @@ def createChildDevicesIfNeeded() {
     }
     if (!getChildDevice(offLEDDNI)) {
         try {
-            def dev = addChildDevice("Inovelli Default Off LED", offLEDDNI, ["label": "${device.displayName} Off LED"])
+            def dev = addChildDevice("Inovelli Off LED", offLEDDNI, ["label": "${device.displayName} Off LED"])
         } catch (Exception e) {
             log.error "Error creating \"off\" LED child device: $e"
         }    
