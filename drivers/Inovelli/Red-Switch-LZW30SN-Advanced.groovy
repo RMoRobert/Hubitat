@@ -1,5 +1,5 @@
 /*
- * ===================== Inovelli Red Series Dimmer (LZW31-SN) Driver =====================
+ * ===================== Inovelli Red Series Switch (LZW30-SN) Driver =====================
  *
  *  Copyright 2020 Robert Morris
  *  Portions based on code from Hubitat and Inovelli
@@ -15,7 +15,7 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-01-18
+ *  Last modified: 2020-01-19
  * 
  *  Changelog:
  * 
@@ -27,7 +27,6 @@ import groovy.transform.Field
 @Field static Map commandClassVersions = [
     0x20: 1,    // Basic
     0x25: 1,    // Switch Binary
-    0x26: 3,    // Switch Multilevel
     0x32: 3,    // Meter
     0x5B: 1,    // CentralScene
     0x70: 1,    // Configuration
@@ -35,11 +34,9 @@ import groovy.transform.Field
 ]
 
 metadata {
-    definition (name: "Advanced Inovelli Red Series Dimmer (LZW31-SN)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Red-Dimmer-LZW31SN-Advanced.grooy") {
+    definition (name: "Advanced Inovelli Red Series Switch (LZW30-SN)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Red-Switch-LZW30SN-Advanced.groovy") {
         capability "Actuator"
         capability "Switch"
-        capability "SwitchLevel"
-        capability "ChangeLevel"
         capability "EnergyMeter"
         capability "VoltageMeasurement"
         capability "PowerMeter"
@@ -61,45 +58,25 @@ metadata {
         attribute "firmware", "String"
         attribute "amperage", "number"
 
-        fingerprint mfr: "031E", prod: "0001", model: "0001"
-        fingerprint deviceId: "0x1101", inClusters: "0x5E,0x55,0x98,0x9F,0x6C,0x22,0x26,0x70,0x85,0x59,0x86,0x32,0x72,0x5A,0x5B,0x73,0x75,0x7A"
-        fingerprint deviceId: "0x1101", inClusters: "0x5E,0x26,0x70,0x85,0x59,0x55,0x86,0x72,0x5A,0x73,0x32,0x98,0x9F,0x5B,0x6C,0x75,0x22,0x7A"
+        fingerprint mfr: "031E", prod: "0002", model: "0001", deviceJoinName: "Inovelli Switch Red Series" 
+        fingerprint deviceId: "0x1001", inClusters: "0x5E,0x6C,0x55,0x98,0x9F,0x22,0x70,0x85,0x59,0x86,0x32,0x72,0x5A,0x5B,0x73,0x75,0x7A"
+        fingerprint deviceId: "0x1001", inClusters: "0x5E,0x70,0x85,0x59,0x55,0x86,0x72,0x5A,0x73,0x32,0x5B,0x98,0x9F,0x25,0x6C,0x75,0x22,0x7A"
     }
     
     preferences {
-        input name: "param7", type: "enum", title: "Paddle function", options:[[0:"Normal"],[1:"Reverse"]], defaultValue: 0
-        input name: "param1", type: "enum", title: "Dimming rate from paddle",
-            options:[[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],[10:"10 seconds"],[30:"30 seconds"],[100:"100 seconds"]], defaultValue: 3
-        input name: "param2", type: "enum", title: "Dimming rate from hub",
-            options:[[101:"Match phyiscal dimming ramp rate"],[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],
-            [10:"10 seconds"],[30:"30 seconds"],[100:"100 seconds"]], defaultValue: 101
-        input name: "param3", type: "enum", title: "On/off fade time from paddle",
-            options:[[101:"Match phyiscal dimming ramp rate"],[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],
-            [10:"10 seconds"],[30:"30 seconds"],[100:"100 seconds"]], defaultValue: 101
-        input name: "param4", type: "enum", title: "On/off fade time from hub",
-            options:[[101:"Match phyiscal dimming ramp rate"],[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],
-            [10:"10 seconds"],[30:"30 seconds"],[100:"100 seconds"]], defaultValue: 101
-        input name: "param5", type: "number", title: "Minimum dimmer level", range: 1..45, defaultValue: 1
-        input name: "param6", type: "number", title: "Maximum dimmer level", range: 55..99, defaultValue: 99
-        input name: "param8", type: "number", title: "Automatically turn switch off after ... seconds (0=disable auto-off)", range: 0..32767, defaultValue: 0
-        input name: "param9", type: "number", title: "Default level for physical \"on\" (0=previous)", range: 0..99, defaultValue: 0
-        input name: "param10", type: "number", title: "Default level for digital \"on\" (0=previous)", range: 0..99, defaultValue: 0
-        input name: "param11", type: "enum", title: "State on power restore", options:[[0:"Off"],[99:"On to highest level"],[101:"Previous"]], defaultValue: 0
-        input name: "param17", type: "enum", title: "If LED bar disabled, indicate level while adjusting and after for",
-            options:[[0:"Do not show"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],[6:"6 seconds"],
-            [7:"7 seconds"],[8:"8 seconds"],[9:"9 seconds"],[10:"10 seconds"]], defaultValue: 3
-        input name: "param18", type: "enum", title: "Send new power report when level changes by",
+        input name: "param2", type: "enum", title: "Paddle function", options:[[0:"Normal"],[1:"Reverse"]], defaultValue: 0
+        input name: "param3", type: "number", title: "Automatically turn switch off after ... seconds (0=disable auto-off)", range: 0..32767, defaultValue: 0
+        input name: "param1", type: "enum", title: "State on power restore", options:[[0:"Previous"],[1:"On"],[2:"Off"]], defaultValue: 0
+        input name: "param10", type: "enum", title: "Send new power report when level changes by",
             options:[[0:"Disabled"],[5:"5%"],[10:"10%"],[15:"15%"],[20:"20%"],[25:"25%"],[30:"30%"],[40:"40%"],[50:"50%"],[60:"60%"],[70:"70%"],
             [80:"80%"],[90:"90%"],[100:"100%"]], defaultValue: 10
-        input name: "param20", type: "enum", title: "Send new energy report when level changes by",
+        input name: "param12", type: "enum", title: "Send new energy report when level changes by",
             options:[[0:"Disabled"],[5:"5%"],[10:"10%"],[15:"15%"],[20:"20%"],[25:"25%"],[30:"30%"],[40:"40%"],[50:"50%"],[60:"60%"],[70:"70%"],
             [80:"80%"],[90:"90%"],[100:"100%"]], defaultValue: 10
-        input name: "param19", type: "enum", title: "Power and energy reporting interval",
+        input name: "param11", type: "enum", title: "Power and energy reporting interval",
             options:[[0:"Disabled"],[30:"30 seconds"],[60:"1 minute"],[180:"3 minutes"],[300:"5 minutes"],[600:"10 minutes"],[900:"15 minutes"],
             [1200:"20 minutes"],[1800:"30 minutes"],[3600:"1 hour"],[7200:"2 hours"],[10800:"3 hours"],[18000:"5 hours"],
             [32400: "9 hours"]], defaultValue: 3600
-        input name: "param21", type: "enum", title: "AC power type", options:[[0:"No neutral"],[1:"Neutral"]], defaultValue: 1
-        input name: "param22", type: "enum", title: "Switch type", options:[[0:"Single-pole"],[1:"Multi-way with dumb switch"],[2:"Multi-way with aux switch"]], defaultValue: 0
         //input name: "disableLocal", type: "bool", title: "Disable local control (on switch)", required: false, defaultValue: false
         //input name: "disableRemote", type: "bool", title: "Disable remote control (from Hubitat)", required: false, defaultValue: false
         input name: "flashRate", type: "enum", title: "Flash rate", options:[[750:"750ms"],[1000:"1s"],[2000:"2s"],[5000:"5s"]], defaultValue: 750
@@ -144,7 +121,7 @@ def parse(description) {
     return result
 }
 
-// Does Inovelli dimmer send these?
+// Does Inovelli switch send these?
 def zwaveEvent(hubitat.zwave.commands.versionv1.VersionReport cmd) {
     logDebug("VersionReport value: ${cmd}")
     if(cmd.applicationVersion != null && cmd.applicationSubVersion != null) {
@@ -266,39 +243,21 @@ def integer2Cmd(value, size) {
 }
 
 def zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd) {
-    logDebug("${device.displayName} BasicReport:  ${cmd}")
-    //logDesc("${device.displayName} Basic report received with value of ${cmd.value ? "on" : "off"} ($cmd.value)"
-    // Switch is sending SwitchMultilevelReport as well (which we will use)
-    dimmerEvents(cmd)
-}            
+    logDebug("${device.displayName} BasicReport: ${cmd}")
+    logDesc("${device.displayName} is ${cmd.value ? "on" : "off"} (physical)")
+	createEvent(name: "switch", value: cmd.value ? "on" : "off", type: "physical")
+}
 
 def zwaveEvent(hubitat.zwave.commands.basicv1.BasicSet cmd) {
-    logDebug("${device.displayName}: ${cmd}")
-    //logDebug("${device.displayName}: Basic set received with value of ${cmd.value ? "on" : "off"}")
-    dimmerEvents(cmd)
+    logDebug("${device.displayName} BasicSet: ${cmd}")
+    logDesc("${device.displayName} is ${cmd.value ? "on" : "off"} (physical)")
+	createEvent(name: "switch", value: cmd.value ? "on" : "off", type: "physical")
 }
 
 def zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd) {
-    logDebug("${device.displayName}: ${cmd}")
-    //logDesc("${device.displayName}: Switch Binary report received with value of ${cmd.value ? "on" : "off"}")
-    dimmerEvents(cmd)
-}
-
-def zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport cmd) {
-    logDebug("${device.displayName}: ${cmd}")
-    //logDebug("${device.displayName}: Switch Multilevel report received with value of ${cmd.value ? "on" : "off"} ($cmd.value)")
-    dimmerEvents(cmd)
-}
-
-private dimmerEvents(hubitat.zwave.Command cmd) {
-    def value = (cmd.value ? "on" : "off")
-    logDesc("${device.displayName} switch is ${cmd.value ? "on" : "off"}")
-    def result = [createEvent(name: "switch", value: value)]
-    if (cmd.value) {
-        logDesc("${device.displayName} level is ${cmd.value}%")
-        result << createEvent(name: "level", value: cmd.value, unit: "%")
-    }
-    return result
+    if (debugEnable) log.debug "${device.displayName}: ${cmd}"
+    logDesc("${device.displayName} is ${cmd.value ? "on" : "off"} (digital)")
+	createEvent(name: "switch", value: cmd.value ? "on" : "off", type: "digital")
 }
 
 def zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification cmd) {
@@ -402,35 +361,13 @@ def doubleTap(button){
 def on() {
     logDebug("${device.displayName} on()")
     state.flashing = false
-    return command(zwave.switchMultilevelV1.switchMultilevelSet(value: 0xFF))
+    return command(zwave.basicV1.basicSet(value: 0xFF))
 }
 
 def off() {
     logDebug("${device.displayName} off()")
     state.flashing = false
-    return command(zwave.switchMultilevelV1.switchMultilevelSet(value: 0x00))
-}
-
-def setLevel(value) {
-    logDebug("${device.displayName} setLevel($value)")
-    state.flashing = false
-    return command(zwave.basicV1.basicSet(value: value < 100 ? value : 99))
-}
-
-def setLevel(value, duration) {
-    logDebug("${device.displayName} setLevel($value, $duration)")
-    state.flashing = false
-    def dimmingDuration = duration < 128 ? duration : 128 + Math.round(duration / 60)
-    return command(zwave.switchMultilevelV2.switchMultilevelSet(value: value < 100 ? value : 99, dimmingDuration: dimmingDuration))
-}
-
-def startLevelChange(direction) {
-    def upDown = direction == "down" ? 1 : 0
-    return command(zwave.switchMultilevelV1.switchMultilevelStartLevelChange(upDown: upDown, ignoreStartLevel: 1, startLevel: 0))
-}
-
-def stopLevelChange() {
-    return command(zwave.switchMultilevelV1.switchMultilevelStopLevelChange().format(), "delay 200")
+    return command(zwave.basicV1.basicSet(value: 0x00))
 }
 
 def flash() {
@@ -443,19 +380,19 @@ def flash() {
 def flashOn() {
     if (!state.flashing) return
     runInMillis((flashRate ?: 750).toInteger(), flashOff)
-    return command(zwave.switchMultilevelV2.switchMultilevelSet(value: 0xFF, dimmingDuration: 0))
+    return command(zwave.basicV1.basicSet(value: 0xFF))
 }
 
 def flashOff() {
     if (!state.flashing) return
     runInMillis((flashRate ?: 750).toInteger(), flashOn)
-    return command(zwave.switchMultilevelV2.switchMultilevelSet(value: 0x00, dimmingDuration: 0))
+    return command(zwave.basicV1.basicSet(value: 0x00))
 }
 
 def refresh() {
     logDebug("refresh()")
     def cmds = []
-    cmds << zwave.switchMultilevelV1.switchMultilevelGet()
+    cmds << zwave.basicV1.basicGet()
     cmds << zwave.meterV3.meterGet(scale: 0)
 	cmds << zwave.meterV3.meterGet(scale: 2)
     return commands(cmds)
@@ -463,7 +400,7 @@ def refresh() {
 
 def installed(){
     log.warn "Installed..."
-    sendEvent(name: "level", value: 1)
+    refresh() 
 }
 
 def configure() {
@@ -489,9 +426,8 @@ def updated() {
     def cmds = []
     
     // [Parameter number: size] map, assuming variable of name "paramX" where X is parameter number
-    def params = [1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 2,
-                  9: 1, 10: 1, 11: 1, 17: 1, 18: 1, 19: 2, 20: 1,
-                  21: 1, 22: 1]
+    def params = [1: 1, 2: 1, 3: 2,
+                 10: 1, 11: 2, 12: 1]
     params.each {
         def p = settings["param${it.key}"]
         if (p != null) {
@@ -543,14 +479,14 @@ def setOffLEDLevel(value) {
 
 def createChildDevicesIfNeeded() {
     // Notification LED name should have "-31" for dimmers or "-30" for switches
-    def notificationLEDDNI = "${device.deviceNetworkId}-31NotifyLED"
+    def notificationLEDDNI = "${device.deviceNetworkId}-30NotifyLED"
     def defaultLEDDNI = "${device.deviceNetworkId}-DefaultLED"
     def offLEDDNI = "${device.deviceNetworkId}-OffLED"
     if (!getChildDevice(notificationLEDDNI)) {
         try {
             def dev = addChildDevice("Inovelli Notification LED", notificationLEDDNI,
                             ["label": "${device.displayName} Notification LED",
-                             "isComponent": true])
+                             "isComponent": false])
             dev.installed()
         } catch (Exception e) {
             log.error "Error creating notification LED child device: $e"
@@ -579,4 +515,3 @@ def logDebug(str) {
 def logDesc(str) {
     if (settings.txtEnable) log.info(str)
 }
-s

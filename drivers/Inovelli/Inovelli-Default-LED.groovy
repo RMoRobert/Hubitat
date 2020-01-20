@@ -14,7 +14,7 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-01-17
+ *  Last modified: 2020-01-19
  * 
  *  Changelog:
  * 
@@ -24,7 +24,7 @@
 import groovy.transform.Field
 
 metadata {
-    definition (name: "Inovelli Default LED", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Inovelli-Default-LED.grooy") {
+    definition (name: "Inovelli Default LED", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Inovelli-Default-LED.groovy") {
         capability "Actuator"
         capability "ColorControl"
         capability "Switch"

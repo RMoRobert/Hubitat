@@ -29,7 +29,7 @@ import groovy.transform.Field
 @Field static Map switchLEDEffects = [0: "Off", 1:"Solid", 2:"Fast Blink", 3:"Slow Blink", 4:"Pulse"]
 
 metadata {
-    definition (name: "Inovelli Notification LED", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Inovelli-Notification-LED.grooy") {
+    definition (name: "Inovelli Notification LED", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Inovelli-Notification-LED.groovy") {
         capability "Actuator"
         capability "ColorControl"
         capability "Switch"
@@ -49,7 +49,7 @@ metadata {
         input(name: "hueModel", type: "enum", description: "", title: "Hue (color) model",
               options: [["default":"Hubitat default (0-100)"],["degrees":"Degrees (0-360)"],["inovelli":"Inovelli (0-255)"]], defaultValue: "default")
         input(name: "onAction", type: "enum", description: "", title: "Action for \"on\" command",
-              options: [[0:"None"],[1:"Start effect: solid"], [2:"Start effect: Chase (Dimmer)/Fast Blink (Switch)"],
+              options: [[0:"None"],[1:"Start effect: Solid"], [2:"Start effect: Chase (Dimmer)/Fast Blink (Switch)"],
                         [3:"Start effect: Fast Blink (Dimmer)/Slow Blink (Switch)"],[4: "Start effect: Slow Blink (Dimmer)/Pulse (Switch)"],
                         [5: "Start effect: Pluse (Dimmer only)"]], defaltValue: 0)
         input(name: "colorStaging", type: "bool", title: "Enable color pre-staging (required; use setEffect or on to start effect)", defaultValue: true)
@@ -86,7 +86,9 @@ def initialize() {
 }
 
 def configure() {
-    state.parentDeviceType = device.deviceNetworkId.find{"-31LED"} ? "LZW31-SN" : "LZW30-SN"
+    log.warn device.deviceNetworkId.find("31NotifyLED")
+    log.warn "${device.deviceNetworkId.find('-31NotifyLED') ? 'LZW31-SN' : 'LZW30-SN'}"
+    state.parentDeviceType = device.deviceNetworkId.find("-31NotifyLED") ? "LZW31-SN" : "LZW30-SN"
     def le = new groovy.json.JsonBuilder(state.parentDeviceType == "LZW31-SN" ? dimmerLEDEffects : switchLEDEffects)
     state.maxEffectNumber = (state.parentDeviceType == "LZW31-SN") ? 5 : 4
     sendEvent(name: "lightEffects", value: le)

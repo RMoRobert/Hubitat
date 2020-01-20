@@ -14,7 +14,7 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-01-18
+ *  Last modified: 2020-01-19
  * 
  *  Changelog:
  * 
@@ -22,7 +22,7 @@
  */ 
 
 metadata {
-    definition (name: "Inovelli Off LED", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Inovelli-Off-LED.grooy") {
+    definition (name: "Inovelli Off LED", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Inovelli-Off-LED.groovy") {
         capability "Actuator"
         capability "Switch"
         capability "SwitchLevel"
