@@ -14,11 +14,13 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-01-17
+ *  Last modified: 2020-01-19
  * 
  *  Changelog:
  * 
  *  v1.0 - Initial Release
+ *  v1.1 - Added options for "on" command behavior; minor fixes
+ *
  */ 
 
 import groovy.transform.Field
@@ -45,7 +47,11 @@ metadata {
        
    preferences {
         input(name: "hueModel", type: "enum", description: "", title: "Hue (color) model",
-              options:[["default":"Hubitat default (0-100)"],["degrees":"Degrees (0-360)"],["inovelli":"Inovelli (0-255)"]], defaultValue: "default")
+              options: [["default":"Hubitat default (0-100)"],["degrees":"Degrees (0-360)"],["inovelli":"Inovelli (0-255)"]], defaultValue: "default")
+        input(name: "onAction", type: "enum", description: "", title: "Action for \"on\" command",
+              options: [[0:"None"],[1:"Start effect: solid"], [2:"Start effect: Chase (Dimmer)/Fast Blink (Switch)"],
+                        [3:"Start effect: Fast Blink (Dimmer)/Slow Blink (Switch)"],[4: "Start effect: Slow Blink (Dimmer)/Pulse (Switch)"],
+                        [5: "Start effect: Pluse (Dimmer only)"]], defaltValue: 0)
         input(name: "colorStaging", type: "bool", title: "Enable color pre-staging (required; use setEffect or on to start effect)", defaultValue: true)
         input(name: "levelStaging", type: "bool", title: "Enable level pre-staging (required; use setEffect or on to start effect)", defaultValue: true)
         input(name: "enableDebug", type: "bool", title: "Enable debug logging", defaultValue: true)
@@ -93,12 +99,17 @@ def debugOff() {
 
 def on() {    
     logDebug("Setting child notification LED on (recommend to NOT do this and call setEffect with ID/name instead; on() is equivalent to setNextEffect())...")
-    return setNextEffect()
+    if (settings.onAction) {
+        logDebug("\"On\" action configured to start effect ${settings.onAction}; starting...")
+        setEffect(settings.onAction as int)
+    } else {
+        logDebug('No "on" action configured; ignoring on() command')
+    }
 }
 
 def off() {
     logDebug("Setting child notification LED off...")
-    parent.setNotificationLED(scaledHue, 0, duration, id)
+    parent.setIndicator(0)
     doSendEvent("switch", "off")
 }
 
