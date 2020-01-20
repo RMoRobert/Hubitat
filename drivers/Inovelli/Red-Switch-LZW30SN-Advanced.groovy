@@ -451,28 +451,28 @@ def setProtectionStates() {
 
 // Sets "notification LED" parameter to value (0 for none or calculated 4-byte value)
 def setIndicator(value) {
-    def number = 16
+    def number = 8
     logDebug("Setting parameter $number to $value...")
     return command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value, parameterNumber: number, size: 4))
 }
 
 // Sets default/on LED color parameter to value (0-255)
 def setDefaultLEDColor(value) {
-    def number = 13
+    def number = 5
     logDebug("Setting parameter $number to $value...")
     return command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value, parameterNumber: number, size: 2))
 }
 
 // Sets default/on LED level parameter to value (0-10)
 def setDefaultLEDLevel(value) {
-    def number = 14
+    def number = 6
     logDebug("Setting parameter $number to $value...")
     return command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value, parameterNumber: number, size: 1))
 }
 
 // Sets "off" LED level parameter to value (0-10)
 def setOffLEDLevel(value) {
-	def number = 15
+	def number = 7
     logDebug("Setting parameter $number to $value...")
     return command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value, parameterNumber: number, size: 1))
 }
