@@ -25,7 +25,7 @@ import groovy.transform.Field
 
 
 metadata {
-    definition (name: "iBlinds (Community Driver)", namespace: "RMoRobert", author: "Robert Morris") {
+    definition (name: "iBlinds (Community Driver)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/iBlinds.groovy") {
         capability "Switch Level"
         capability "Actuator"
         capability "Switch"
