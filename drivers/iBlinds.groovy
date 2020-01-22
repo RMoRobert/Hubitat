@@ -15,7 +15,7 @@
  * 
  *  Version History
  *  2020-01-20: Initial release
- *  2010-01-21: Fix for configure()
+ *  2010-01-21: Fix for configure() and battery reporting
  */
 
 import groovy.transform.Field
@@ -170,7 +170,7 @@ def zwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) {
 
 def zwaveEvent(hubitat.zwave.commands.hailv1.Hail cmd) {
     logDesc("$device.displayName button was pressed")
-    createEvent([name: "hail", value: "hail", descriptionText: "Switch button was pressed", displayed: false])
+    //return createEvent(name: "hail", value: "hail", descriptionText: "Switch button was pressed")
 }
 
 def zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.ManufacturerSpecificReport cmd) {
@@ -180,7 +180,7 @@ def zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.ManufacturerSpecifi
     logDebug("productTypeId:    ${cmd.productTypeId}")
     def msr = String.format("%04X-%04X-%04X", cmd.manufacturerId, cmd.productTypeId, cmd.productId)
     updateDataValue("MSR", msr)
-    createEvent([descriptionText: "$device.displayName MSR: $msr", isStateChange: false])
+    return createEvent(descriptionText: "$device.displayName MSR: $msr", isStateChange: false)
 }
 
 def zwaveEvent(hubitat.zwave.commands.switchmultilevelv2.SwitchMultilevelStopLevelChange cmd) {
@@ -190,15 +190,12 @@ def zwaveEvent(hubitat.zwave.commands.switchmultilevelv2.SwitchMultilevelStopLev
 
 def zwaveEvent(hubitat.zwave.commands.batteryv1.BatteryReport cmd) {
     logDebug("BatteryReport $cmd")
-    def map = [ name: "battery", unit: "%" ]
+    def batteryLevel = cmd.batteryLevel
     if (cmd.batteryLevel == 0xFF) {
-        map.value = 1
-        map.descriptionText = "${device.displayName} has a low battery"
-    } else {
-        map.value = cmd.batteryLevel
+        batteryLevel = 1
     }
-    createEvent(map)
-    if (device.currentValue("battery") != map.value) logDesc("$device.displayName battery level is ${map.value}%")
+    if (device.currentValue("battery") != batteryLevel) logDesc("$device.displayName battery level is ${batteryLevel}%")
+    return createEvent(name: "battery", value: batteryLevel, unit: "%")
 }
 
 def zwaveEvent(hubitat.zwave.Command cmd) {
