@@ -11,8 +11,11 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *  
- *  Adapted for Hubitat by Robert M
- *  last update from iblinds: 9/9/18 - Eric B
+ *  Adapted for Hubitat by Robert M based on 2018-09 and 2019-11 updates by Eric B
+ * 
+ *  Version History
+ *  2020-01-20: Initial release
+ *  2010-01-21: Fix for configure()
  */
 
 import groovy.transform.Field
@@ -67,12 +70,14 @@ def initialize() {
     def cronStr
     def s = Math.round(Math.random() * 60)
     def m = Math.round(Math.random() * 60)
-    if ((refreshTime as int) == 2000) {
+    def hour = refreshTime
+    if (hour == null) hour = 4
+    if ((hour as int) == 2000) {
         def h = Math.round(Math.random() * 23)
         if (h == 2) h = 3 // avoid maintenance window
         cronStr = "${s} ${m} ${h} ? * * *"
-    } else if ((refreshTime as int) >= 0 && (refreshTime as int) <= 23) {
-        cronStr = "${s} ${m} ${refreshTime} ? * * *"
+    } else if ((hour as int) >= 0 && (hour as int) <= 23) {
+        cronStr = "${s} ${m} ${hour} ? * * *"
     }
     log.warn "battery schedule = $cronStr"
     if (cronStr) schedule(cronStr, "getBattery")
@@ -81,6 +86,11 @@ def initialize() {
         log.debug "Debug logging will be automatically disabled in ${disableTime} seconds"
         runIn(disableTime, debugOff)
     }
+}
+
+def configure() {
+    log.warn "configure()"
+    initialize()
 }
 
 def debugOff() {
@@ -241,7 +251,9 @@ def setLevel(value, duration=0) {
     */
     def setLevel = reverse ? 99 - level : level
     def dimmingDuration = duration < 128 ? duration : 128 + Math.round(duration / 60)
-    def delayTime = travelTime as int ?: 8000
+    def delayTime = travelTime
+    if (travelTime) delayTime = travelTime as int
+    if (!delayTime) delayTime = 8000
     delayBetween([
         zwave.switchMultilevelV2.switchMultilevelSet(value: setLevel, dimmingDuration: dimmingDuration).format(),
         zwave.switchMultilevelV2.switchMultilevelGet().format()
