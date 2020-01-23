@@ -432,7 +432,7 @@ def updated() {
         def p = settings["param${it.key}"]
         if (p != null) {
             logDebug("Setting parameter $it.key (size $it.value) to ${p.toInteger()}")
-            cmds += zwave.configurationV1.configurationSet(scaledConfigurationValue: p.toInteger(), parameterNumber: it.key, size: it.value).format()
+            cmds += zwave.configurationV1.configurationSet(scaledConfigurationValue: p.toInteger(), parameterNumber: it.key, size: it.value)
         }
     }
     // TODO: Add settings and fix this
