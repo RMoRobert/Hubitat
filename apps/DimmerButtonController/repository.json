@@ -1,0 +1,13 @@
+{
+	"author": "Robert Morris",
+	"gitHubUrl": "https://github.com/RMoRobert/Hubitat",
+	"payPalUrl": "",
+	"packages": [
+		{
+			"name": "Dimmer Button Controller",
+			"category": "Utility",
+			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/packageManifest.groovy",
+			"description": "This is Package 1"
+		}
+	]	
+}

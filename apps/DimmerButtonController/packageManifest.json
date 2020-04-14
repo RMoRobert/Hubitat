@@ -1,0 +1,27 @@
+{
+	"packageName": "Dimmer Button Controller",
+	"minimumHEVersion": "2.0.0",
+	"author": "Robert Morris",
+	"version": "2.0.0-beta.1",
+	"dateReleased": "2020-04-13",
+	"licenseFile": "",
+	"releaseNotes": "",
+	"apps" : [
+		{
+			"id": "34a19578-5345-4562-9e01-ebc057f394x5",
+			"name": "Dimmer Button Controller",
+			"namespace": "RMoRobert",
+			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonControllerParent.groovy",
+			"required": true,
+			"oauth": false
+		},
+		{
+			"id": "540001c2-58a9-4414-9c2b-c3408420ex9b",
+			"name": "Dimmer Button Controller (Child App) 2",
+			"namespace": "RMoRobert",
+			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonController2.groovy",
+			"required": false,
+			"oauth": false
+		}
+	]
+}
