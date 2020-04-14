@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-01-04
+ *  Last modified: 2020-03-20
  * 
  *  Changelog:
  *
+ * 4.2c - Fixed issue if "dim to level" is not set or defaults to 0 instead of 10; will no longer send setLevel(0) to dim
  * 4.2b - Fixed issue where 1-minute "off" timer dimmed at 0s instead of 30s
  * 4.2 - Added ability to activate Hue Bridge scene (via CoCoHue) for night mode instead of settings
  * 4.1a: - Improved logic for "keep on" sensors (4.1a contains small bugfix for lux levels/sensors)
@@ -666,7 +667,7 @@ def dimLights() {
         saveLightState(sw)
         logDebug("    Dimming ${sw}")
         if (sw.currentSwitch != "off") {
-            def toLevel = dimToLevel
+            def toLevel = dimToLevel ?: 10
             if (getDimmerLevel(sw) <= toLevel) {
                 // If light is currently at or less than "dim to" level, dim it as low as possible
                 toLevel = 1
