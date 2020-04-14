@@ -13,7 +13,7 @@
  *  Add code for parent app (this) and then and child app. Install/create new instance of parent
  *  app only (do not use child app directly).
  *
- *  Copyright 2018 Robert Morris
+ *  Copyright 2020 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -25,34 +25,47 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2019-12-06
+ *  Last modified: 2020-04-06
  * 
  *  Changelog:
  * 
+ *  2.0 - Allows creation of DBC 2.0 child apps; prevented child apps from being created and possibly orphaned
+ *        if parent not fully installed first
  *  1.1 - Removed mode input
  *  1.0 - Parent app first release
  *
  */ 
  
 definition(
-    name: "Dimmer Button Controller",
-    namespace: "RMoRobert",
-    author: "Robert Morris",
+    name: 'Dimmer Button Controller',
+    namespace: 'RMoRobert',
+    author: 'Robert Morris',
     singleInstance: true,
-    description: "Easily onfigure a button device such as a Pico remote to control one or more bulbs/dimmers/switches with on/off, scene switching, and dimming",
-    category: "Convenience",        
-    iconUrl: "",
-    iconX2Url: "",
-    iconX3Url: "",
+    description: 'Easily configure a button device such as a Pico remote to control one or more bulbs/dimmers/switches with on/off, scene switching, and dimming',
+    category: 'Convenience',        
+    iconUrl: '',
+    iconX2Url: '',
+    iconX3Url: ''
 )   
 
 preferences {
-    page(name: "mainPage", title: "Dimmer Button Controller", install: true, uninstall: true) {
-	    section ("About Dimmer Button Controller") {
-        	paragraph title: "Dimmer Button Controller", 'This app helps you create automations that control one or more bulbs/dimmers/switches with a button controller device (a 5-button Pico with the "fast" driver, a Hue Dimmer, or an Eria dimmer are recommended, but any button device should work).'
-    	}
-    	section("Dimmer Button Controller Child Apps") {
-        	app(name: "childApps1", appName: "Dimmer Button Controller (Child App)", namespace: "RMoRobert", title: "Add new Dimmer Button Controller automation", multiple: true)
+    page(name: 'mainPage', title: 'Dimmer Button Controller', install: true, uninstall: true) {
+        if (app.getInstallationState() == 'INCOMPLETE') {
+            section() {
+                paragraph('Please press "Done" to finish installing this app, then re-open it to add Dimmer Button Controller child instances.')
+            }
+        } else {
+            section ('About Dimmer Button Controller') {
+                paragraph title: 'Dimmer Button Controller', 'This app helps you create automations that control one or more bulbs/dimmers/switches with a button controller device (a 5-button Pico with the "fast" driver, a Hue Dimmer, or an Eria dimmer are recommended, but any button device should work).'
+            }         
+            section('Dimmer Button Controller Child Apps') {
+                app(name: 'childApps2', appName: 'Dimmer Button Controller (Child App) 2', namespace: 'RMoRobert', title: 'Add new Dimmer Button Controller automation', multiple: true)
+                // Show DBC 1.x child (and allow new creation) if any instances already exist:
+                if (getChildApps().find { it.name == 'Dimmer Button Controller (Child App)' }) {
+                    app(name: 'childApps1', appName: 'Dimmer Button Controller (Child App)', namespace: 'RMoRobert',
+                        title: 'Add new Dimmer Button Controller 1.x automation (deprecated)', multiple: true)
+                }
+            }
         }
     }
 }
@@ -69,7 +82,7 @@ def updated() {
 }
 
 def initialize() {
-    log.debug "Initializing; there are ${childApps.size()} child apps installed:"
+    log.debug "Initializing; there are ${childApps.size()} child apps installed: ..."
     childApps.each {child ->
         log.debug "  child app: ${child.label}"
     }
