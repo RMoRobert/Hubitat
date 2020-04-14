@@ -13,6 +13,7 @@
 			"namespace": "RMoRobert",
 			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonControllerParent.groovy",
 			"required": true,
+			"version": "2.0.0",
 			"oauth": false
 		},
 		{
@@ -20,7 +21,8 @@
 			"name": "Dimmer Button Controller (Child App) 2",
 			"namespace": "RMoRobert",
 			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonController2.groovy",
-			"required": false,
+			"required": true,
+			"version": "2.0.0-beta.1",
 			"oauth": false
 		}
 	]

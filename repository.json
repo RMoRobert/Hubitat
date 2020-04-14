@@ -1,7 +1,7 @@
 {
 	"author": "Robert Morris",
 	"gitHubUrl": "https://github.com/RMoRobert/Hubitat",
-	"payPalUrl": "",
+	"payPalUrl": "https://paypal.me/bertabcd1234",
 	"packages": [
 		{
 			"name": "Dimmer Button Controller",
