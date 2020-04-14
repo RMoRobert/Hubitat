@@ -7,7 +7,7 @@
 			"name": "Dimmer Button Controller",
 			"category": "Utility",
 			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/packageManifest.groovy",
-			"description": "This is Package 1"
+			"description": "Easily configure button devices to control bulbs/dimmers"
 		}
 	]	
 }
