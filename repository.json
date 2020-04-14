@@ -6,7 +6,7 @@
 		{
 			"name": "Dimmer Button Controller",
 			"category": "Utility",
-			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/packageManifest.groovy",
+			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/packageManifest.groovy",
 			"description": "This is Package 1"
 		}
 	]	
