@@ -14,9 +14,10 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-04-16
+ *  Last modified: 2020-04-17
  * 
  *  Changelog:
+ *  v1.0.1  - Ensure parent switch attribute gets set; child command fixes
  *  v1.0    - Initial Release
  */
 
@@ -32,8 +33,8 @@ metadata {
         capability "Refresh"
         capability "Switch"
 
-        command "componentOn", [[name: "channel", type: "STRING"]]
-        command "componentOff", [[name: "channel", type: "STRING"]]
+        command "componentOn", [[name: "channel", type: "NUMBER"]]
+        command "componentOff", [[name: "channel", type: "NUMBER"]]
 
         fingerprint profileId: "0104", endpointId: "01", inClusters: "0000,000A,0004,0005,0006", outClusters: "0019", model: "TS0115", manufacturer: "_TYZB01_vkwryfdr"
     }
@@ -87,6 +88,7 @@ def parse(String description) {
                 childDevice.parse([[name: eventMap.name, value: eventMap.value,
                     descriptionText: "${childDevice.displayName} ${eventMap.name} is ${eventMap.value}${eventMap.unit ?: ''}"]])
                 if (enableDesc) log.info "${childDevice.displayName} ${eventMap.name} is ${eventMap.value}${eventMap.unit ?: ''}"
+                updateSwitchFromChildStates()
             } else {
                 logDebug("Not parsing because child device endpoint ${descMap.sourceEndpoint} or ${descMap.endpoint} not found")
             }
@@ -95,6 +97,22 @@ def parse(String description) {
         }
     } else {
         logDebug "Not parsed: $description"
+    }
+}
+
+// Updates parent "switch" to be "on" if any child is on, otherewise off
+private void updateSwitchFromChildStates() {
+    log.warn "update f/ child..."
+    def attribute = "switch"
+    def value = "off"
+    def descText = ""
+    if (childDevices.any { it.currentValue('switch') == 'on' }) {
+        value = "on"
+    }
+    descText = "${device.displayName} ${attribute} is ${value}"
+    if (device.currentValue(attribute) != value) {
+        logDesc(descText)
+        sendEvent(name: attribute, value: value, descriptionText: descText)
     }
 }
 
@@ -133,35 +151,35 @@ def off() {
     return delayBetween(cmds, 200)
 }
 
-void componentOn(String channel) {
-    logDebug("componentOn(String $channel)")
-    sendHubCommand(new hubitat.device.HubAction("he cmd 0x${device.deviceNetworkId} 0x${channel} 0x0006 0x01 {}",
+void componentOn(Integer channel) {
+    logDebug("componentOn(Integer $channel)")
+    sendHubCommand(new hubitat.device.HubAction("he cmd 0x${device.deviceNetworkId} 0x0${channel} 0x0006 0x01 {}",
         hubitat.device.Protocol.ZIGBEE))
 }
 
-void componentOff(String channel) {
-    logDebug("componentOn(String $channel)")
-    sendHubCommand(new hubitat.device.HubAction("he cmd 0x${device.deviceNetworkId} 0x${channel} 0x0006 0x00 {}",
+void componentOff(Integer channel) {
+    logDebug("componentOff(Integer $channel)")
+    sendHubCommand(new hubitat.device.HubAction("he cmd 0x${device.deviceNetworkId} 0x0${channel} 0x0006 0x00 {}",
         hubitat.device.Protocol.ZIGBEE))
 }
 
-void componentOn(device) {
-    logDebug("componentOn(DeviceWrapper $device)")
-    def childEndpoint = getChildEndpoint(device.deviceNetworkId)
+void componentOn(childDevice) {
+    logDebug("componentOn(DeviceWrapper $childDevice)")
+    def childEndpoint = getChildEndpoint(childDevice.deviceNetworkId)
     sendHubCommand(new hubitat.device.HubAction("he cmd 0x${device.deviceNetworkId} 0x${childEndpoint} 0x0006 0x01 {}",
         hubitat.device.Protocol.ZIGBEE))
 }
 
-void componentOff(device) {
-    logDebug("componentOff($device)")
-    def childEndpoint = getChildEndpoint(device.deviceNetworkId)
+void componentOff(childDevice) {
+    logDebug("componentOff($childDevice)")
+    def childEndpoint = getChildEndpoint(childDevice.deviceNetworkId)
     sendHubCommand(new hubitat.device.HubAction("he cmd 0x${device.deviceNetworkId} 0x${childEndpoint} 0x0006 0x00 {}",
         hubitat.device.Protocol.ZIGBEE))
 }
 
-def componentRefresh(device) {
-    logDebug("componentRefresh($device)")
-    def childEndpoint = getChildEndpoint(device.deviceNetworkId)
+def componentRefresh(childDevice) {
+    logDebug("componentRefresh($childDevice)")
+    def childEndpoint = getChildEndpoint(childDevice.deviceNetworkId)
     return sendHubCommand(new hubitat.device.HubAction("he rattr 0x${device.deviceNetworkId} 0x${childEndpoint} 0x0006 0 {}",
         hubitat.device.Protocol.ZIGBEE))
 }
@@ -182,7 +200,8 @@ def configure() {
 }
 
 private String getChildEndpoint(String dni) {
-    return dni.split("-CH")[-1]
+    String ep = dni.split("-CH")[-1]
+    return ep
 }
 
 void logDebug(str) {
