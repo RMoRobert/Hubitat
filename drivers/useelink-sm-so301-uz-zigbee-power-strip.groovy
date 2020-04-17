@@ -102,7 +102,6 @@ def parse(String description) {
 
 // Updates parent "switch" to be "on" if any child is on, otherewise off
 private void updateSwitchFromChildStates() {
-    log.warn "update f/ child..."
     def attribute = "switch"
     def value = "off"
     def descText = ""
