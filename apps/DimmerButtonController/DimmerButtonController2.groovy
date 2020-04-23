@@ -16,27 +16,27 @@
  *
  *  Author: Robert Morris
  *
- * Version: 2.0
+ * == Child version: 2.0.0 ==
  *
- * CHANGELOG
- * 2.0 (2020-04-12) - Rewrite of app with cleaner UI more functionality (breaking changes; also keep 1.x child if you have instances)
- * 1.9a (2020-01-04) - Changes to eliminate warning if no "additional off" devices selected
- * 1.9 (2019-12-06) - Added option to activate CoCoHue scenes
- * 1.8 (2019-08-02) - Added option to send commands twice (shouldn't be needed but is bug fix for apparent Hubitat problem)
- * 1.7 (2019-04-29) - Added "toggle" action, "additional switches for 'off'" option; bug fixes (dimming, scene off)
- * 1.6 (2019-01-14) - New "held" functionality
- * 1.5 (2019-01-02) - New press/release dimming action
- * 0.9 (2018-12-27) - (Beta) First public release
+ * Changelog:
+ * 2.0    (2020-04-23) - Rewrite of app with cleaner UI more functionality (breaking changes; also keep 1.x child if you have instances)
+ * 1.9a   (2020-01-04) - Changes to eliminate warning if no "additional off" devices selected
+ * 1.9    (2019-12-06) - Added option to activate CoCoHue scenes
+ * 1.8    (2019-08-02) - Added option to send commands twice (shouldn't be needed but is bug fix for apparent Hubitat problem)
+ * 1.7    (2019-04-29) - Added "toggle" action, "additional switches for 'off'" option; bug fixes (dimming, scene off)
+ * 1.6    (2019-01-14) - New "held" functionality
+ * 1.5    (2019-01-02) - New press/release dimming action
+ * 0.9    (2018-12-27) - (Beta) First public release
  *
  */
 
 import groovy.transform.Field
 
 @Field Map eventMap = [
-    	"pushed": ["capability":"PushableButton", displayName: "pushed", userAction: "push", "multiPresses": true],
-    	"held": ["capability":"HoldableButton", displayName: "held", userAction: "hold", "multiPresses": false],
-    	"released": ["capability":"ReleasableButton", displayName: "released", userAction: "release", "multiPresses": false],
-    	"doubleTapped": ["capability":"DoubleTapableButton", displayName: "double tapped", userAction: "double tap", "multiPresses": true]
+    	"pushed": ["capability":"PushableButton", userAction: "push", "multiPresses": true],
+    	"held": ["capability":"HoldableButton", userAction: "hold", "multiPresses": false],
+    	"released": ["capability":"ReleasableButton", userAction: "release", "multiPresses": false],
+    	"doubleTapped": ["capability":"DoubleTapableButton", userAction: "double tap", "multiPresses": true]
     ]
 
 @Field Map actionMap = [
@@ -82,7 +82,7 @@ def pageMain() {
 			input(name: "offDevices", type: "capability.switch", title: "Additional lights to turn off with \"off\" actions only:",
                   multiple: true, required: false)
 			paragraph("Actions to turn on and off lights below allow you to choose scenes <em>or</em> use the above selected lights. " +
-                      "Dim/brighten actions apply to above selected lights (if they support dimming). If you use scenes below, it is " +
+                      "Dimming actions apply to above selected lights. If you use scenes below, it is " +
                       "recommended you choose all bulbs above that are used in your scenes to ensure consistent behavior.")
 		}
         if(settings.buttonDevices && settings.dimmers) {
@@ -94,7 +94,7 @@ def pageMain() {
 						if (value.capability in caps && (key == "released" ? boolShowReleased : true)) {
 							href(name: "pageButtonConfigHref",
 					    	page: "pageButtonConfig",
-							params: [btnNum: btnNum, action: key, multiPresses: value.multiPresses], title: "Button $btnNum ${value.displayName}",
+							params: [btnNum: btnNum, action: key, multiPresses: value.multiPresses], title: "Button $btnNum ${deCamelCase(key)}",
 							description: getButtonConfigDescription(btnNum, key, value.multiPresses) ?: "Click/tap to configure",
 							state:  getButtonConfigDescription(btnNum, key, value.multiPresses) ? "complete" : null)
 						}
@@ -107,16 +107,17 @@ def pageMain() {
             input(name: "transitionTime", type: "enum", title: "Transition time (for dimming)", required: true,
                   options: [[null:"Unspecified (use device default)"], [0:"ASAP"],[100:"100ms"],[300:"300ms"],
 				  [500:"500ms"],[750:"750ms"],[1000:"1s"],[1500:"1.5s"],[3000:"3s"]], defaultValue: 100)
-			input(name: "dimStep", type: "number", title: "Dimming buttons change level +/- by (unless \"dim while holding\" enabled on supported devices)",
-                  description: "0-100", required: true, defaultValue: 10)
+			input(name: "dimStep", type: "number", title: "Dimming buttons change level +/- by (unless \"dim until release\" enabled on supported devices)",
+                  description: "0-100", required: true, defaultValue: 15)
             input(name: "maxPressNum", type: "enum", title: "Maximum number of presses (default: 5)",
                   options: [[1:1],[2:2],[3:3],[4:4],[5:5],[6:6],[7:7],[8:8],[9:9],[10:10]], defaultValue: 5)
         }
 		section("Advanced options", hideable: true, hidden: true) {
 			input(name: "boolDblCmd", type: "bool", title: "Send on/off and level commands twice (workaround for possible device/hub oddities if bulbs don't change first time)")
+			input(name: "boolShowSetForAll", type: "bool", title: "Always show \"set for all\" option even if only one dimmer/light selected (may be useful if frequently change which lights the button controls)")
             input(name: "boolShowReleased", type: "bool", title: "Show actions sections for \"released\" events", submitOnChange: true)
 			input(name: "boolToggleInc", type: "bool", title: "If using \"toggle\" option, increment press count even if lights were turned off", defaultValue: false)
-            input(name: "boolInitOnBoot", type: "bool", title: "Intialize app on hub start (may avoid delays with first button presses after reboot)", defaultValue: true)
+            input(name: "boolInitOnBoot", type: "bool", title: "Initialize app on hub start (may avoid delays with first button presses after reboot)", defaultValue: true)
             input(name: "debugLogging", type: "bool", title: "Enable debug logging")
 			input(name: "traceLogging", type: "bool", title: "Enable trace/verbose logging (for development only)")
 		}
@@ -187,7 +188,7 @@ List getButtonCapabilities() {
 }
 
 def pageButtonConfig(params) {
-    logTrace("pageButtonConfig($params)")
+    //logTrace("pageButtonConfig($params)")
     if (params) {
         atomicState.currentParams = params
     } else {
@@ -199,7 +200,7 @@ def pageButtonConfig(params) {
     dynamicPage(name: "pageButtonConfig", title: "Button ${btnNum} Configuration", uninstall: true, install: false) {
         if(settings.buttonDevices && settings.dimmers && btnNum) {
             def btnActionSettingName = "btn${btnNum}.${action}.Action"
-            section("Actions for button ${btnNum} ${eventMap[action].displayName}") {
+            section("Actions for button ${btnNum} ${deCamelCase(action)}") {
 				input(name: btnActionSettingName, type: "enum", title: "Do...",
 					options:  actionMap.collect { actMap -> ["${actMap.key}": actMap.value.displayName] },
 					submitOnChange: true)
@@ -385,7 +386,7 @@ def makeTurnOnSection(btnNum, strAction = "pushed", multiPresses = false) {
 		if (pressNum == 1 || (pressNum > 1 && multiPresses && getDoesPressNumHaveAction(btnNum, strAction, pressNum-1))) {
 			def sectionTitle = multiPresses ? "Press ${pressNum}:" : "Button ${btnNum} ${strAction}"
 			section(sectionTitle, hideable: true, hidden: false) {
-                if (dimmers.size() > 1) {
+                if (dimmers.size() > 1 || settings["boolShowSetForAll"]) {
 					input(name: "btn${btnNum}.${strAction}.Press${pressNum}.SetForAll", type: "bool",
 							title: "Apply same level and color settings to all lights", submitOnChange: true, defaultValue: false)
 					if (pressNum == 1) {
@@ -450,7 +451,7 @@ def makeTurnOnSceneSection(btnNum, strAction = "pushed", multiPresses = false) {
 			if (pressNum == 1 || getDoesPressNumHaveAction(btnNum, strAction, pressNum-1)) {
 				if (multiPresses) paragraph("Press ${pressNum}:")
 				input(name: "btn${btnNum}.${strAction}.Press${pressNum}.Scene", type: "device.SceneActivator",
-					  title: "Scene(s):", submitOnChange: multiPresses)
+					  title: "Scene(s):", multiple: true, submitOnChange: multiPresses)
 				if (pressNum == 1) {
 					input(name: "btn${btnNum}.${strAction}.Press${pressNum}.Toggle", type: "bool",
 						  title: "Toggle (turn all off if any on, or activate scene if all off)", defaultValue: false)
@@ -468,7 +469,7 @@ def makeActivateHueSceneSection(btnNum, strAction = "pushed", multiPresses = fal
 			if (pressNum == 1 || getDoesPressNumHaveAction(btnNum, strAction, pressNum-1)) {
 				if (multiPresses) paragraph("Press ${pressNum}:")
 				input(name: "btn${btnNum}.${strAction}.Press${pressNum}.HueScene", type: "device.CoCoHueScene",
-					  title: "Hue scene(s):", submitOnChange: multiPresses)
+					  title: "Hue scene:", submitOnChange: multiPresses)
 				if (pressNum == 1) {
 					input(name: "btn${btnNum}.${strAction}.Press${pressNum}.Toggle", type: "bool",
 						  title: "Toggle (turn all off if any on, or activate scene if all off)", defaultValue: false)
@@ -509,14 +510,14 @@ def makeDimSection(btnNum, String strAction = "pushed", String direction) {
 	String rampSettingName = "btn${btnNum}.${strAction}.UseStartLevelChange"
 	section() {
 		if (!settings[rampSettingName]) {
-		paragraph("Adjust level by ${direction == 'up' ? '+' : '-'}${settings[dimStep] ?: 10}% for any " +
+		paragraph("Adjust level by ${direction == 'up' ? '+' : '-'}${settings[dimStep] ?: 15}% for any " +
 		          "lights that are on when button ${btnNum} is $strAction")
 		} else {
 			paragraph("Dim $direction on ${eventMap[strAction]?.userAction}")
 		}
 	}
 	section('<strong>Options</strong>') {
-		if (buttonDevices.any { it.hasCapability('ReleasableButton') }) {
+		if (buttonDevices.any { it.hasCapability('ReleasableButton') } && (strAction == 'pushed' || strAction == 'held')) {
 			def settingTitle = "Dim until release (start level change when button ${strAction}, stop level change when button is released)"
 			input(name: rampSettingName, type: 'bool', title: settingTitle, submitOnChange: true)
 			if (dimmers.any { !(it.hasCapability('ChangeLevel')) }) {
@@ -532,7 +533,6 @@ def makeDimSection(btnNum, String strAction = "pushed", String direction) {
 	if (settings[rampSettingName]) {
 		String releaseSettingName = "btn${btnNum}.released.Action"
 		app.updateSetting(releaseSettingName, [type:"string", value: "StopLevelChange"])
-		logTrace("$releaseSettingName is now ${settings['releaseSettingName']}")
 	} else {
 		String releaseSettingName = "btn${btnNum}.released.Action"
 		app.removeSetting(releaseSettingName)
@@ -569,12 +569,12 @@ void buttonHandler(evt) {
 	switch (settings[actionSettingName]) {
         case "on":
 			Integer pressNum = getPressNum(btnNum, action)
-			logDebug "Action \"Turn on\" specified for button ${btnNum} ${action} press ${pressNum}" 
+			logDebug "Action \"Turn on\" specified for button ${btnNum} ${action} press ${pressNum}"
 			if (settings["btn${btnNum}.${action}.Press${pressNum}.SetForAll"]) {
-				logDebug "  SetForAll or Toggle configured for press ${pressNum}"
+				logDebug "  SetForAll or Toggle configured for press ${pressNum}", "trace"
 				Boolean didToggle = false
 				if (settings["btn${btnNum}.${action}.Press${pressNum}.Toggle"]) {
-					logDebug "  Toggle configured for button ${btnNum} press ${pressNum}"
+					logDebug "  Toggle configured for button ${btnNum} press ${pressNum}", "trace"
 					if (dimmers.any { it.currentValue('switch') == 'on'} ) {
 						didToggle = true
 						dimmers.off()
@@ -595,10 +595,10 @@ void buttonHandler(evt) {
 								settings[bulbSettingL], settings[bulbSettingCT])
 				}
 			} else {
-				logDebug "  SetForAll not configured for press ${pressNum}"
+				logDebug "  SetForAll not configured for press ${pressNum}", "trace"
 				Boolean didToggle = false
 				if (settings["btn${btnNum}.${action}.Press${pressNum}.Toggle"]) {
-					logDebug "  Toggle configured for button ${btnNum} press ${pressNum}"
+					logDebug "  Toggle configured for button ${btnNum} press ${pressNum}", "trace"
 					if (dimmers.any { it.currentValue('switch') == 'on'} ) {
 						didToggle = true
 						dimmers.off()
@@ -720,7 +720,7 @@ void buttonHandler(evt) {
 			}
 			else {
 				//log.trace "Ramp-down dimming option NOT enabled for button ${btnNum}"
-				Integer changeBy = settings[dimStep] ? 0 - settings[dimStep] as Integer : -10
+				Integer changeBy = settings[dimStep] ? 0 - settings[dimStep] as Integer : -15
 				doActionDim(dimmers, changeBy)
 			}
 			break
@@ -732,7 +732,7 @@ void buttonHandler(evt) {
 			}
 			else {
 				//log.trace "Ramp-up dimming option NOT enabled for button ${btnNum}" 
-				Integer changeBy = settings[dimStep] ? settings[dimStep] as Integer : 10
+				Integer changeBy = settings[dimStep] ? settings[dimStep] as Integer : 15
 				doActionDim(dimmers, changeBy)
 			}
         	break
@@ -1017,6 +1017,11 @@ Boolean getDoesPressNumHaveAction(btnNum, strAction = "pushed", pressNum) {
 	return hasAction
 }
 
+String deCamelCase(String camelCasedString) {
+	// A bit simplistic but works for the attribute names at hand:
+	return camelCasedString.split(/(?=[A-Z]|$)/)*.toLowerCase().join(' ')
+}
+
 //=========================================================================
 // App Methods
 //=========================================================================
@@ -1052,16 +1057,16 @@ void hubRestartHandler(evt) {
   * other log level (e.g., "info") if desired
   */
 void logDebug(string, level="debug") {
-	if (settings[debugLogging] && level=="debug") {
+	if (settings['debugLogging'] && level=="debug") {
 		log.debug(string)
-    } else if (debugLogging) {
+    } else if (settings['debugLogging']) {
         log."$level"(string)
     }
 }
 
 /** Writes to log.trace; use for development/testing */	   
 void logTrace(string) {
-    //if (settings[traceLogging]) {
+    if (settings['traceLogging']) {
 		log.trace(string)
-	//}
+	}
 }

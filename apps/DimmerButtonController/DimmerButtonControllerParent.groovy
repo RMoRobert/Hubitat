@@ -24,15 +24,16 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  * =======================================================================================
+ * 
+ *  Author: Robert Morris
  *
- *  Last modified: 2020-04-06
- * 
- *  Changelog:
- * 
- *  2.0 - Allows creation of DBC 2.0 child apps; prevented child apps from being created and possibly orphaned
- *        if parent not fully installed first
- *  1.1 - Removed mode input
- *  1.0 - Parent app first release
+ * == Parent version: 2.0.0 ==
+ *
+ * Changelog:
+ * 2.0    (2020-04-12) - Allows creation of DBC 2.0 child apps; prevented child apps from being created and possibly orphaned
+ *                       if parent not fully installed first
+ * 1.1                 - Removed mode input
+ * 1.0    (2018-12-27) - Parent app first release
  *
  */ 
  
