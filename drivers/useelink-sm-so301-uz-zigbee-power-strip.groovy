@@ -14,16 +14,17 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-04-17
+ *  Last modified: 2020-04-22
  * 
  *  Changelog:
+ *  v1.0.2  - Update on() and off() to use endpint 0xFF instead of iterating overall
  *  v1.0.1  - Ensure parent switch attribute gets set; child command fixes
  *  v1.0    - Initial Release
  */
 
 import groovy.transform.Field
 
-@Field static Map < String, String > childEndpoints = ['01': 'Outlet 1', '02': 'Outlet 2', '03': 'Outlet 3',
+@Field static Map <String, String> childEndpoints = ['01': 'Outlet 1', '02': 'Outlet 2', '03': 'Outlet 3',
                                                        '04': 'Outlet 4', '07': 'USB Ports']
 
 metadata {
@@ -133,21 +134,13 @@ private void createChildDevices() {
 }
 
 def on() {
-    logDebug("on)")
-    cmds = []
-    childEndpoints.each { epId, epName ->
-        cmds << "he cmd 0x${device.deviceNetworkId} 0x${epId} 0x0006 0x01 {}"
-    }
-    return delayBetween(cmds, 200)
+    logDebug("on()")
+    return "he cmd 0x${device.deviceNetworkId} 0xFF 0x0006 0x01 {}"
 }
 
 def off() {
     logDebug("off()")
-    cmds = []
-    childEndpoints.each { epId, epName ->
-        cmds << "he cmd 0x${device.deviceNetworkId} 0x${epId} 0x0006 0x00 {}"
-    }
-    return delayBetween(cmds, 200)
+    return "he cmd 0x${device.deviceNetworkId} 0xFF 0x0006 0x00 {}"
 }
 
 void componentOn(Integer channel) {
