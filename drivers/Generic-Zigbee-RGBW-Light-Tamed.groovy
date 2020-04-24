@@ -1,9 +1,29 @@
 /*
  	Generic ZigBee RGBW Light (Tamed)
 
-    Original copyright 2016, 2017, 2018 Hubitat Inc.  All Rights Reserved
+    Original copyright 2016-2020 Hubitat Inc.  All Rights Reserved
+    2020-04-24 RMoRobert
+        -brought in previous updates from Hubitat driver changes   
     2020-01-05 RMoRobert
         -slightly expanded delays between cmds
+	 2019-12-20 2.1.8 maxwell
+		-add Nue HGZB-18A
+		-add RGBGenie ZB-1025
+    2019-11-14 2.1.7 maxwell
+        -add GLEDOPTO Mini Zigbee RGB+CCT Controller
+        -add Nue HGZB-07A
+        -add Innr GU10 Colour bulb
+	 2019-09-02 2.1.5 maxwell
+	    -add white as a color
+        -change bindings to advertised endpoint
+    2019-05-28 2.1.1 maxwell
+        -fp update
+    2019-01-05 2.0.5 maxwell
+        -fp update
+    2018-12-05 2.0.2 maxwell
+        -fp update
+    2018-10-12 ravenel
+    	  -add rate to setColor
     2018-06-04 maxwell
         -updates to support changeLevel
         -add capability color mode
@@ -28,22 +48,31 @@ metadata {
 
         attribute "colorName", "string"
 
-        fingerprint profileId: "0104", inClusters: "0000,0003,0004,0005,0006,0008,0300,0B04,FC0F", outClusters: "0019", manufacturer: "OSRAM", model: "LIGHTIFY Flex RGBW", deviceJoinName: "SYLVANIA Smart Flex RGBW"
+         fingerprint profileId: "0104", inClusters: "0000,0003,0004,0005,0006,0008,0300,0B04,FC0F", outClusters: "0019", manufacturer: "OSRAM", model: "LIGHTIFY Flex RGBW", deviceJoinName: "SYLVANIA Smart Flex RGBW"
         fingerprint profileId: "0104", inClusters: "0000,0003,0004,0005,0006,0008,0300,0B04,FC0F", outClusters: "0019", manufacturer: "OSRAM", model: "Flex RGBW", deviceJoinName: "OSRAM LIGHTIFY Flex RGBW"
         fingerprint profileId: "0104", inClusters: "0000,0003,0004,0005,0006,0008,0300,FC0F", outClusters: "0019", manufacturer: "OSRAM", model: "LIGHTIFY A19 RGBW", deviceJoinName: "SYLVANIA Smart A19 RGBW"
         fingerprint profileId: "0104", inClusters: "0000,0003,0004,0005,0006,0008,0300,0B04,FC0F", outClusters: "0019", manufacturer: "OSRAM", model: "LIGHTIFY BR RGBW", deviceJoinName: "SYLVANIA Smart BR30 RGBW"
         fingerprint profileId: "0104", inClusters: "0000,0003,0004,0005,0006,0008,0300,0B04,FC0F", outClusters: "0019", manufacturer: "OSRAM", model: "LIGHTIFY RT RGBW", deviceJoinName: "SYLVANIA Smart RT5/6 RGBW"
         fingerprint profileId: "0104", inClusters: "0000,0003,0004,0005,0006,0008,0300,0B04,FC0F", outClusters: "0019", manufacturer: "OSRAM", model: "LIGHTIFY FLEX OUTDOOR RGBW", deviceJoinName: "SYLVANIA Smart Outdoor RGBW Flex"
         fingerprint profileId: "C05E", inClusters: "0000,0003,0004,0005,0006,0008,0300,1000", outClusters: "0019", manufacturer: "Philips", model: "LCT001", deviceJoinName: "Philips Hue Lux Bulb"
+        fingerprint profileId: "C05E", inClusters: "0000,0003,0004,0005,0006,0008,0300,1000,FC01", outClusters: "0019", manufacturer: "Philips", model: "LCT001", deviceJoinName: "Philips Hue Lux Bulb"
         fingerprint profileId: "C05E", inClusters: "1000,0000,0003,0004,0005,0006,0008,0300,FC0F", outClusters: "0019", manufacturer: "OSRAM", model: "CLA60 RGBW OSRAM", deviceJoinName: "OSRAM Classic E27 Multicolor"
-        fingerprint profileId: "0104", inClusters: "0000,0003,0004,0005,0006,0008,0300,0702,0B05,FC03,FC04", outClusters: "0019", manufacturer: "sengled", model: "E11-N1EA", deviceJoinName: "Sengled Element Color Plus"
-    }
+        fingerprint profileId: "C05E", inClusters: "0000,0003,0004,0005,0006,0008,0300,1000", outClusters: "0019", manufacturer: "Philips", model: "LST002", deviceJoinName: "Philips Hue White and Color Ambiance LightStrip"
+        fingerprint profileId: "C05E", inClusters: "0000,0003,0004,0005,0006,0008,1000,0300", outClusters: "0019", manufacturer: "Philips", model: "LST002", deviceJoinName: "Philips Hue White and Color Ambiance LightStrip"
+        fingerprint profileId: "0104", inClusters: "0000,0003,0004,0005,0006,0008,0300,0B05,FC01", outClusters: "0019", manufacturer: "LEDVANCE", model: "BR30 RGBW", deviceJoinName: "SYLVANIA Smart + RGBW"
+        fingerprint profileId: "0104", inClusters: "0000,0003,0004,0005,0006,0008,0300,0B05,FC03", outClusters: "0019", manufacturer: "sengled", model: "E1G-G8E", deviceJoinName: "Sengled RGBW LED Strip"
+        fingerprint profileId: "0104", inClusters: "0000,0003,0004,0005,0006,0008,0300,0B05,FC01", outClusters: "0019", manufacturer: "LEDVANCE", model: "A19 RGBW", deviceJoinName: "SYLVANIA Smart + RGBW"
+        fingerprint profileId:"C05E", endpointId:"0B", inClusters:"0000,0003,0004,0005,0006,0008,0300", model:"NUET56-DL27LX1.1", manufacturer:"3A Smart Home DE", deviceJoinName: "Nue HGZB-07A"
+        fingerprint profileId:"C05E", endpointId:"0B", inClusters:"0000,0003,0004,0005,0006,0008,0300", model:"GL-MC-001", manufacturer:"GLEDOPTO", deviceJoinName: "GLEDOPTO Mini Zigbee RGB+CCT Controller"
+        fingerprint profileId: "0104", inClusters: "0000,0003,0004,0005,0006,0008,0300,0B05,1000,FC82", outClusters: "0019", manufacturer: "innr", model: "RS 230 C", deviceJoinName: "Innr GU10 Colour bulb"
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0003,0006,0008,0005,0300,1000,0019", outClusters:"0019", model:"LXT56-LS27LX1.4", manufacturer:"3A Smart Home DE", deviceJoinName: "Nue HGZB-18A strip controller"
+        fingerprint profileId:"C05E", endpointId:"01", inClusters:"0000,0003,0004,0005,0006,0008,0300,0B05,1000", outClusters:"0019,1000", model:"RGBgenie   ZB-1025", manufacturer:"RGBgenie", deviceJoinName: "RGBGenie ZB-1025 strip controller"
+     }
 
     preferences {
         input name: "transitionTime", type: "enum", description: "", title: "Transition time", options: [[400:"400ms"], [500:"500ms"],[1000:"1s"],[1500:"1.5s"],[2000:"2s"],[5000:"5s"]], defaultValue: 400
         input name: "colorStaging", type: "bool", description: "", title: "Enable color pre-staging", defaultValue: false
         input name: "hiRezHue", type: "bool", title: "Enable Hue in degrees (0-360)", defaultValue: false
-        //input name: "rateLimit", type: "enum", description: "", title: "Rate-limit successive commands by",  options: [[0: "(disabled)"],[250:"250ms"], [400:"400ms"],[500:"500ms"],[750:"750ms"],[1000:"1s"],[2000:"2s"]], defaultValue: 250
         input name: "logEnable", type: "bool", title: "Enable debug logging", defaultValue: true
         input name: "txtEnable", type: "bool", title: "Enable descriptionText logging", defaultValue: true
     }
@@ -162,8 +191,8 @@ def parse(String description) {
 }
 
 def startLevelChange(direction){
-    def upDown = direction == "down" ? 1 : 0
-    def unitsPerSecond = 100
+    Integer upDown = direction == "down" ? 1 : 0
+    Integer unitsPerSecond = 100
     return "he cmd 0x${device.deviceNetworkId} 0x${device.endpointId} 0x0008 1 { 0x${intTo8bitUnsignedHex(upDown)} 0x${intTo16bitUnsignedHex(unitsPerSecond)} }"
 }
 
@@ -277,13 +306,14 @@ def setGenericName(hue){
         case 346..360: colorName = "Red"
             break
     }
+    if (device.currentValue("saturation") == 0) colorName = "White"
     def descriptionText = "${device.getDisplayName()} color is ${colorName}"
     if (txtEnable) log.info "${descriptionText}"
     sendEvent(name: "colorName", value: colorName ,descriptionText: descriptionText)
 }
 
 def setLevel(value) {
-    setLevel(value,(transitionTime?.toBigDecimal() ?: 1000) / 1000)
+    setLevel(value,(transitionTime?.toBigDecimal() ?: 400) / 400)
 }
 
 def setLevel(value,rate) {
@@ -300,8 +330,8 @@ def setLevel(value,rate) {
         ]
     } else {
         cmd = [
-                "he cmd 0x${device.deviceNetworkId} 0x${device.endpointId} 0x0008 4 {0x${intTo8bitUnsignedHex(value)} 0x0100}", "delay 250",
-                "he rattr 0x${device.deviceNetworkId} 0x${device.endpointId} 0x0006 0 {}", "delay 250",
+                "he cmd 0x${device.deviceNetworkId} 0x${device.endpointId} 0x0008 4 {0x${intTo8bitUnsignedHex(value)} 0x0100}", "delay 275",
+                "he rattr 0x${device.deviceNetworkId} 0x${device.endpointId} 0x0006 0 {}", "delay 275",
                 "he rattr 0x${device.deviceNetworkId} 0x${device.endpointId} 0x0008 0 {}"
         ]
     }
@@ -311,7 +341,7 @@ def setLevel(value,rate) {
 def setColor(value){
     if (value.hue == null || value.saturation == null) return
 
-    def rate = transitionTime?.toInteger() ?: 1000
+    def rate = value?.rate ? value.rate * 400 : (transitionTime?.toInteger() ?: 400)
     def isOn = device.currentValue("switch") == "on"
 
     def hexSat = zigbee.convertToHexString(Math.round(value.saturation.toInteger() * 254 / 100).toInteger(),2)
