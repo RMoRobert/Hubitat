@@ -16,9 +16,10 @@
  *
  *  Author: Robert Morris
  *
- * == Child version: 2.0.0 ==
+ * == Child version: 2.1.0 ==
  *
  * Changelog:
+ * 2.1    (2020-04-27) - Added ability to use individual devices vs. groups for some actions (on/off/setLevel vs. start/stopLevelChange)
  * 2.0    (2020-04-23) - Rewrite of app with cleaner UI more functionality (breaking changes; also keep 1.x child if you have instances)
  * 1.9a   (2020-01-04) - Changes to eliminate warning if no "additional off" devices selected
  * 1.9    (2019-12-06) - Added option to activate CoCoHue scenes
@@ -79,11 +80,20 @@ def pageMain() {
                                                      "of the same type (capabilities and nubmer of buttons, driver, etc.).")
             input(name: "dimmers", type: "capability.switchLevel",
                   title: "Select lights to turn on/off and dim with below actions:", multiple: true, required: true, submitOnChange: true)
+			if (settings['boolGroup']) {
+            	input(name: "group", type: "capability.switchLevel",
+                  	  title: "Select group device to use when applicable:", multiple: true, required: true, submitOnChange: false)
+				paragraph('If selected, the above group device will be used when possible <em>instead of</em> the above selected lights/dimmers. Choose ' +
+					      'a group that contains the same lights as the above, individually-selected bulbs. The group will be used instead for the ' +
+						  'following actions: "Turn on" when "Apply settings to all..." selected; "Dim up/down" when "until released" <em>not</em> ' +
+						  'selected; and "Turn off."')
+			}
 			input(name: "offDevices", type: "capability.switch", title: "Additional lights to turn off with \"off\" actions only:",
                   multiple: true, required: false)
 			paragraph("Actions to turn on and off lights below allow you to choose scenes <em>or</em> use the above selected lights. " +
-                      "Dimming actions apply to above selected lights. If you use scenes below, it is " +
-                      "recommended you choose all bulbs above that are used in your scenes to ensure consistent behavior.")
+                      "Dimming actions apply to above selected lights.")
+			paragraph("If you use scenes below, it is recommended you choose all bulbs above that are used in your scenes to ensure " +
+			 	      "consistent behavior.")
 		}
         if(settings.buttonDevices && settings.dimmers) {
 			if (!app.getLabel()) app.updateLabel(getDefaultLabel())
@@ -114,6 +124,7 @@ def pageMain() {
         }
 		section("Advanced options", hideable: true, hidden: true) {
 			input(name: "boolDblCmd", type: "bool", title: "Send on/off and level commands twice (workaround for possible device/hub oddities if bulbs don't change first time)")
+			input(name: "boolGroup", type: "bool", title: 'Allow separate selection of group device besdies individual bulbs (will attempt to use group device to optimize actions where appropriate)', submitOnChange: true)
 			input(name: "boolShowSetForAll", type: "bool", title: "Always show \"set for all\" option even if only one dimmer/light selected (may be useful if frequently change which lights the button controls)")
             input(name: "boolShowReleased", type: "bool", title: "Show actions sections for \"released\" events", submitOnChange: true)
 			input(name: "boolToggleInc", type: "bool", title: "If using \"toggle\" option, increment press count even if lights were turned off", defaultValue: false)
@@ -577,7 +588,8 @@ void buttonHandler(evt) {
 					logDebug "  Toggle configured for button ${btnNum} press ${pressNum}", "trace"
 					if (dimmers.any { it.currentValue('switch') == 'on'} ) {
 						didToggle = true
-						dimmers.off()
+						def devices = (settings['boolGroup'] && settings['group']) ? group : dimmers
+						devices.off()
 						if (settings['boolToggleInc']) {
 							logTrace "  Incrementing press number because 1+ lights turned off and setting configured to increase"
 							incrementPressNum(btnNum, action)
@@ -591,17 +603,20 @@ void buttonHandler(evt) {
 					def bulbSettingCT = "btn${btnNum}.${action}.Press${pressNum}.SetForAll.CT"
 					def bulbSettingH = "btn${btnNum}.${action}.Press${pressNum}.SetForAll.H"
 					def bulbSettingS = "btn${btnNum}.${action}.Press${pressNum}.SetForAll.S"
-					doActionTurnOn(dimmers, settings[bulbSettingH], settings[bulbSettingS],
+					def devices = (settings['boolGroup'] && settings['group']) ? group : dimmers
+					doActionTurnOn(devices, settings[bulbSettingH], settings[bulbSettingS],
 								settings[bulbSettingL], settings[bulbSettingCT])
 				}
-			} else {
+			}
+			else {  // if not SetForAll:
 				logDebug "  SetForAll not configured for press ${pressNum}", "trace"
 				Boolean didToggle = false
 				if (settings["btn${btnNum}.${action}.Press${pressNum}.Toggle"]) {
 					logDebug "  Toggle configured for button ${btnNum} press ${pressNum}", "trace"
 					if (dimmers.any { it.currentValue('switch') == 'on'} ) {
 						didToggle = true
-						dimmers.off()
+						def devices = (settings['boolGroup'] && settings['group']) ? group : dimmers
+						devices.off()
 						if (settings['boolToggleInc']) {
 							logTrace "  Incrementing press number because 1+ lights turned off and setting configured to increase"
 							incrementPressNum(btnNum, action)
@@ -699,11 +714,13 @@ void buttonHandler(evt) {
         case "off":
 			logDebug "Action \"turn off\" specified for button ${btnNum} ${action}"
 			try {
-				dimmers.off()
+				def devices = (settings['boolGroup'] && settings['group']) ? group : dimmers
+				devices.off()
 				offDevices?.off()
 				if (settings['boolDblCmd']) {
 					pauseExecution(250)
-					dimmers.off()
+					devices.off()
+					pauseExecution(100)
 					offDevices?.off()
 				}
 			} catch (e) {
@@ -721,7 +738,8 @@ void buttonHandler(evt) {
 			else {
 				//log.trace "Ramp-down dimming option NOT enabled for button ${btnNum}"
 				Integer changeBy = settings[dimStep] ? 0 - settings[dimStep] as Integer : -15
-				doActionDim(dimmers, changeBy)
+				def devices = (settings['boolGroup'] && settings['group']) ? group : dimmers
+				doActionDim(devices, changeBy)
 			}
 			break
         case "bri":
@@ -733,7 +751,8 @@ void buttonHandler(evt) {
 			else {
 				//log.trace "Ramp-up dimming option NOT enabled for button ${btnNum}" 
 				Integer changeBy = settings[dimStep] ? settings[dimStep] as Integer : 15
-				doActionDim(dimmers, changeBy)
+				def devices = (settings['boolGroup'] && settings['group']) ? group : dimmers				
+				doActionDim(devices, changeBy)
 			}
         	break
 		case "StopLevelChange":
