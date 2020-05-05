@@ -8,6 +8,12 @@
 			"category": "Utility",
 			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/packageManifest.json",
 			"description": "Easily configure button devices to control bulbs/dimmers"
+		},
+		{
+			"name": "CoCoHue (Hue Bridge Integration)",
+			"category": "Integrations",
+			"location": "https://raw.githubusercontent.com/HubitatCommunity/CoCoHue/master/packageManifest.json",
+			"description": "Community-created Hue Bridge inegration for lights, groups, and scenes"
 		}
-	]	
+	]
 }
