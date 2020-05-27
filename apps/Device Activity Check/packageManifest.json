@@ -1,0 +1,20 @@
+{
+	"packageName": "Device Activity Check",
+	"minimumHEVersion": "1.0.0",
+	"author": "Robert Morris",
+	"dateReleased": "2020-05-27",
+	"licenseFile": "",
+	"releaseNotes": "",
+	"apps" : [
+		{
+			"id": "2fd4ad8d-ac71-4dd1-892d-d169b7a9753b",
+			"name": "Device Activity Check",
+			"namespace": "RMoRobert",
+			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceActivityCheck/DeviceActivityCheck1.groovy",
+			"required": true,
+			"version": "1.0.0",
+			"primary": true,
+			"oauth": false
+		}
+	]
+}
