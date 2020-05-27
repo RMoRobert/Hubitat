@@ -14,6 +14,12 @@
 			"category": "Integrations",
 			"location": "https://raw.githubusercontent.com/HubitatCommunity/CoCoHue/master/packageManifest.json",
 			"description": "Community-created Hue Bridge inegration for lights, groups, and scenes"
+		},
+		{
+			"name": "Device Activity Check",
+			"category": "Utility",
+			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceActivityCheck/packageManifest.json",
+			"description": "Configure automatic notifications for inactive (no activity within specified period) devices"
 		}
 	]
 }
