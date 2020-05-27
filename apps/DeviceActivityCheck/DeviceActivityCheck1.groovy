@@ -38,7 +38,7 @@ definition(
     iconUrl: "",
     iconX2Url: "",
     iconX3Url: "",
-    documentationLink: "https://github.com/RMoRobert/Hubitat/tree/master/apps/DeviceActivityCheck"
+    documentationLink: "https://community.hubitat.com/t/release-device-activity-check-get-notifications-for-inactive-devices/42176"
 )
 
 preferences {

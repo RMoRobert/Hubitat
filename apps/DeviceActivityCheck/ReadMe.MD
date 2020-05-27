@@ -19,7 +19,9 @@ but what Device Activity Check really looks at is the "Last Activity At" data yo
 device page. Devices must report "Last Activity At" to be usable with Device Activity Check.
 
 
-For more discussion see, the <a  href="https://community.hubitat.com/TODO">thread in the Hubitat Community</a>.
+For more discussion and documentation see,
+the <a  href="https://community.hubitat.com/t/release-device-activity-check-get-notifications-for-inactive-devices/42176">thread
+in the Hubitat Community</a>.
 
 ## Installation Instructions
 
