@@ -452,7 +452,7 @@ def makeTurnOnSection(btnNum, strAction = "pushed", multiPresses = false) {
 		}
 	}
 	section {
-		paragraph("All fields optional; color temperature takes precedence over hue and saturation if specified.")
+		paragraph("At least one field is required to be specified; all are otherwise optional. Color temperature takes precedence over hue and saturation if specified.")
 	}
 }
 def makeTurnOnSceneSection(btnNum, strAction = "pushed", multiPresses = false) {
