@@ -16,9 +16,10 @@
  *
  *  Author: Robert Morris
  *
- * == Child version: 2.1.0 ==
+ * == Child version: 2.1.1 ==
  *
  * Changelog:
+ * 2.1.1  (2020-06-01) - Additional clarification of "press" terminology; replaced with button-event-specific languge where appropriate
  * 2.1    (2020-04-27) - Added ability to use individual devices vs. groups for some actions (on/off/setLevel vs. start/stopLevelChange)
  * 2.0    (2020-04-23) - Rewrite of app with cleaner UI more functionality (breaking changes; also keep 1.x child if you have instances)
  * 1.9a   (2020-01-04) - Changes to eliminate warning if no "additional off" devices selected
@@ -395,7 +396,7 @@ def makeTurnOnSection(btnNum, strAction = "pushed", multiPresses = false) {
 	def maxPressNum = multiPresses ? getMaxPressNum() : 1
 	for (pressNum in 1..maxPressNum) {
 		if (pressNum == 1 || (pressNum > 1 && multiPresses && getDoesPressNumHaveAction(btnNum, strAction, pressNum-1))) {
-			def sectionTitle = multiPresses ? "Press ${pressNum}:" : "Button ${btnNum} ${strAction}"
+			def sectionTitle = multiPresses ? getOrdinal(strAction, pressNum) : "Button ${btnNum} ${strAction}"
 			section(sectionTitle, hideable: true, hidden: false) {
                 if (dimmers.size() > 1 || settings["boolShowSetForAll"]) {
 					input(name: "btn${btnNum}.${strAction}.Press${pressNum}.SetForAll", type: "bool",
@@ -460,7 +461,7 @@ def makeTurnOnSceneSection(btnNum, strAction = "pushed", multiPresses = false) {
     section() {
 		for (pressNum in 1..maxPressNum) {
 			if (pressNum == 1 || getDoesPressNumHaveAction(btnNum, strAction, pressNum-1)) {
-				if (multiPresses) paragraph("Press ${pressNum}:")
+				if (multiPresses) paragraph(getOrdinal(strAction, pressNum))
 				input(name: "btn${btnNum}.${strAction}.Press${pressNum}.Scene", type: "device.SceneActivator",
 					  title: "Scene(s):", multiple: true, submitOnChange: multiPresses)
 				if (pressNum == 1) {
@@ -478,7 +479,7 @@ def makeActivateHueSceneSection(btnNum, strAction = "pushed", multiPresses = fal
     section() {
 		for (pressNum in 1..maxPressNum) {
 			if (pressNum == 1 || getDoesPressNumHaveAction(btnNum, strAction, pressNum-1)) {
-				if (multiPresses) paragraph("Press ${pressNum}:")
+				if (multiPresses) paragraph(getOrdinal(strAction, pressNum))
 				input(name: "btn${btnNum}.${strAction}.Press${pressNum}.HueScene", type: "device.CoCoHueScene",
 					  title: "Hue scene:", submitOnChange: multiPresses)
 				if (pressNum == 1) {
@@ -502,7 +503,7 @@ def makeTurnOffSceneSection(btnNum, strAction = "pushed", multiPresses = false) 
     section() {
 		for (pressNum in 1..maxPressNum) {
 			if (pressNum == 1 || getDoesPressNumHaveAction(btnNum, strAction, pressNum-1)) {
-				if (mutliPresses) paragraph("Press ${pressNum}:")
+				if (mutliPresses) paragraph(getOrdinal(strAction, pressNum))
 				input(name: "btn${btnNum}.${strAction}.Press${pressNum}.OffScene", type: "device.SceneActivator",
 					title: "Turn off scene(s):", submitOnChange: mutliPresses)
 			}
