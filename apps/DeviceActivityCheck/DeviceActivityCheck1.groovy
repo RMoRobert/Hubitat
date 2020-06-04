@@ -16,9 +16,10 @@
  *
  *  Author: Robert Morris
  *
- * == App version: 1.0.0 ==
+ * == App version: 1.0.1 ==
  *
  * Changelog:
+ * 1.0.1 (2020-06-04) - Minor bugfix (eliminates errors for empty groups or if notification device is not selected)
  * 1.0   (2020-05-27) - First public release
  *
  */
@@ -205,7 +206,7 @@ List<com.hubitat.app.DeviceWrapper> getInactiveDevices(Boolean sortByName=true) 
 	List<com.hubitat.app.DeviceWrapper> inactiveDevices = []
 	Long currEpochTime = now()
 	groups.each { groupNum ->
-		com.hubitat.app.DeviceWrapperList allDevices = settings["group${groupNum}.devices"]
+		List allDevices = settings["group${groupNum}.devices"] ?: []
 		Integer inactiveMinutes = daysHoursMinutesToMinutes(settings["group${groupNum}.intervalD"],
 			settings["group${groupNum}.intervalH"], settings["group${groupNum}.intervalM"])
 		Long cutoffEpochTime = currEpochTime - (inactiveMinutes * 60000)
@@ -278,8 +279,7 @@ void sendInactiveNotification(Boolean includeLastActivityTime=(settings['include
 	List<com.hubitat.app.DeviceWrapper> inactiveDevices = getInactiveDevices()
 	String notificationText = ""
 	if (inactiveDevices && isModeOK()) {
-		notificationText += (settings['includeHubName'] ? "${app.label} - ${location.name}:" : "${app.label}:")
-		
+		notificationText += (settings['includeHubName'] ? "${app.label} - ${location.name}:" : "${app.label}:")		
 		inactiveDevices.each { dev ->
 			notificationText += "\n${dev.displayName}"
 			if (includeLastActivityTime) {
@@ -288,7 +288,7 @@ void sendInactiveNotification(Boolean includeLastActivityTime=(settings['include
 			}
 		}		
 		logDebug "Sending notification for inactive devices"
-		notificationDevice.deviceNotification(notificationText)
+		notificationDevice?.deviceNotification(notificationText)
 	}
 	else {
 		String reason = "Notification skipped: "
