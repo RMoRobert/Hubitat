@@ -31,8 +31,8 @@ definition(
    category: "Convenience",
    iconUrl: "",
    iconX2Url: "",
-   iconX3Url: ""/*,
-   documentationLink: "https://community.hubitat.com/t/ADD-IF-CREATE-THREAD" */
+   iconX3Url: "",
+   documentationLink: "https://community.hubitat.com/t/release-device-status-announcer-tts-or-notification-if-lock-unlocked-door-window-open-etc/45723"
 )
 
 preferences {

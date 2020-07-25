@@ -20,6 +20,12 @@
 			"category": "Utility",
 			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceActivityCheck/packageManifest.json",
 			"description": "Configure automatic notifications for inactive (no activity within specified period) devices"
+		},
+		{
+			"name": "Device Status Announcer",
+			"category": "Utility",
+			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceStatusAnnouncer/packageManifest.json",
+			"description": "Receive TTS announcements or notifications for devices (locks, contact sensors, etc.) in undesired states at specifc time or on demand"
 		}
 	]
 }
