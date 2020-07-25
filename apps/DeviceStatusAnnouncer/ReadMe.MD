@@ -3,9 +3,9 @@
 **Current Version:** 1.0.0
 
 This app is designed to check various device states (contact sensors, locks, motion sensors) when "triggered" via a specific
-time or (real or virtual) switch turning on and either speak, notify, or both if any devices are in an undesired state.
+time or switch and either speak, notify, or both if any devices are in an undesired state.
 For example, you can select door locks and receive an annoucement like "Front door lock is open" over TTS and/or via
-a device notification
+a device notification.
 
 ## Installation Instructions
 
