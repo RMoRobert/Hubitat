@@ -1,0 +1,20 @@
+{
+	"packageName": "Device Status Announcer",
+	"minimumHEVersion": "2.0.0",
+	"author": "Robert Morris",
+	"dateReleased": "2020-07-25",
+	"licenseFile": "",
+	"releaseNotes": "Initial release",
+	"apps" : [
+		{
+			"id": "225ef9c1-c727-4106-bab9-d2972a766a9e",
+			"name": "Device Status Announcer",
+			"namespace": "RMoRobert",
+			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceStatusAnnouncer/DeviceStatusAnnouncer.groovy",
+			"required": true,
+			"version": "1.0.0",
+			"primary": true,
+			"oauth": false
+		}
+	]
+}
