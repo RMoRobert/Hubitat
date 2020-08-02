@@ -1,3 +1,6 @@
+// NOTE: This app version is deprecated. New installs are NOT recommended.
+// Install parent/child 2.x or greater version instead.
+
 /**
  * ==========================  Device Status Announcer ==========================
  *  Platform: Hubitat Elevation
