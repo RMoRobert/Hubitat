@@ -16,9 +16,10 @@
  *
  *  Author: Robert Morris
  *
- * == App version: 2.0.0 ==
+ * == App version: 2.0.1 ==
  *
  * Changelog:
+ * 2.0.1 (2020-08-02) - Made easier to remove "all OK" notification/TTS if desired
  * 2.0   (2020-08-02) - New parent/child strucutre, additional notification options
  * 1.0   (2020-07-25) - First public release
  *
@@ -65,7 +66,7 @@ def pageMain() {
          paragraph "Or any time this switch is turned on:"
          input name: "announcementSwitch", type: "capability.switch", title: "Switch"
          input name: "allGoodSpeech", type: "text", title: "Text to speak if all devices are OK (blank for no speech if all devices OK):",
-            defaultValue: "All devices are OK", required: false         
+            defaultValue: (app.getInstallationState() == "INCOMPLETE" ? "All devices are OK" : ""), required: false
          input name: "allGoodNotification", type: "text", title: "Notification text to send if all devices are OK (blank for no notification if all devices OK):",
             defaultValue: "", required: false
          input name: "prependText", type: "text", title: "Text to prepend to announcements/notifications (optional)",
@@ -79,8 +80,8 @@ def pageMain() {
                page: "pageViewReport",
                title: "View current report",
                description: "Evaluate all devices now according to the criteria above, and display a report of devices in undesired state (the same information that would be spoken or sent in a real notification/announcement).")
-         paragraph "The \"Test Announcement/Notification Now\" button will send a TTS announcement and/or notification to your selected device(s) if any current device states and options would cause an annoucement or notification. This a manual method to trigger the same actions the above options can automate:"
-         input name: "btnTestNotification", type: "button", title: "Test Announcement/Notification Now"
+         paragraph "The \"Test Announcement/Notification Now\" button will send a TTS announcement and/or notification to your selected device(s) if any current device states and options would cause an annoucement or notification. (Note: if you have changed options since you last loaded this page, press \"Done\" to save settings and re-enter the app before testing.) This a manual method to trigger the same actions the above options can automate:"
+         input name: "btnTestNotification", type: "button", title: "Test Announcement/Notification Now", submitOnChange: true
       }
       
       section("Advanced Options", hideable: true, hidden: true) {
@@ -230,7 +231,7 @@ def initialize() {
 
 Boolean isModeOK() {
     Boolean isOK = !settings["modes"] || settings["modes"].contains(location.mode)
-    logDebug "Checking if mode is OK; reutrning: ${isOK}"
+    logDebug "Checking if mode is OK; returning: ${isOK}"
     return isOK
 }
 

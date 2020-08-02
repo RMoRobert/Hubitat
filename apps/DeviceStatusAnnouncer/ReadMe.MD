@@ -1,6 +1,6 @@
 # Device Status Announcer
 
-**Current Version:** 2.0.0
+**Current Version:** 2.0.1
 
 This app is designed to check various device states (contact sensors, locks, motion sensors) when "triggered" via a specific
 time or switch and either speak, notify, or both if any devices are in an undesired state.
