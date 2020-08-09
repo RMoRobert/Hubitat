@@ -1,6 +1,47 @@
-# LightsOnMotionPlus3
-Designed for Hubitat (previous version for SmartThings), the "Lights on Motion Plus" app was intended to recreate and add additional featueres (e.g., remembering on/off states for a group of lights when motion stops and restoring it when motion resumes, rather than turning all back on) compared to stock light/motion apps. This is useful if, for example, you want all bulbs in a room to turn off when motion stops but don't always want all to turn on when motion starts.
+# Lights on Motion Plus
 
-Lights on Motion Plus also supports dimming the bulbs before turning them off to "warn" occupants. Lights will be restored to previous states if motion resumes. Additional features include "night mode" settings that will turn bulbs on to specific settings during selected "night" modes (while turning back on to previous "regular" settings the next time motion is activated and lights are configured to turn on in a "regular" mode), a "hard" kill switch (prevents app from turning any lights on or off), a "soft" kill switch (prevents app from turning lights on), the ability to turn lights off when motion stops even if the app did not turn them on (useful if you want to manually turn lights on but might forget to turn them off), and more.
+## Description
+Lights on Motion Plus 5 (LoMP 5) is a complete rewrite that seeks to provide features available in similar motion-ligthiing apps,
+such as:
+* choose motion sensor(s) to turn on lights
+* choose motion sensor(s) to keep on lights (but not turn on if not already on)
+* specify delay after motion inactivity before lights turn off
+* restrict turning on or off based on mode or switch
+* choose additional lights to turn off (that are not part of the "on" half of the automation)
 
+...while adding a number of new (optional) features, including:
+* dim lights to "warn" before turning off (or new in v5, dim instead of turning off)
+* restrict or modify automation ("on" or "off" actionns or both) based on current mode
+* adjust lights on mode change
+
+## Suggested Use
+One possible use case: consdier a room with multiple bulbs. You do not want the app to (necessarily) turn on all
+bulbs, but you do want the app to turn off all the bulbs and turn these specific bulbs (but not ones that were off)
+on again the next time you enter the room. LoMP will capture and restore individual bulb states.
+
+Another possible use case: consider a room where you would like the room to turn on to different settings
+(e.g., color temperatures) in different modes. LoMP can do this, and it can also optionally change to
+the new mode settings if the lights are on when the mode changes.
+
+Another possibility: consider a room where you always (or at least in some modes) want to turn the lights
+on manually, but you want them to turn off automatically "just in case." LoMP 5 can be configured to only turn
+lights off without turning them on (either all the time or only in specific modes).
+
+## To Install
+
+Install the parent app code: https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/LightsOnMotionPlus/LightsOnMotionPlusParent.groovy
+
+Install the child app code: https://github.com/RMoRobert/Hubitat/blob/master/apps/LightsOnMotionPlus/LightsOnMotionPlus5.groovy
+
+(Note: the old 4.x child can be found in the `deprecated` folder if you prefer.)
+
+Create a new instance of the app by going to Apps > Add User App, and choosing "Lights on Motion Plus."
+
+### Note for v4 users:
+IMPORTANT: If upgrading from v4 or earlier version, do not replace the child app code with v5. Instead,
+upgrade the parent app to the new/current version, then add the v5 child app as a new app. Keep the
+version 4 child app installed as long as you have v4 app instances in use. You can continue to
+use both indefinitely. (There is no direct upgrade path from v4 to v5, as v5 is a complete rewrite.)
+
+## Support
 See Hubitat Community thread for more details or support: https://community.hubitat.com/t/release-lights-on-motion-plus-dim-before-off-remember-individual-bulb-states-etc/7178 

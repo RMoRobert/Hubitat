@@ -16,7 +16,7 @@
  *  Add code for parent app (this) and then and child app. Install/create new instance of parent
  *  app only (do not use child app directly).
  *
- *  Copyright 2018 Robert Morris
+ *  Copyright 2018-2020 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -28,32 +28,42 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2018-10-05
+ *  Last modified: 2020-06-20
  * 
  *  Changelog:
  * 
- *  3.0 - Initial release of v3 app
+ *  5.0   - Added ability to create 5.0 child apps; ensure parent is installed before child apps can be created
+ *  3.0   - Initial release of v3 app
  *
  */ 
  
 definition(
-    name: "Lights on Motion Plus",
-    namespace: "RMoRobert",
-    author: "Robert Morris",
-    singleInstance: true,
-    description: "Turn lights on/off based on motion; optionally dim before turning off and remember/restore previous state of lights when motion resumes",
-    category: "Convenience",        
-    iconUrl: "",
-    iconX2Url: "",
-    iconX3Url: "",
+  name: "Lights on Motion Plus",
+  namespace: "RMoRobert",
+  author: "Robert Morris",
+  singleInstance: true,
+  installOnOpen: true,
+  description: "Turn lights on/off based on motion; optionally dim before turning off and remember/restore previous state of lights when motion resumes",
+  category: "Convenience",        
+  iconUrl: "",
+  iconX2Url: "",
+  iconX3Url: "",
 )   
 
 preferences {
-  section ("") {
-    paragraph title: "Lights on Motion Plus", "Turn lights on/off based on motion; optionally dim before turning off and remember/restore previous state of lights when motion resumes"
-  }
-  section {
-    app(name: "childApps", appName: "Lights on Motion Plus (Child App)", namespace: "RMoRobert", title: "Add Lights on Motion Plus automation...", multiple: true)
+  page(name: "mainPage", title: "Lights on Motion Plus", install: true, uninstall: true) {
+    section(""){
+      paragraph "Turn lights on/off based on motion; optionally dim before (or instead of) turning off and remember/restore previous state of lights when motion resumes"
+    }
+    section("") {
+      Boolean oldChildApps = getChildApps().find { it.name == 'Lights on Motion Plus (Child App)' }
+      String newChildButtonText = "Add new Lights on Motion Plus ${oldChildApps ? '5 ' : ''}automation"
+      app(name: 'childApps5x', appName: 'Lights on Motion Plus (Child App) 5', namespace: 'RMoRobert', title: newChildButtonText, multiple: true)
+      if (oldChildApps) {
+          app(name: 'childApps4x', appName: 'Lights on Motion Plus (Child App)', namespace: 'RMoRobert',
+              title: 'Add new Lights on Motion Plus 4.x automation (deprecated)', multiple: true)
+      }
+    }
   }
 }
 
