@@ -31,7 +31,7 @@ lights off without turning them on (either all the time or only in specific mode
 
 Install the parent app code: https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/LightsOnMotionPlus/LightsOnMotionPlusParent.groovy
 
-Install the child app code: https://github.com/RMoRobert/Hubitat/blob/master/apps/LightsOnMotionPlus/LightsOnMotionPlus5.groovy
+Install the child app code: https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/LightsOnMotionPlus/LightsOnMotionPlus5.groovy
 
 (Note: the old 4.x child can be found in the `deprecated` folder if you prefer.)
 

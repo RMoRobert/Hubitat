@@ -79,7 +79,7 @@ def pageMain() {
          label title: "Name this Lights on Motion Plus app:", required: true
       }
       section("Lights and Sensors${perMode ? ' (for non-exception modes)' : ''}") {
-         input name: "onSensors", type: "capability.motionSensor", title: "Turn on lights when motion dected on", multiple: true, required: true
+         input name: "onSensors", type: "capability.motionSensor", title: "Turn on lights when motion detected on", multiple: true, required: true
          input name: "keepOnSensors", type: "capability.motionSensor", title: "Select additional sensors to keep lights on (optional)", multiple: true
          input name: "lights", type: "capability.switch", title: "Choose lights to turn on/off/dim", multiple: true, required: (activeAction != "no" && activeAction == "onScene" && sceneGroup == null), submitOnChange: true
          input name: "activeAction", type: "enum", title: "When motion is detected...", options: activeActions, defaultVaule: "on", required: true, submitOnChange: true
