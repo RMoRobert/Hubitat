@@ -7,15 +7,6 @@
 	"releaseNotes": "New parent/child app structure; 1.x users should uninstall first and will require manual re-creation. Additional options for device notification/TTS text and triggers.",
 	"apps" : [
 		{
-			"id": "225ef9c1-c727-4106-bab9-d2972a766a9e",
-			"name": "Device Status Announcer Child 2.x",
-			"namespace": "RMoRobert",
-			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceStatusAnnouncer/DeviceStatusAnnouncer2Child.groovy",
-			"required": true,
-			"version": "2.0.1",
-			"oauth": false
-		},
-		{
 			"id": "425a08652-8725-4028-9bd3-1ec9e0e0ce90",
 			"name": "Device Status Announcer",
 			"namespace": "RMoRobert",
@@ -23,6 +14,15 @@
 			"required": true,
 			"version": "2.0.0",
 			"primary": true,
+			"oauth": false
+		},		
+		{
+			"id": "225ef9c1-c727-4106-bab9-d2972a766a9e",
+			"name": "Device Status Announcer Child 2.x",
+			"namespace": "RMoRobert",
+			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceStatusAnnouncer/DeviceStatusAnnouncer2Child.groovy",
+			"required": true,
+			"version": "2.0.1",
 			"oauth": false
 		}
 	]
