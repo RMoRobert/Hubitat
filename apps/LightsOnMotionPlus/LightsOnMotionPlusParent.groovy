@@ -56,7 +56,7 @@ preferences {
       paragraph "Turn lights on/off based on motion; optionally dim before (or instead of) turning off and remember/restore previous state of lights when motion resumes"
     }
     section("") {
-      Boolean oldChildApps = getChildApps().find { it.name == 'Lights on Motion Plus (Child App)' }
+      Boolean oldChildApps = app?.getChildApps().find { it.name == 'Lights on Motion Plus (Child App)' }
       String newChildButtonText = "Add new Lights on Motion Plus ${oldChildApps ? '5 ' : ''}automation"
       app(name: 'childApps5x', appName: 'Lights on Motion Plus (Child App) 5', namespace: 'RMoRobert', title: newChildButtonText, multiple: true)
       if (oldChildApps) {
