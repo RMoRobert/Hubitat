@@ -803,8 +803,8 @@ def initialize() {
 
 // Writes text to log.debug if level >= user's logLevel setting; can redirect to trace, info, or warn with type parameter
 void logDebug(String text, Integer level=1, String type='debug') {
-   //if (settings['logLevel'] != null && (settings['logLevel'] as Integer) >= level) {
+   if (settings['logLevel'] != null && (settings['logLevel'] as Integer) >= level) {
       if (type == 'debug') log.debug text      
       else log."$type" text
-   //}
+   }
 }
