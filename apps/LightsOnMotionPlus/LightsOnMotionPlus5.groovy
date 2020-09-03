@@ -16,9 +16,9 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-08-09
+ *  Last modified: 2020-09-02
  * 
- *  Version: LoMP 5.0 Beta 1
+ *  Version: LoMP 5.0 Beta 2
  * 
  *  Changelog:
  *
@@ -590,7 +590,7 @@ def modeChangeHandler(evt) {
          captureStates(state.lastMode)
       }
       else {
-         log.debug "Not capturing pre-mode-change states because previous mode is unknown"
+         logDebug "Not capturing pre-mode-change states because previous mode is unknown", 2, "debug"
       }
       state.lastMode = location.getCurrentMode().id
       // Adapted from performActiveAction, but note lack of restore for most actions
