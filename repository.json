@@ -1,35 +1,42 @@
 {
-	"author": "Robert Morris",
-	"gitHubUrl": "https://github.com/RMoRobert/Hubitat",
-	"payPalUrl": "https://paypal.me/bertabcd1234",
-	"packages": [
-		{
-			"name": "Dimmer Button Controller",
-			"category": "Utility",
-			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/packageManifest.json",
-			"description": "Easily configure button devices to control bulbs/dimmers",
+   "author": "Robert Morris",
+   "gitHubUrl": "https://github.com/RMoRobert/Hubitat",
+   "payPalUrl": "https://paypal.me/bertabcd1234",
+   "packages": [
+      {
+         "name": "Dimmer Button Controller",
+         "category": "Utility",
+         "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/packageManifest.json",
+         "description": "Easily configure button devices to control bulbs/dimmers",
          "tags": ["Lights & Switches", "Buttons"]
-		},
-		{
-			"name": "CoCoHue (Hue Bridge Integration)",
-			"category": "Integrations",
-			"location": "https://raw.githubusercontent.com/HubitatCommunity/CoCoHue/master/packageManifest.json",
-			"description": "Community-created Hue Bridge inegration for lights, groups, and scenes",
+      },
+      {
+         "name": "CoCoHue (Hue Bridge Integration)",
+         "category": "Integrations",
+         "location": "https://raw.githubusercontent.com/HubitatCommunity/CoCoHue/master/packageManifest.json",
+         "description": "Community-created Hue Bridge inegration for lights, groups, and scenes",
          "tags": ["Lights & Switches", "LAN"]
-		},
-		{
-			"name": "Device Activity Check",
-			"category": "Utility",
-			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceActivityCheck/packageManifest.json",
-			"description": "Configure automatic notifications for inactive (no activity within specified period) devices",
+      },
+      {
+         "name": "Device Activity Check",
+         "category": "Utility",
+         "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceActivityCheck/packageManifest.json",
+         "description": "Configure automatic notifications for inactive (no activity within specified period) devices",
          "tags": ["Tools & Utilities", "Monitoring", "Notifications"]
-		},
-		{
-			"name": "Device Status Announcer",
-			"category": "Utility",
-			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceStatusAnnouncer/packageManifest.json",
-			"description": "Receive TTS announcements or notifications for devices (locks, contact sensors, etc.) in undesired states at specifc time or on demand",
+      },
+      {
+         "name": "Device Status Announcer",
+         "category": "Utility",
+         "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceStatusAnnouncer/packageManifest.json",
+         "description": "Receive TTS announcements or notifications for devices (locks, contact sensors, etc.) in undesired states at specifc time or on demand",
          "tags": ["Tools & Utilities", "Monitoring", "Notifications", "Safety & Security", "Doors & Windows", "Locks"]
-		}
-	]
+      },
+      {
+         "name": "Lights on Motion Plus",
+         "category": "Convenience",
+         "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/LightsOnMotionPlus/packageManifest.json",
+         "description": "Turn on/off lights with motion; optionally dim before turning off. Per-mode configuration and other settings available.",
+         "tags": ["Lights & Switches", "Motion Control"]
+      }
+   ]
 }

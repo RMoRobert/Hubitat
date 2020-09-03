@@ -1,0 +1,29 @@
+{
+	"packageName": "Lights on Motion Plus",
+	"minimumHEVersion": "2.1.1",
+	"author": "Robert Morris",
+	"dateReleased": "2020-09-02",
+	"licenseFile": "",
+	"releaseNotes": "",
+	"apps" : [
+		{
+			"id": "3cff72f1-feea-48d5-91fb-b4bfda6c5f01",
+			"name": "Lights on Motion Plus",
+			"namespace": "RMoRobert",
+			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/LightsOnMotionPlus/LightsOnMotionPlusParent.groovy",
+			"required": true,
+			"version": "4.9.95",
+			"primary": true,
+			"oauth": false
+		},
+		{
+			"id": "1b601135-5aa0-4dd7-9a6c-a9533dd44e9e",
+			"name": "Lights on Motion Plus (Child App) 5",
+			"namespace": "RMoRobert",
+			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/LightsOnMotionPlus/LightsOnMotionPlus5.groovy",
+			"required": true,
+			"version": "5.0.0",
+			"oauth": false
+		}
+	]
+}
