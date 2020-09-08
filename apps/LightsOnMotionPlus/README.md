@@ -40,8 +40,10 @@ Create a new instance of the app by going to Apps > Add User App, and choosing "
 ### Note for v4 users:
 IMPORTANT: If upgrading from v4 or earlier version, do not replace the child app code with v5. Instead,
 upgrade the parent app to the new/current version, then add the v5 child app as a new app. Keep the
-version 4 child app installed as long as you have v4 app instances in use. You can continue to
-use both indefinitely. (There is no direct upgrade path from v4 to v5, as v5 is a complete rewrite.)
+version 4 child app installed as long as you have v4 app instances in use.
+(There is no direct upgrade path from v4 to v5 child apps, as v5 is a complete
+rewrite, but you can continue to use both child app versions at the same time indefinitely.) Again,
+DO upgrade the parent app; do NOT upgrade the child app (add as new).
 
 ## Support
 See Hubitat Community thread for more details or support: https://community.hubitat.com/t/release-lights-on-motion-plus-dim-before-off-remember-individual-bulb-states-etc/7178 

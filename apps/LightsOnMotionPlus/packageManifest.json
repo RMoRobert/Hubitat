@@ -2,9 +2,9 @@
 	"packageName": "Lights on Motion Plus",
 	"minimumHEVersion": "2.1.1",
 	"author": "Robert Morris",
-	"dateReleased": "2020-09-02",
+	"dateReleased": "2020-09-07",
 	"licenseFile": "",
-	"releaseNotes": "",
+	"releaseNotes": "LoMP 5.0 initial release; minor bugfixes from beta. See Community thread for more.",
 	"apps" : [
 		{
 			"id": "3cff72f1-feea-48d5-91fb-b4bfda6c5f01",
@@ -12,7 +12,7 @@
 			"namespace": "RMoRobert",
 			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/LightsOnMotionPlus/LightsOnMotionPlusParent.groovy",
 			"required": true,
-			"version": "4.9.95",
+			"version": "5.0.0",
 			"primary": true,
 			"oauth": false
 		},
@@ -22,7 +22,7 @@
 			"namespace": "RMoRobert",
 			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/LightsOnMotionPlus/LightsOnMotionPlus5.groovy",
 			"required": true,
-			"version": "5.0.0",
+			"version": "5.0.00",
 			"oauth": false
 		}
 	]

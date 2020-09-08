@@ -16,9 +16,9 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-09-02
+ *  Last modified: 2020-09-07
  * 
- *  Version: LoMP 5.0 Beta 2
+ *  Version: LoMP 5.0
  * 
  *  Changelog:
  *
@@ -259,7 +259,7 @@ String getPerModeDescription(Long modeID) {
       String settingName = "activeAction.${modeID}"
       desc += """When active: ${activeActions.findResult {it."${settings[settingName]}"}}\n"""
       settingName = "inactiveAction.${modeID}"
-      desc += """When active: ${inactiveActions.findResult {it."${settings[settingName]}"}}\n"""
+      desc += """When inactive: ${inactiveActions.findResult {it."${settings[settingName]}"}}\n"""
       desc += "\n(Click/tap to see more details)"
    }
    return desc
@@ -518,10 +518,10 @@ void performInactiveAction() {
 Boolean isLuxOK() {
    Boolean isOK = true
    if (settings["luxRestrict"] && settings["luxSensor"] != null) {
-      isOK = luxSensor.currentValue("illuminance") > (settings["luxNumber"] ?: 0)
+      isOK = luxSensor.currentValue("illuminance") <= (settings["luxNumber"] ?: 0)
    }
-   logDebug "isLuxOK = $isOK", 2, "trace"
-   return isLuxOK
+   logDebug "isOK = $isOK", 2, "trace"
+   return isOK
 }
 
 // Returns true if configured time restrictions are currently OK (or not set), otherwise false
