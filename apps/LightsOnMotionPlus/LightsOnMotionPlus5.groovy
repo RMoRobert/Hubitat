@@ -16,12 +16,13 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-09-07
+ *  Last modified: 2020-09-16
  * 
- *  Version: LoMP 5.0
+ *  Version: LoMP 5.0.1
  * 
  *  Changelog:
  *
+ * 5.0.1 - Per-mode level exception fix
  * 5.0   - Total rewrite with per-mode options, optional dim-only (no off) settings, button device support, etc.
  *         Do *not* overwrite 4.x app with this app; install as new app and update parent, which will allow continued use of both 4.x and 5.x child apps
  * 4.2c  - Fixed issue if "dim to level" is not set or defaults to 0 instead of 10; will no longer send setLevel(0) to dim
@@ -571,9 +572,14 @@ def scheduledDimHandler() {
    state.isDimmed = true
    logDebug "scheduledDimHandler", 2, "trace"
    captureStates()
+   Integer dimToLevel = settings["dimToLevel"] ?: 10
+   if (settings["perMode"] && settings["perMode.${location.getCurrentMode().id}"] && settings["dimToLevel.override.${location.getCurrentMode().id}"]) {
+      dimToLevel = settings["dimToLevel.${location.getCurrentMode().id}"]
+   }
+   settings["perMode"] && settings["perMode.${location.getCurrentMode().id}"]
    getDevicesToTurnOff(true).each {
       if (it.currentValue("switch") == 'on') {
-         if (it.hasCommand('setLevel')) it.setLevel(settings['dimToLevel'] ?: 10)
+         if (it.hasCommand('setLevel')) it.setLevel(dimToLevel)
       }
       else {
          logDebug "Not dimming ${it.displayName} because not on", 2, "debug"
