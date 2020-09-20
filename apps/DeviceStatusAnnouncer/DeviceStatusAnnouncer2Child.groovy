@@ -81,7 +81,7 @@ def pageMain() {
                input name: "contactLockGroup.${it}.devs", type: "enum", title: "Devices to group into single name:", multiple: true, submitOnChange: true,
                   options: allContactsAndLocks, width: 5
                if (settings["contactLockGroup.${it}.devs"]) {
-                  input name: "contactLockGroup.${it}.name", type: "text", title: "Name for this group:", width: 4
+                  input name: "contactLockGroup.${it}.name", type: "text", title: "Name for this group:", width: 4, submitOnChange: true
                   href name: "contactLockGroup.${it}.hrefRemove", page: "pageRemoveGroup", title: "Remove", description: "", params: [groupNumber: it], width: 3
                }
             }
