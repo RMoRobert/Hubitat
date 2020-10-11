@@ -4,7 +4,7 @@
 	"author": "Robert Morris",
 	"dateReleased": "2020-10-10",
 	"licenseFile": "",
-	"releaseNotes": "",
+	"releaseNotes": "Version 2.1.2: Minor bugfix for display name of press/action numbers greater than 9.\n\nNote: Version 2 is a major upgrade and is not directly upgradeable from version 1. Version 1 users should consult the Community thread for manual upgrade instructions.",
 	"apps" : [
 		{
 			"id": "34a19578-5345-4562-9e01-ebc057f394x5",
