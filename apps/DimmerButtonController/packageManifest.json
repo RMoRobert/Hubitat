@@ -1,8 +1,8 @@
 {
 	"packageName": "Dimmer Button Controller",
-	"minimumHEVersion": "2.1.1",
+	"minimumHEVersion": "2.1.2",
 	"author": "Robert Morris",
-	"dateReleased": "2020-06-01",
+	"dateReleased": "2020-10-10",
 	"licenseFile": "",
 	"releaseNotes": "",
 	"apps" : [
@@ -22,7 +22,7 @@
 			"namespace": "RMoRobert",
 			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonController2.groovy",
 			"required": true,
-			"version": "2.1.0",
+			"version": "2.1.2",
 			"oauth": false
 		}
 	]

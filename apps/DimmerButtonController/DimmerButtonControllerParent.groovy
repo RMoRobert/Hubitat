@@ -42,16 +42,18 @@ definition(
     namespace: 'RMoRobert',
     author: 'Robert Morris',
     singleInstance: true,
+    installOnOpen: true,
     description: 'Easily configure a button device such as a Pico remote to control one or more bulbs/dimmers/switches with on/off, scene switching, and dimming',
     category: 'Convenience',        
     iconUrl: '',
     iconX2Url: '',
     iconX3Url: ''
-)   
+)
 
 preferences {
     page(name: 'mainPage', title: 'Dimmer Button Controller', install: true, uninstall: true) {
         if (app.getInstallationState() == 'INCOMPLETE') {
+            // Shouldn't happen with installOnOpen: true, but just in case...
             section() {
                 paragraph('Please press "Done" to finish installing this app, then re-open it to add Dimmer Button Controller child instances.')
             }

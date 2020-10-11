@@ -16,9 +16,10 @@
  *
  *  Author: Robert Morris
  *
- * == Child version: 2.1.1 ==
+ * == Child version: 2.1.2 ==
  *
  * Changelog:
+ * 2.1.2  (2020-10-10) - Bugfix for display name of press/action numbers greather than 9
  * 2.1.1  (2020-06-01) - Additional clarification of "press" terminology; replaced with button-event-specific languge where appropriate
  * 2.1    (2020-04-27) - Added ability to use individual devices vs. groups for some actions (on/off/setLevel vs. start/stopLevelChange)
  * 2.0    (2020-04-23) - Rewrite of app with cleaner UI more functionality (breaking changes; also keep 1.x child if you have instances)
@@ -54,22 +55,22 @@ import groovy.transform.Field
 
 
 definition(
-    name: "Dimmer Button Controller (Child App) 2",
-    namespace: "RMoRobert",        
-    parent: "RMoRobert:Dimmer Button Controller",
-    author: "Robert Morris",
-    description: "Do not install directly. Install Dimmer Button Controller parent app, then create new automations using that app.",
-	category: "Convenience",
-    iconUrl: "",
-    iconX2Url: "",
-    iconX3Url: "",
-    documentationLink: "https://community.hubitat.com/t/release-dimmer-button-controller-configure-pico-to-emulate-hue-dimmer-or-any-button-device-to-easily-control-lights/7726"
+   name: "Dimmer Button Controller (Child App) 2",
+   namespace: "RMoRobert",        
+   parent: "RMoRobert:Dimmer Button Controller",
+   author: "Robert Morris",
+   description: "Do not install directly. Install Dimmer Button Controller parent app, then create new automations using that app.",
+   category: "Convenience",
+   iconUrl: "",
+   iconX2Url: "",
+   iconX3Url: "",
+   documentationLink: "https://community.hubitat.com/t/release-dimmer-button-controller-configure-pico-to-emulate-hue-dimmer-or-any-button-device-to-easily-control-lights/7726"
 )
 
 preferences {
-	page(name: "pageMain")
-	page(name: "pageFinal")
-	page(name: "pageButtonConfig")
+   page(name: "pageMain")
+   page(name: "pageFinal")
+   page(name: "pageButtonConfig")
 }
 
 def pageMain() {
@@ -167,11 +168,11 @@ String getOrdinal(String action='pushed', Integer pressNum=1) {
 		case 9: ordinal = "Ninth"; break
 		default:
 			ordinal = pressNum.toString()
-			String end = pressNum.toString().right(1)
-			if (right == 1) ordinal += "st"
-			else if (right == 2) ordinal += "nd"
-			else if (right == 3) ordinal += "rd"
-			else ordinal += "th"
+         String end = pressNum.toString()[-1]
+         if (end == 1) ordinal += "st"
+         else if (end == 2) ordinal += "nd"
+         else if (end == 3) ordinal += "rd"
+         else ordinal += "th"
 	}
 	return "$ordinal $actionDisplayName"
 }
