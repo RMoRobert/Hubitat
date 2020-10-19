@@ -16,12 +16,13 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-10-18
+ *  Last modified: 2020-10-19
  * 
- *  Version: LoMP 5.0.2
+ *  Version: LoMP 5.0.3
  * 
  *  Changelog:
  *
+ * 5.0.3 - Fix for ooccasional issue where LoMP gets stuck thinking lights are always dimmmed and "restores" with any motion
  * 5.0.2 - Fix "don't perform 'on' action..." setting being ignored in most cases
  * 5.0.1 - Per-mode level exception fix
  * 5.0   - Total rewrite with per-mode options, optional dim-only (no off) settings, button device support, etc.
@@ -483,6 +484,7 @@ void performActiveAction() {
          logDebug "  action is 'no'", 2, "debug"
          if (state.isDimmed) {
             restoreStates()
+            state.isDimmed = false
             logDebug "Restored light states even though no action was configured because lights were dimmed", 1, "debug"
          }
          else {
@@ -607,6 +609,7 @@ def modeChangeHandler(evt) {
             case "on":
                if (settings["inactiveAction${suffix}"] != "offOnly") {
                   restoreStates()
+                  state.isDimmed = false
                }
                else {
                   getDevicesToTurnOn().each { it.on() }
