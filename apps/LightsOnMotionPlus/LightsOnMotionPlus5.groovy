@@ -16,12 +16,13 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-09-16
+ *  Last modified: 2020-10-18
  * 
- *  Version: LoMP 5.0.1
+ *  Version: LoMP 5.0.2
  * 
  *  Changelog:
  *
+ * 5.0.2 - Fix "don't perform 'on' action..." setting being ignored in most cases
  * 5.0.1 - Per-mode level exception fix
  * 5.0   - Total rewrite with per-mode options, optional dim-only (no off) settings, button device support, etc.
  *         Do *not* overwrite 4.x app with this app; install as new app and update parent, which will allow continued use of both 4.x and 5.x child apps
@@ -109,7 +110,7 @@ def pageMain() {
                description: "number of minutes"
             input name: "dimToLevel", type: "number", options: 1..99, title: "Dim to level (if configured to dim)",  width: 6, defaultValue: 10
             input name: "boolRemember", type: "bool", title: "Capture light states before dimming/turning off; restore with \"Turn on lights\" " +
-               "(note: only saved witin Lights on Motion Plus)", width: 6, defaultValue: true
+               "(note: only saved within Lights on Motion Plus)", width: 6, defaultValue: true
             input name: "dimTime", type: "number", title: "Dim for this many seconds before turning off (if configured to turn dim and then turn off)",
                range: "5..86400", defaultValue: 30, required: true
          }
@@ -416,7 +417,7 @@ void performActiveAction() {
       case "on":
          logDebug "  action is 'on'", 2, "debug"
          if (settings["inactiveAction${suffix}"] != "offOnly") {
-            if (!anyOn || state.isDimmed) {
+            if (!(settings["notIfOn"]) || !anyOn || state.isDimmed) {
                logDebug  "    -> none on or is dimmed, so restoring...", 2, "debug"
                restoreStates()
             }
@@ -430,7 +431,7 @@ void performActiveAction() {
          state.isDimmed = false
          break
       case "onColor":
-         if (anyOn && settings["inactiveAction${suffix}"] != "offOnly") {
+         if (!(settings["notIfOn"]) || anyOn && settings["inactiveAction${suffix}"] != "offOnly") {
             if (state.isDimmed) {
                logDebug "  action is 'onColor', restoring", 2, "debug"
                restoreStates()
@@ -464,7 +465,7 @@ void performActiveAction() {
          }
          break
       case "onScene":
-         if (anyOn && settings["inactiveAction${suffix}"] != "offOnly") {
+         if (!(settings["notIfOn"]) || anyOn && settings["inactiveAction${suffix}"] != "offOnly") {
             if (state.isDimmed) {
                logDebug "  action is 'onScene'; is dimmed, so restoring", 2, "debug"
                restoreStates()
