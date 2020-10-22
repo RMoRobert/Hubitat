@@ -16,12 +16,13 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-10-19
+ *  Last modified: 2020-10-21
  * 
  *  Version: LoMP 5.0.3
  * 
  *  Changelog:
  *
+ * 5.0.4 - Fix for lights not turning on in some situations (5.0.2 bug)
  * 5.0.3 - Fix for ooccasional issue where LoMP gets stuck thinking lights are always dimmmed and "restores" with any motion
  * 5.0.2 - Fix "don't perform 'on' action..." setting being ignored in most cases
  * 5.0.1 - Per-mode level exception fix
@@ -100,7 +101,7 @@ def pageMain() {
                title: "saturation", range: "0..100", description: "0-100", width: 2, required: false
             paragraph "(at least one field required)"
          }
-         if (activeAction && activeAction != "no") {
+         if (activeAction) {
             input name: "notIfOn", type: "bool", title: "Don't perform \"on\" action if any specified lights are already on",
                defaultValue: true
          }
@@ -297,7 +298,7 @@ def motionHandler(evt) {
       // If it's a "turn on sensor" or lights were dimmed (from inactivity)...
       if (onSensors.any { it.deviceId == evt.deviceId} || state.isDimmed) {
          // If no lights on or configured to not care or currenly dimmed...
-         if (!(settings["notIfOn"]) || state.isDimmed || verifyNoneOn()) {
+         if ((settings["notIfOn"] == false) || state.isDimmed || verifyNoneOn()) {
             // If dimmed or all restrictions OK, then perform active action
             if (state.isDimmed ||
                 (isTimeOK() && isLuxOK()) &&
@@ -418,7 +419,7 @@ void performActiveAction() {
       case "on":
          logDebug "  action is 'on'", 2, "debug"
          if (settings["inactiveAction${suffix}"] != "offOnly") {
-            if (!(settings["notIfOn"]) || !anyOn || state.isDimmed) {
+            if ((settings["notIfOn"] == false) || !anyOn || state.isDimmed) {
                logDebug  "    -> none on or is dimmed, so restoring...", 2, "debug"
                restoreStates()
             }
@@ -432,7 +433,7 @@ void performActiveAction() {
          state.isDimmed = false
          break
       case "onColor":
-         if (!(settings["notIfOn"]) || anyOn && settings["inactiveAction${suffix}"] != "offOnly") {
+         if ((settings["notIfOn"] == false) || anyOn && settings["inactiveAction${suffix}"] != "offOnly") {
             if (state.isDimmed) {
                logDebug "  action is 'onColor', restoring", 2, "debug"
                restoreStates()
@@ -466,7 +467,7 @@ void performActiveAction() {
          }
          break
       case "onScene":
-         if (!(settings["notIfOn"]) || anyOn && settings["inactiveAction${suffix}"] != "offOnly") {
+         if ((settings["notIfOn"] == false) || anyOn && settings["inactiveAction${suffix}"] != "offOnly") {
             if (state.isDimmed) {
                logDebug "  action is 'onScene'; is dimmed, so restoring", 2, "debug"
                restoreStates()
