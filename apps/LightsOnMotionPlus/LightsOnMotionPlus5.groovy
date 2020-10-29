@@ -16,12 +16,13 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-10-21
+ *  Last modified: 2020-10-29
  * 
- *  Version: LoMP 5.0.3
+ *  Version: LoMP 5.0.5
  * 
  *  Changelog:
  *
+ * 5.0.5 - Additional fix for lights not turning on in some situations
  * 5.0.4 - Fix for lights not turning on in some situations (5.0.2 bug)
  * 5.0.3 - Fix for ooccasional issue where LoMP gets stuck thinking lights are always dimmmed and "restores" with any motion
  * 5.0.2 - Fix "don't perform 'on' action..." setting being ignored in most cases
@@ -43,19 +44,19 @@
 
 import groovy.transform.Field
 
-@Field static List<Map<String,String>> activeActions = [
-      [on: 'Turn on lights'],
-      [onColor: 'Turn on lights and set color/CT or level'],
-      [onScene: 'Activate CoCoHue scene'],
-      [no: 'No action (do not turn on)']
-   ]
+@Field static final List<Map<String,String>> activeActions = [
+   [on: 'Turn on lights'],
+   [onColor: 'Turn on lights and set color/CT or level'],
+   [onScene: 'Activate CoCoHue scene'],
+   [no: 'No action (do not turn on)']
+]
 
-@Field static List<Map<String,String>> inactiveActions = [
-      [dimOff: 'Dim lights to "warn," then turn off'],
-      [offOnly: 'Turn off lights'],
-      [dimOnly: 'Dim lights only (do not turn off)'],
-      [no: 'No action (do not turn off)']
-   ]
+@Field static final List<Map<String,String>> inactiveActions = [
+   [dimOff: 'Dim lights to "warn," then turn off'],
+   [offOnly: 'Turn off lights'],
+   [dimOnly: 'Dim lights only (do not turn off)'],
+   [no: 'No action (do not turn off)']
+]
 
 definition(
    name: "Lights on Motion Plus (Child App) 5",
@@ -189,6 +190,7 @@ def pageMain() {
          input name: "logLevel", type: "enum", title: "Debug logging level",
             options: [[0: 'Disabled'], [1: 'Moderate logging'], [2: 'Verbose logging']],
             defaultValue: 0
+         input name: "noRestoreScene", type: "bool", title: 'Re-activate "Turn on and set scene" or "Turn on and set color..." settings instead of restoring saved state when motion detected during dim'
          input name: "doOn", type: "bool", title: "Send \"On\" command after \"Set Level\" or \"Set Color\" when restoring states (enable if devices use prestaging)"
          input name: "btnClearCaptured", type: "button", title: "Clear all captured states"
       }
@@ -287,7 +289,8 @@ def pageDeletePerMode() {
 
 def motionHandler(evt) {
    logDebug "motionHandler: ${evt.device} ${evt.value} (mode ${location.currentMode.name} [${location.currentMode.id}]) ===", 1, "trace"
-   // Before we start, set isDimmed to false if no lights on (which could have happened if user or other app turned lights off first)
+   // Before we start, set isDimmed to false if no lights on (which could have happened if user or other app
+   // turned lights off before app did)
    if (verifyNoneOn()) {
       state.isDimmed = false
    }
@@ -336,7 +339,7 @@ def motionHandler(evt) {
 // Lights to check are determined based on user settings and, if applicable, current mode
 // includeExtraOffLights: include "additional lights to turn off"? (will choose per-mode or default set, depending on configuration)
 Boolean verifyNoneOn(Boolean includeExtraOffLights=false) {
-   logDebug "verifyNoneOn()...", 2, "trace"
+   logDebug "verifyNoneOn($includeExtraOffLights)...", 2, "trace"
    List<com.hubitat.app.DeviceWrapper> devsToCheck = []
    if (settings["perMode"] && settings["perMode.${location.getCurrentMode().id}"] && settings["lights.override.${location.getCurrentMode().id}"]) {
       devsToCheck = (settings["lights.${location.getCurrentMode().id}"]) 
@@ -417,35 +420,52 @@ void performActiveAction() {
    Boolean anyOn = !verifyNoneOn()
    switch (settings["activeAction${suffix}"]) {
       case "on":
-         logDebug "  action is 'on'", 2, "debug"
-         if (settings["inactiveAction${suffix}"] != "offOnly") {
-            if ((settings["notIfOn"] == false) || !anyOn || state.isDimmed) {
-               logDebug  "    -> none on or is dimmed, so restoring...", 2, "debug"
+         logDebug '  action is "on"', 2, "debug"
+         if (!anyOn || state.isDimmed || settings["notIfOn"] == false) {
+            if (settings["inactiveAction${suffix}"] != "offOnly") {
+               // "Inactive" action involves dimming, so restore states
+               logDebug  "    -> none on, is dimmed, or configured to always turn on, so restoring... (anyOn = $anyOn; dimmed = ${state.isDimmed}; notIfOn = $notIfOn)", 2, "debug"
                restoreStates()
             }
             else {
-               logDebug "    -> 'on', but some on and not dimmed, so doing nothing", 2, "debug"
+               // "Inactive" action does not invole dimming, so can just turn on without restoring:
+               logDebug  "    -> none on, is dimmed, or configured to always turn on, so turning on... (anyOn = $anyOn; dimmed = ${state.isDimmed}; notIfOn = $notIfOn)", 2, "debug"
+               getDevicesToTurnOn().each { it.on() }
             }
          }
          else {
-            getDevicesToTurnOn().each { it.on() }
+            logDebug "    -> not performing any action (anyOn = $anyOn; dimmed = ${state.isDimmed}; notIfOn = $notIfOn)", 2, "debug"
          }
          state.isDimmed = false
          break
       case "onColor":
-         if ((settings["notIfOn"] == false) || anyOn && settings["inactiveAction${suffix}"] != "offOnly") {
-            if (state.isDimmed) {
-               logDebug "  action is 'onColor', restoring", 2, "debug"
-               restoreStates()
-               state.isDimmed = false
+         logDebug '  action is "onColor"', 2, "debug"
+         Boolean doOnAction = true
+         if (!anyOn || state.isDimmed || settings["notIfOn"] == false) {
+            if (settings["inactiveAction${suffix}"] != "offOnly") {
+               // "Inactive" action involves dimming, so restore states if dimmed unless configured not to
+               if (state.isDimmed && settings["noRestoreScene"] != true) {
+                  logDebug  "    -> none on, is dimmed, or configured to always turn on, so restoring... (anyOn = $anyOn; dimmed = ${state.isDimmed}; notIfOn = $notIfOn)", 2, "debug"
+                  doOnAction = false
+                  restoreStates()
+               }
+               else {
+                  logDebug  "    -> none on, is dimmed, or configured to always turn on, so (re)activating settings... (anyOn = $anyOn; dimmed = ${state.isDimmed}; notIfOn = $notIfOn)", 2, "debug"
+               }
             }
             else {
-               logDebug "    -> 'onColor', but on and not dimmed so doing nothing", 2, "debug"
+               // "Inactive" action does not invole dimming, so can just turn on without restoring:
+               logDebug  "    -> none on, is dimmed, or configured to always turn on, so turning on...", 2, "debug"
+               getDevicesToTurnOn().each { it.on() }
             }
          }
          else {
+            logDebug "    -> lights on, not configured to change if on, and not dimmed, so doing nothing (anyOn = $anyOn; dimmed = ${state.isDimmed}; notIfOn = $notIfOn)", 2, "debug"
+         }
+         if (doOnAction) {
+            logDebug "        -> now performing setting activations...", 2, "debug"
             if (settings["onColor.CT${suffix}"]) {
-               logDebug "  action is 'ct'", 2, "debug"
+               logDebug '  action is "ct"', 2, "debug"
                getDevicesToTurnOn().each { it.setColorTemperature(settings["onColor.CT${suffix}"]) }
                if (settings["onColor.L${suffix}"]) getDevicesToTurnOn().each { it.setLevel(settings["onColor.L${suffix}"]) }
             }
@@ -463,20 +483,34 @@ void performActiveAction() {
                   if (settings["onColor.L${suffix}"] != null) getDevicesToTurnOn().each { it.setLevel(settings["onColor.L${suffix}"]) }
                }
             }
-            state.isDimmed = false
          }
+         state.isDimmed = false
          break
       case "onScene":
-         if ((settings["notIfOn"] == false) || anyOn && settings["inactiveAction${suffix}"] != "offOnly") {
-            if (state.isDimmed) {
-               logDebug "  action is 'onScene'; is dimmed, so restoring", 2, "debug"
-               restoreStates()
+         logDebug '  action is "onScene"', 2, "debug"
+         Boolean doOnAction = true
+         if (!anyOn || state.isDimmed || settings["notIfOn"] == false) {
+            if (settings["inactiveAction${suffix}"] != "offOnly") {
+               // "Inactive" action involves dimming, so restore states if dimmed unless configured not to
+               if (state.isDimmed && settings["noRestoreScene"] != true) {
+                  logDebug  "    -> none on, is dimmed, or configured to always turn on, so restoring...", 2, "debug"
+                  doOnAction = false
+                  restoreStates()
+               }
+               else {
+                  logDebug  "    -> none on, is dimmed, or configured to always turn on, so activating scene...", 2, "debug"
+               }
             }
             else {
-               logDebug "  action is 'onScene'; on but not dimmed, so doing nothing", 2, "debug"
+               // "Inactive" action does not invole dimming, so can just turn on without restoring:
+               logDebug  "    -> none on, is dimmed, or configured to always turn on, so activating scene...", 2, "debug"
             }
          }
          else {
+            logDebug "    -> lights on, not configured to change if on, and not dimmed, so doing nothing (anyOn = $anyOn; dimmed = ${state.isDimmed}; notIfOn = $notIfOn)", 2, "debug"
+         }
+         if (doOnAction) {
+            logDebug "        -> now performing scene activation...", 2, "debug"            
             getDevicesToTurnOn().each { it.on() }
          }
          state.isDimmed = false
@@ -603,7 +637,7 @@ def modeChangeHandler(evt) {
          logDebug "Not capturing pre-mode-change states because previous mode is unknown", 2, "debug"
       }
       state.lastMode = location.getCurrentMode().id
-      // Adapted from performActiveAction, but note lack of restore for most actions
+      // Adapted from (older incarnation of) performActiveAction, but note lack of restore for most actions
       if (!verifyNoneOn()) {
          String suffix = getSettingModeSuffix()
          switch (settings["activeAction${suffix}"]) {
@@ -692,6 +726,7 @@ void captureStates(Long modeID=location.getCurrentMode().id) {
 }
 
 void restoreStates() {
+   // TODO: Add option to pass "fallback action" or device to on() if states not found? For scenes, may want to activate instead
    logDebug "restoreStates", 1, "trace"
    if (settings["boolRemember"]) {
       logDebug "  Configured to remember...", 2, "debug"
