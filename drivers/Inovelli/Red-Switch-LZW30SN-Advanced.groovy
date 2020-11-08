@@ -2,7 +2,7 @@
  * ===================== Inovelli Red Series Switch (LZW30-SN) Driver =====================
  *
  *  Copyright 2020 Robert Morris
- *  Portions based on code from Hubitat and Inovelli
+ *  Portions based on code from Inovelli and Hubitat
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -14,504 +14,393 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  * =======================================================================================
- *
- *  Last modified: 2020-01-19
  * 
  *  Changelog:
- * 
- *  v1.0 Initial Release   
+ *  v2.0    (2020-11-07) - Substantial rewrite, update for S2/C-7 and new switch firmware
+ *                         NOTE: See forum thread for details; not 100% compatible with 1.x. Recommend renaming
+ *                               and keeping old driver while converting. Old child devs not supported, and
+ *                               some custom commands are different.
+ *  v1.0    (2020-01-19) - Initial Release   
  */
 
 import groovy.transform.Field
 
 @Field static Map commandClassVersions = [
-    0x20: 1,    // Basic
-    0x25: 1,    // Switch Binary
-    0x32: 3,    // Meter
-    0x5B: 1,    // CentralScene
-    0x70: 1,    // Configuration
-    0x98: 1     // Security
+   0x20: 1,    // Basic
+   0x25: 1,    // Switch Binary
+   0x32: 3,    // Meter
+   0x5B: 1,    // CentralScene
+   0x70: 1,    // Configuration
+   0x86: 2,    // Version
+   0x98: 1     // Security
+]
+
+@Field static final Map zwaveParameters = [
+   1: [input: [name: "param.1", type: "enum", title: "State on power restore", defaultValue: 0,
+       options: [[2: "Off"], [1: "On"], [0: "Previous state"]]],
+      size: 1],
+   2: [input: [name: "param.2", type: "enum", title: "Paddle function", defaultValue: 0,
+       options: [[0: "Normal"], [1: "Reverse"]]],
+      size: 1],
+   3: [input: [name: "param.3", type: "number", title: "Automtically turn switch off after ... seconds (0=disable auto-off)", range: 0..32767, defaultValue: 0],
+      size: 2],
+   10: [input: [name: "param.10", type: "enum", title: "Send new power report when power changes by", defaultValue: 10,
+        options: [[0:"Disabled"],[5:"5%"],[10:"10%"],[15:"15%"],[20:"20%"],[25:"25%"],[30:"30%"],[40:"40%"],[50:"50%"],[60:"60%"],[70:"70%"],[80:"80%"],[90:"90%"],[100:"100%"]]],
+      size: 1],
+   12: [input: [name: "param.12", type: "enum", title: "Send new energy report when energy changes by", defaultValue: 10,
+        options: [[0:"Disabled"],[5:"5%"],[10:"10%"],[15:"15%"],[20:"20%"],[25:"25%"],[30:"30%"],[40:"40%"],[50:"50%"],[60:"60%"],[70:"70%"],[80:"80%"],[90:"90%"],[100:"100%"]]],
+      size: 1],
+   11: [input: [name: "param.11", type: "enum", title: "Send power and energy reports every", defaultValue: 3600,
+        options: [[0:"Disabled"],[30:"30 seconds"],[60:"1 minute"],[180:"3 minutes"],[300:"5 minutes"],[600:"10 minutes"],[900:"15 minutes"],[1200:"20 minutes"],[1800:"30 minutes"],[3600:"1 hour"],[7200:"2 hours"],[10800:"3 hours"],[18000:"5 hours"],[32400: "9 hours"]]],
+      size: 2],
+   51: [input: [name: "param.51", type: "enum", title: "Disable physical on/off delay", defaultValue: 0, options: [[0:"No (default)"],[1:"Yes (also disables multi-taps)"]]],
+      size: 1]
 ]
 
 metadata {
-    definition (name: "Advanced Inovelli Red Series Switch (LZW30-SN)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Red-Switch-LZW30SN-Advanced.groovy") {
-        capability "Actuator"
-        capability "Switch"
-        capability "EnergyMeter"
-        capability "VoltageMeasurement"
-        capability "PowerMeter"
-        capability "Configuration"
-        capability "PushableButton"
-        capability "HoldableButton"
-        capability "ReleasableButton"
+   definition (name: "Advanced Inovelli Red Series Switch (LZW30-SN)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Red-Switch-LZW30SN-Advanced.groovy") {
+      capability "Actuator"
+      capability "Switch"
+      capability "EnergyMeter"
+      capability "VoltageMeasurement"
+      capability "PowerMeter"
+      capability "Configuration"
+      capability "PushableButton"
+      capability "HoldableButton"
+      capability "ReleasableButton"
 
-        command "flash"
-        command "refresh"
-        command "push", ["NUMBER"]
-        command "hold", ["NUMBER"]
-        command "release", ["NUMBER"]
-        command "setIndicator", [[name: "Calcualted notification value", type: "NUMBER", description: "See https://nathanfiscus.github.io/inovelli-notification-calc to calculate"]]
-        command "setDefaultLEDColor", [[name: "Color", type: "NUMBER", description: "Inovelli format, 0-255"]]
-        command "setDefaultLEDLevel", [[name:"Level", type: "ENUM", description: "Brightess (0-10, 0=off)", constraints: 0..10]]
-        command "setOffLEDLevel", [[name:"Level", type: "ENUM", description: "Brightess (0-10, 0=off)", constraints: 0..10]]
-
-        attribute "firmware", "String"
-        attribute "amperage", "number"
-
-        fingerprint mfr: "031E", prod: "0002", model: "0001", deviceJoinName: "Inovelli Switch Red Series" 
-        fingerprint deviceId: "0x1001", inClusters: "0x5E,0x6C,0x55,0x98,0x9F,0x22,0x70,0x85,0x59,0x86,0x32,0x72,0x5A,0x5B,0x73,0x75,0x7A"
-        fingerprint deviceId: "0x1001", inClusters: "0x5E,0x70,0x85,0x59,0x55,0x86,0x72,0x5A,0x73,0x32,0x5B,0x98,0x9F,0x25,0x6C,0x75,0x22,0x7A"
+      command "flash"
+      command "refresh"
+      command "push", [[name: "Button Number*", type: "NUMBER"]]
+      command "hold", [[name: "Button Number*", type: "NUMBER"]]
+      command "release", [[name: "Button Number*", type: "NUMBER"]]
+      command "setConfigParameter", [[name:"Parameter Number*", type: "NUMBER"], [name:"Value*", type: "NUMBER"], [name:"Size*", type: "NUMBER"]]
+      command "setIndicator", [[name: "Notification Value*", type: "NUMBER", description: "See https://nathanfiscus.github.io/inovelli-notification-calc to calculate"]]
+      command "setLEDColor", [[name: "Color*", type: "NUMBER", description: "Inovelli format, 0-255"]]
+      command "setOnLEDLevel", [[name:"Level*", type: "ENUM", description: "Brightess (0-10, 0=off)", constraints: 0..10]]
+      command "setOffLEDLevel", [[name:"Level*", type: "ENUM", description: "Brightess (0-10, 0=off)", constraints: 0..10]]
+      // TODO: check this:
+      fingerprint mfr:"031E", prod:"0001", deviceId: "1001", inClusters: "0x5E,0x70,0x85,0x59,0x55,0x86,0x72,0x5A,0x73,0x32,0x5B,0x98,0x9F,0x25,0x6C,0x75,0x22,0x7A"
     }
-    
-    preferences {
-        input name: "param2", type: "enum", title: "Paddle function", options:[[0:"Normal"],[1:"Reverse"]], defaultValue: 0
-        input name: "param3", type: "number", title: "Automatically turn switch off after ... seconds (0=disable auto-off)", range: 0..32767, defaultValue: 0
-        input name: "param1", type: "enum", title: "State on power restore", options:[[0:"Previous"],[1:"On"],[2:"Off"]], defaultValue: 0
-        input name: "param10", type: "enum", title: "Send new power report when level changes by",
-            options:[[0:"Disabled"],[5:"5%"],[10:"10%"],[15:"15%"],[20:"20%"],[25:"25%"],[30:"30%"],[40:"40%"],[50:"50%"],[60:"60%"],[70:"70%"],
-            [80:"80%"],[90:"90%"],[100:"100%"]], defaultValue: 10
-        input name: "param12", type: "enum", title: "Send new energy report when level changes by",
-            options:[[0:"Disabled"],[5:"5%"],[10:"10%"],[15:"15%"],[20:"20%"],[25:"25%"],[30:"30%"],[40:"40%"],[50:"50%"],[60:"60%"],[70:"70%"],
-            [80:"80%"],[90:"90%"],[100:"100%"]], defaultValue: 10
-        input name: "param11", type: "enum", title: "Power and energy reporting interval",
-            options:[[0:"Disabled"],[30:"30 seconds"],[60:"1 minute"],[180:"3 minutes"],[300:"5 minutes"],[600:"10 minutes"],[900:"15 minutes"],
-            [1200:"20 minutes"],[1800:"30 minutes"],[3600:"1 hour"],[7200:"2 hours"],[10800:"3 hours"],[18000:"5 hours"],
-            [32400: "9 hours"]], defaultValue: 3600
-        //input name: "disableLocal", type: "bool", title: "Disable local control (on switch)", required: false, defaultValue: false
-        //input name: "disableRemote", type: "bool", title: "Disable remote control (from Hubitat)", required: false, defaultValue: false
-        input name: "flashRate", type: "enum", title: "Flash rate", options:[[750:"750ms"],[1000:"1s"],[2000:"2s"],[5000:"5s"]], defaultValue: 750
-        input name: "createChildDevs", type: "bool", title: "Create LED child devices", defaultValue: true
-        input name: "logEnable", type: "bool", title: "Enable debug logging", defaultValue: true
-        input name: "txtEnable", type: "bool", title: "Enable descriptionText logging", defaultValue: true
 
-    }
+   preferences {
+      zwaveParameters.each {
+         input it.value.input
+      }      
+      input name: "disableLocal", type: "bool", title: "Disable local control (at wall/switch)"
+      input name: "disableRemote", type: "bool", title: "Disable remote control (from Z-Wave/hub)"
+      input name: "flashRate", type: "enum", title: "Flash rate", options: [[500: "500 ms"], [750: "750 ms"], [1000: "1 second"], [2000: "2 seconds"], [5000: "5 seconds"]], defaultValue: 750
+      input name: "enableDebug", type: "bool", title: "Enable debug logging", defaultValue: true
+      input name: "enableDesc", type: "bool", title: "Enable descriptionText logging", defaultValue: true
+   }
 }
 
-def logsOff() {
-    log.warn("Disabling debug logging")
-    device.updateSetting("logEnable", [value:"false", type:"bool"])
+void logsOff() {
+   log.warn("Disabling debug logging")
+   device.updateSetting("enableDebug", [value:"false", type:"bool"])
 }
 
-private command(hubitat.zwave.Command cmd) {
-    if (getDataValue("zwaveSecurePairingComplete") == "true") {
-        zwave.securityV1.securityMessageEncapsulation().encapsulate(cmd).format()
-    } else {
-        cmd.format()
-    }
+String secure(String cmd){
+   return zwaveSecureEncap(cmd)
 }
 
-private commands(commands, delay=1000) {
-    delayBetween(commands.collect{ command(it) }, delay)
+String secure(hubitat.zwave.Command cmd){
+   return zwaveSecureEncap(cmd)
 }
 
-def parse(description) {
-    def result
-    if (description.startsWith("Err 106")) {
-        state.sec = 0
-        result = createEvent(descriptionText: description, isStateChange: true)
-    } else if (description != "updated") {
-        def cmd = zwave.parse(description, commandClassVersions)
-        if (cmd) {
-            result = zwaveEvent(cmd)
-            //log.debug("'$cmd' parsed to $result")
-        } else {
-            logDebug("Couldn't zwave.parse '$description'")
-        }
-    }
-    return result
+void parse(String description){
+   if (enableDebug) log.debug "parse description: ${description}"
+   hubitat.zwave.Command cmd = zwave.parse(description, commandClassVersions)
+   if (cmd) {
+      zwaveEvent(cmd)
+   }
 }
 
-// Does Inovelli switch send these?
-def zwaveEvent(hubitat.zwave.commands.versionv1.VersionReport cmd) {
-    logDebug("VersionReport value: ${cmd}")
-    if(cmd.applicationVersion != null && cmd.applicationSubVersion != null) {
-	    def firmware = "${cmd.applicationVersion}.${cmd.applicationSubVersion.toString().padLeft(2,'0')}"
-        logDesc("${device.displayName}: Firmware report received: ${firmware}")
-        //state.needfwUpdate = "false"
-        createEvent(name: "firmware", value: "${firmware}")
-    }
+void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd){
+   hubitat.zwave.Command encapCmd = cmd.encapsulatedCommand(commandClassVersions)
+   if (encapCmd) {
+      zwaveEvent(encapCmd)
+   }
 }
 
-def zwaveEvent(hubitat.zwave.commands.protectionv2.ProtectionReport cmd) {
-    logDebug("${device.displayName}: ${device.displayName}: ${cmd}")
-    logDebug("${device.displayName}: Protection report received: Local protection = ${cmd.localProtectionState > 0 ? "on" : "off"}, remote protection = ${cmd.rfProtectionState > 0 ? "on" : "off"}")
-    if (!state.lastRan || now() <= state.lastRan + 60000) {
-        state.localProtectionState = cmd.localProtectionState
-        state.rfProtectionState = cmd.rfProtectionState
-    } else {
-        logDebug("${device.displayName}: Protection report received more than 60 seconds after running updated(). Possible configuration made at switch")
-    }
-    //device.updateSetting("disableLocal",[value:cmd.localProtectionState?cmd.localProtectionState:0,type:"enum"])
-    //device.updateSetting("disableRemote",[value:cmd.rfProtectionState?cmd.rfProtectionState:0,type:"enum"])
+void zwaveEvent(hubitat.zwave.commands.versionv2.VersionReport cmd) {
+	if (enableDebug) log.debug "VersionReport: ${cmd}"
+	device.updateDataValue("firmwareVersion", "${cmd.firmware0Version}.${cmd.firmware0SubVersion}")
+	device.updateDataValue("protocolVersion", "${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion}")
+	device.updateDataValue("hardwareVersion", "${cmd.hardwareVersion}")
 }
 
-def zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd) {
-    logDebug("$device.displayName MeterReport: ${cmd}")
-    def event
-	if (cmd.scale == 0) {
-    	if (cmd.meterType == 161) {
-		    event = createEvent(name: "voltage", value: cmd.scaledMeterValue, unit: "V")
-            logDesc("$device.displayName voltage report received: ${cmd.scaledMeterValue} V")
-        } else if (cmd.meterType == 1) {
-        	event = createEvent(name: "energy", value: cmd.scaledMeterValue, unit: "kWh")
-            logDesc("$device.displayName energy report received: ${cmd.scaledMeterValue} kWh")
-        }
-	} else if (cmd.scale == 1) {
-		event = createEvent(name: "amperage", value: cmd.scaledMeterValue, unit: "A")
-        logDesc("$device.displayName amperage report received: ${cmd.scaledMeterValue} A")
-	} else if (cmd.scale == 2) {
-		event = createEvent(name: "power", value: Math.round(cmd.scaledMeterValue), unit: "W")
-        logDesc("$device.displayName power report received: ${cmd.scaledMeterValue} W")
-	}
-    return event
+void zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.DeviceSpecificReport cmd) {
+   if (enableDebug) log.debug "DeviceSpecificReport v2: ${cmd}"
+   switch (cmd.deviceIdType) {
+      case 1:
+         // serial number
+         String serialNumber = ""
+         if (cmd.deviceIdDataFormat==1) {
+            cmd.deviceIdData.each { serialNumber += hubitat.helper.HexUtils.integerToHexString(it & 0xff, 1).padLeft(2, '0')}
+         } else {
+            cmd.deviceIdData.each { serialNumber += (char)it }
+         }
+         if (enableDebug) log.debug "Device serial number is $serialNumber"
+         device.updateDataValue("serialNumber", serialNumber)
+         break
+   }
 }
 
-def zwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) {
-    logDebug("${device.displayName} ConfigurationReport: ${cmd}")
-    logDesc("${device.displayName} parameter '${cmd.parameterNumber}', size '${cmd.size}', is set to '${cmd2Integer(cmd.configurationValue)}'")
-    if (!state.lastRan || now() <= state.lastRan + 60000) {
-        state."parameter${cmd.parameterNumber}value" = cmd2Integer(cmd.configurationValue)
-    } else {
-        if (infoEnable) log.debug "${device.displayName} configuration report received more than 60 seconds after running updated(). Possible configuration made at switch."
-    }
-    /* def integerValue = cmd2Integer(cmd.configurationValue)
-    switch (cmd.parameterNumber) {
-        case 9:
-            def children = childDevices
-            def childDevice = children.find{it.deviceNetworkId.endsWith("ep9")}
-            if (childDevice) {
-            childDevice.sendEvent(name: "switch", value: integerValue > 0 ? "on" : "off")
-            childDevice.sendEvent(name: "level", value: integerValue)            
-            }
-        break
-        case 10:
-            def children = childDevices
-            def childDevice = children.find{it.deviceNetworkId.endsWith("ep10")}
-            if (childDevice) {
-            childDevice.sendEvent(name: "switch", value: integerValue > 0 ? "on" : "off")
-            childDevice.sendEvent(name: "level", value: integerValue)
-            }
-        break
-    } */
+void zwaveEvent(hubitat.zwave.commands.protectionv2.ProtectionReport cmd) {
+   if (enableDebug) log.debug "ProtectionReport: ${cmd}"
+   if (enableDesc) log.info ("${device.displayName}: Protection report received: Local protection = ${cmd.localProtectionState > 0 ? "on" : "off"}, remote protection = ${cmd.rfProtectionState > 0 ? "on" : "off"}")
+   device.updateSetting("disableLocal", [value: cmd.localProtectionState > 0 ? true : false, type: "bool"])
+   device.updateSetting("disableRemote", [value: cmd.rfProtectionState > 0 ? true : false, type: "bool"])
 }
 
-def cmd2Integer(array) {
-    switch(array.size()) {
-        case 1:
-            array[0]
+void zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd) {
+   if (enableDebug) log.debug "MeterReport: ${cmd}"
+   if (cmd.scale == 0) {
+      if (cmd.meterType == 161) {
+         sendEvent(name: "voltage", value: cmd.scaledMeterValue, unit: "V")
+         if (enableDesc) log.info "$device.displayName voltage is ${cmd.scaledMeterValue} V"
+      }
+      else if (cmd.meterType == 1) {
+         sendEvent(name: "energy", value: cmd.scaledMeterValue, unit: "kWh")
+         if (enableDesc) log.info "$device.displayName energy is ${cmd.scaledMeterValue} kWh"
+      }
+   }
+   else if (cmd.scale == 1) {
+      sendEvent(name: "amperage", value: cmd.scaledMeterValue, unit: "A")
+      if (enableDesc) log.info "$device.displayName amperage is ${cmd.scaledMeterValue} A"
+   }
+   else if (cmd.scale == 2) {
+      sendEvent(name: "power", value: Math.round(cmd.scaledMeterValue), unit: "W")
+      if (enableDesc) log.info "$device.displayName power is ${cmd.scaledMeterValue} W"
+   }
+   else {
+      if (enableDebug) log.debug "Unhandled MeterReport: $cmd"
+   }
+}
+
+void zwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) {
+   if (enableDebug) log.debug "ConfigurationReport: ${cmd}"
+   if (enableDesc) log.info "${device.displayName} parameter '${cmd.parameterNumber}', size '${cmd.size}', is set to '${cmd.scaledConfigurationValue}'"
+}
+
+void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd) {
+   if (enableDebug) log.debug "BasicReport:  ${cmd}"
+   String value = (cmd.value ? "on" : "off")
+   if (enableDesc && device.currentValue("switch") != value) log.info "${device.displayName} switch is ${value}"
+   sendEvent(name: "switch", value: value)
+}            
+
+void zwaveEvent(hubitat.zwave.commands.basicv1.BasicSet cmd) {
+   if (enableDebug) log.debug "BasicSet: ${cmd}"
+   String value = (cmd.value ? "on" : "off")
+   if (enableDesc && device.currentValue("switch") != value) log.info "${device.displayName} switch is ${value}"
+   sendEvent(name: "switch", value: value)
+}
+
+void zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd) {
+   if (enableDebug) log.debug "SwitchBinaryReport: ${cmd}"
+   String value = (cmd.value ? "on" : "off")
+   if (enableDesc && device.currentValue("switch") != value) log.info "${device.displayName} switch is ${value}"
+   sendEvent(name: "switch", value: value)
+}
+
+void zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification cmd) {    
+   if (enableDebug) log.debug "CentralSceneNotification: ${cmd}"
+   Integer btnNum = 0
+   String btnAction = "pushed"
+   if (cmd.sceneNumber == 2) {  // Up paddle
+      switch(cmd.keyAttributes as int) {
+         case 0:
+            btnNum = 1
             break
-        case 2:
-            ((array[0] & 0xFF) << 8) | (array[1] & 0xFF)
+         case 1:
+            btnNum = 1
+            btnAction = "released"
             break
-        case 3:
-            ((array[0] & 0xFF) << 16) | ((array[1] & 0xFF) << 8) | (array[2] & 0xFF)
+         case 2:
+            btnNum = 1
+            btnAction = "held"
             break
-        case 4:
-            ((array[0] & 0xFF) << 24) | ((array[1] & 0xFF) << 16) | ((array[2] & 0xFF) << 8) | (array[3] & 0xFF)
+         case 3:
+            btnNum = 3
             break
-    }
+         case 4:
+            btnNum = 5
+            break
+         case 5:
+            btnNum = 7
+            break
+         case 6:
+            btnNum = 9
+            break
+      }
+   } else if (cmd.sceneNumber == 1) { // Down paddle
+      switch(cmd.keyAttributes as int) {
+         case 0:
+            btnNum = 2
+            break
+         case 1:
+            btnNum = 2
+            btnAction = "released"
+            break
+         case 2:
+            btnNum = 2
+            btnAction = "held"
+            break
+         case 3:
+            btnNum = 4
+            break
+         case 4:
+            btnNum = 6
+            break
+         case 5:
+            btnNum = 8
+            break
+         case 6:
+            btnNum = 10
+            break
+      }
+   } else if (cmd.sceneNumber == 3) { // Config button
+      btnNum = 11
+   } else {
+      log.debug "Unable to parse: ${cmd}"
+   }
+
+   if (btnNum) {
+      String descriptionText = "${device.displayName} button ${btnNum} was ${btnAction}"
+      if (enableDesc) log.info "${descriptionText}"
+      sendEvent(name: "${btnAction}", value: "${btnNum}", descriptionText: descriptionText, isStateChange: true, type: "physical")
+   }
 }
 
-def integer2Cmd(value, size) {
-    try{
-	switch(size) {
-	case 1:
-		[value]
-    break
-	case 2:
-    	def short value1   = value & 0xFF
-        def short value2 = (value >> 8) & 0xFF
-        [value2, value1]
-    break
-    case 3:
-    	def short value1   = value & 0xFF
-        def short value2 = (value >> 8) & 0xFF
-        def short value3 = (value >> 16) & 0xFF
-        [value3, value2, value1]
-    break
-	case 4:
-    	def short value1 = value & 0xFF
-        def short value2 = (value >> 8) & 0xFF
-        def short value3 = (value >> 16) & 0xFF
-        def short value4 = (value >> 24) & 0xFF
-		[value4, value3, value2, value1]
-	break
-	}
-    } catch (e) {
-        logDebug( "Error: integer2Cmd $e Value: $value")
-    }
+void zwaveEvent(hubitat.zwave.Command cmd){
+    if (enableDebug) log.debug "skip: ${cmd}"
 }
 
-def zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd) {
-    logDebug("${device.displayName} BasicReport: ${cmd}")
-    logDesc("${device.displayName} is ${cmd.value ? "on" : "off"} (physical)")
-	createEvent(name: "switch", value: cmd.value ? "on" : "off", type: "physical")
+String flash() {
+   if (enableDesc) log.info "${device.getDisplayName()} was set to flash with a rate of ${flashRate ?: 750} milliseconds"
+   state.flashing = true
+   return flashOn()
 }
 
-def zwaveEvent(hubitat.zwave.commands.basicv1.BasicSet cmd) {
-    logDebug("${device.displayName} BasicSet: ${cmd}")
-    logDesc("${device.displayName} is ${cmd.value ? "on" : "off"} (physical)")
-	createEvent(name: "switch", value: cmd.value ? "on" : "off", type: "physical")
+String flashOn() {
+   if (!state.flashing) return
+   runInMillis((flashRate ?: 750).toInteger(), flashOff)
+   secure(zwave.basicV1.basicSet(value: 0xFF))
 }
 
-def zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd) {
-    if (debugEnable) log.debug "${device.displayName}: ${cmd}"
-    logDesc("${device.displayName} is ${cmd.value ? "on" : "off"} (digital)")
-	createEvent(name: "switch", value: cmd.value ? "on" : "off", type: "digital")
+String flashOff() {
+   if (!state.flashing) return
+   runInMillis((flashRate ?: 750).toInteger(), flashOn)
+   secure(zwave.basicV1.basicSet(value: 0x00))
 }
 
-def zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification cmd) {
-    logDebug("${device.displayName} CentralSceneNotification: ${cmd}")
-    def btnNum = 0
-    def eventType = "pushed"
-    if (cmd.sceneNumber == 2) {  // Up paddle
-        switch(cmd.keyAttributes as int) {
-            case 0:
-                btnNum = 1
-                break
-            case 1:
-                btnNum = 1
-                eventType = "released"
-                break
-            case 2:
-                btnNum = 1
-                eventType = "held"
-                break
-            case 3:
-                btnNum = 3
-                break
-            case 4:
-                btnNum = 5
-                break
-            case 5:
-                btnNum = 7
-                break
-            case 6:
-                btnNum = 9
-                break
-        }
-    } else if (cmd.sceneNumber == 1) { // Down paddle
-        switch(cmd.keyAttributes as int) {
-            case 0:
-                btnNum = 2
-                break
-            case 1:
-                btnNum = 2
-                eventType = "released"
-                break
-            case 2:
-                btnNum = 2
-                eventType = "held"
-                break
-            case 3:
-                btnNum = 4
-                break
-            case 4:
-                btnNum = 6
-                break
-            case 5:
-                btnNum = 8
-                break
-            case 6:
-                btnNum = 10
-                break
-        }
-    } else if (cmd.sceneNumber == 3) { // Config button
-        btnNum = 11
-    } else {
-        logDebug("Unable to parse: ${cmd}")
-    }
-
-    if (btnNum) {
-        def descriptionText = "${device.displayName} button ${btnNum} was ${eventType}"
-        logDesc("${descriptionText}")
-        sendEvent(name: "${eventType}", value: "${btnNum}", descriptionText: descriptionText, isStateChange: true, type: "physical")
-    }
-    return
+List<String> refresh() {
+   if (enableDebug) log.debug "refresh"
+   return delayBetween([
+      secure(zwave.switchMultilevelV1.switchMultilevelGet()),
+      secure(zwave.meterV3.meterGet(scale: 0)),
+      secure(zwave.meterV3.meterGet(scale: 2)),
+      secure(zwave.configurationV1.configurationGet())
+   ], 100)
 }
 
-def zwaveEvent(hubitat.zwave.Command cmd) {
-    logDebug("Skipping: ${cmd}")
+String on() {
+   if (enableDebug) log.debug "on()"
+   state.flashing = false
+   secure(zwave.basicV1.basicSet(value: 0xFF))
 }
 
-def push(button) {
-    def descriptionText = "${device.displayName} button ${button} was pushed"
-    logDesc("${descriptionText}")
-    sendEvent(name: "pushed", value: "${button}", descriptionText: descriptionText, isStateChange: true, type: "digital")
+String off() {
+   if (enableDebug) log.debug "off()"
+   state.flashing = false
+   secure(zwave.basicV1.basicSet(value: 0x00))
 }
 
-def hold(button) {
-    def descriptionText = "${device.displayName} button ${button} was held"
-    logDesc("${descriptionText}")
-    sendEvent(name: "held", value: "${button}", descriptionText: descriptionText, isStateChange: true, type: "digital")
+void push(btnNum) {
+   sendEvent(name: "pushed", value: btnNum, isStateChange: true, type: "digital")
 }
 
-def release(button) {
-    def descriptionText = "${device.displayName} button ${button} was released"
-    logDesc("${descriptionText}")
-    sendEvent(name: "released", value: "${button}", descriptionText: descriptionText, isStateChange: true, type: "digital")
+void hold(btnNum) {
+   sendEvent(name: "held", value: btnNum, isStateChange: true, type: "digital")
+}
+x
+void release(btnNum) {
+   sendEvent(name: "released", value: btnNum, isStateChange: true, type: "digital")
 }
 
-def doubleTap(button){
-    def descriptionText = "${device.displayName} button ${button} was doubleTapped"
-    logDesc("${descriptionText}")
-    sendEvent(name: "doubleTapped", value: "${button}", descriptionText: descriptionText, isStateChange: true, type: "digital")
+void installed(){
+   log.warn "Installed..."
+   sendEvent(name: "level", value: 1)
 }
 
-def on() {
-    logDebug("${device.displayName} on()")
-    state.flashing = false
-    return command(zwave.basicV1.basicSet(value: 0xFF))
-}
-
-def off() {
-    logDebug("${device.displayName} off()")
-    state.flashing = false
-    return command(zwave.basicV1.basicSet(value: 0x00))
-}
-
-def flash() {
-    def descriptionText = "${device.getDisplayName()} was set to flash with a rate of ${flashRate ?: 750} milliseconds"
-    logDesc("${descriptionText}")
-    state.flashing = true
-    flashOn()
-}
-
-def flashOn() {
-    if (!state.flashing) return
-    runInMillis((flashRate ?: 750).toInteger(), flashOff)
-    return command(zwave.basicV1.basicSet(value: 0xFF))
-}
-
-def flashOff() {
-    if (!state.flashing) return
-    runInMillis((flashRate ?: 750).toInteger(), flashOn)
-    return command(zwave.basicV1.basicSet(value: 0x00))
-}
-
-def refresh() {
-    logDebug("refresh()")
-    def cmds = []
-    cmds << zwave.basicV1.basicGet()
-    cmds << zwave.meterV3.meterGet(scale: 0)
-	cmds << zwave.meterV3.meterGet(scale: 2)
-    return commands(cmds)
-}
-
-def installed(){
-    log.warn "Installed..."
-    refresh() 
-}
-
-def configure() {
-    log.warn "configure..."
-    runIn(1800, logsOff)
-    sendEvent(name: "numberOfButtons", value: 11)
-    refresh() 
+void configure() {
+   log.warn "configure..."
+   runIn(1800, logsOff)
+   sendEvent(name: "numberOfButtons", value: 11)
+   refresh() 
 }
 
 // Apply preferences changes, including updating parameters
-def updated() {
-    log.info "updated..."
-    state.lastRan = now()
-    log.warn "Debug logging is: ${logEnable == true}"
-    log.warn "Description logging is: ${txtEnable == true}"
-    if (logEnable) {
-        log.debug("Debug logging will be automatically disabled in 30 minutes...") 
-        runIn(1800,logsOff)
+List<String> updated() {
+   log.info "updated..."
+   state.lastRan = now()
+   log.warn "Debug logging is: ${enableDebug == true ? 'enabled' : 'disabled'}"
+   log.warn "Description logging is: ${enableDesc == true ? 'enabled' : 'disabled'}"
+   if (enableDebug) {
+      log.debug "Debug logging will be automatically disabled in 30 minutes..."
+      runIn(1800, logsOff)
+   }
+
+   List<String> cmds = []
+
+   zwaveParameters.each { param, data ->
+      if (settings[data.input.name] != null) {
+         if (enableDebug) log.debug "Setting parameter $param (size:  ${data.size}) to ${settings[data.input.name]}"
+         cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: settings[data.input.name] as BigInteger, parameterNumber: param, size: data.size)))
+      }
     }
 
-    if (createChildDevs) createChildDevicesIfNeeded()
-
-    def cmds = []
-    
-    // [Parameter number: size] map, assuming variable of name "paramX" where X is parameter number
-    def params = [1: 1, 2: 1, 3: 2,
-                 10: 1, 11: 2, 12: 1]
-    params.each {
-        def p = settings["param${it.key}"]
-        if (p != null) {
-            logDebug("Setting parameter $it.key (size $it.value) to ${p.toInteger()}")
-            cmds += zwave.configurationV1.configurationSet(scaledConfigurationValue: p.toInteger(), parameterNumber: it.key, size: it.value)
-        }
-    }
-    // TODO: Add settings and fix this
-    //setProtectionStates()
-    logDebug("Running commands to set parameters...")
-    if (cmds) return commands(cmds, 500)
+   cmds.add(secure(zwave.versionV2.versionGet()))
+   cmds.add(secure(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 1)))
+   cmds.add(secure(zwave.protectionV2.protectionSet(localProtectionState: settings["disableLocal"] ? 1 : 0,
+                                             rfProtectionState: settings["disableRemote"] ? 1 : 0)))   
+   return delayBetween(cmds, 200)
 }
 
-def setProtectionStates() {
-    logDebug("Setting protection states ($disableLocal, $disableRemote)")
-    cmds = []
-    cmds += zwave.protectionV2.protectionSet(localProtectionState: disableLocal ? 1 : 0,
-                                             rfProtectionState: disableRemote ? 1 : 0)
-    return cmds
-}
 
 // Sets "notification LED" parameter to value (0 for none or calculated 4-byte value)
-def setIndicator(value) {
-    def number = 8
-    logDebug("Setting parameter $number to $value...")
-    return command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value, parameterNumber: number, size: 4))
+String setIndicator(value) {
+   if (enableDebug) log.debug "setIndicator($value)"
+   return setParameter(8, value, 4)
 }
 
-// Sets default/on LED color parameter to value (0-255)
-def setDefaultLEDColor(value) {
-    def number = 5
-    logDebug("Setting parameter $number to $value...")
-    return command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value, parameterNumber: number, size: 2))
+// Sets default LED color parameter to value (0-255)
+String setLEDColor(value) {
+   if (enableDebug) log.debug "setLEDColor($value)"
+   return setParameter(5, value, 2)
 }
 
-// Sets default/on LED level parameter to value (0-10)
-def setDefaultLEDLevel(value) {
-    def number = 6
-    logDebug("Setting parameter $number to $value...")
-    return command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value, parameterNumber: number, size: 1))
+// Sets "on" LED level parameter to value (0-10)
+String setOnLEDLevel(value) {
+   if (enableDebug) log.debug "setOnLEDLevel($value)"
+   return setParameter(6, value, 1)
 }
 
 // Sets "off" LED level parameter to value (0-10)
-def setOffLEDLevel(value) {
-	def number = 7
-    logDebug("Setting parameter $number to $value...")
-    return command(zwave.configurationV1.configurationSet(scaledConfigurationValue: value, parameterNumber: number, size: 1))
+String setOffLEDLevel(value) {
+   if (enableDebug) log.debug "setOffLEDLevel($value)"
+   return setParameter(7, value, 1)
 }
 
-def createChildDevicesIfNeeded() {
-    // Notification LED name should have "-31" for dimmers or "-30" for switches
-    def notificationLEDDNI = "${device.deviceNetworkId}-30NotifyLED"
-    def defaultLEDDNI = "${device.deviceNetworkId}-DefaultLED"
-    def offLEDDNI = "${device.deviceNetworkId}-OffLED"
-    if (!getChildDevice(notificationLEDDNI)) {
-        try {
-            def dev = addChildDevice("Inovelli Notification LED", notificationLEDDNI,
-                            ["label": "${device.displayName} Notification LED",
-                             "isComponent": false])
-            dev.installed()
-        } catch (Exception e) {
-            log.error "Error creating notification LED child device: $e"
-        }    
-    }
-    if (!getChildDevice(defaultLEDDNI)) {
-        try {
-            def dev = addChildDevice("Inovelli Default LED", defaultLEDDNI, ["label": "${device.displayName} Default LED"])
-        } catch (Exception e) {
-            log.error "Error creating default LED child device: $e"
-        }    
-    }
-    if (!getChildDevice(offLEDDNI)) {
-        try {
-            def dev = addChildDevice("Inovelli Off LED", offLEDDNI, ["label": "${device.displayName} Off LED"])
-        } catch (Exception e) {
-            log.error "Error creating \"off\" LED child device: $e"
-        }    
-    }
+// Custom command (for apps/users)
+String setConfigParameter(number, value, size) {
+   return secure(setParameter(number, value, size.toInteger()))
 }
 
-def logDebug(str) {
-    if (settings.logEnable) log.debug(str)
-}
-
-def logDesc(str) {
-    if (settings.txtEnable) log.info(str)
+// For internal/driver use
+String setParameter(number, value, size) {
+   if (enableDesc) log.info "Setting parameter $number (size: $size) to: $value"
+   return secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: number, size: size))
 }
