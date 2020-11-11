@@ -53,7 +53,7 @@ import groovy.transform.Field
    "white": 255
 ]
 
-@Field static Map effectNameMap = ["off": 0, "solid": 1, "pulse": 2, "fast blink": 3, "slow blink": 4]
+@Field static Map effectNameMap = ["off": 0, "solid": 1, "pulse": 4, /*"fallback" for 31-SN users, can remove if don't want here:*/ "chase": 4, "fast blink": 2, "slow blink": 3]
 
 @Field static final Map zwaveParameters = [
    1: [input: [name: "param.1", type: "enum", title: "State on power restore",
