@@ -16,7 +16,8 @@
  * =======================================================================================
  * 
  *  Changelog:
- *  v2.0    (2020-11-07) - Substantial rewrite, update for S2/C-7 and new dimmer firmware
+ *  v2.1    (2020-11-10) - Added second set of "friendly" setIndicator and setLEDColor commands; allow more unset preferences (will not change if not set)
+ *  v2.0    (2020-11-07) - Complete rewrite, update for S2/C-7 and new dimmer firmware
  *                         NOTE: See forum thread for details; not 100% compatible with 1.x. Recommend renaming
  *                               and keeping old driver while converting. Old child devs not supported, and
  *                               some custom commands are different.
@@ -36,53 +37,72 @@ import groovy.transform.Field
    0x98: 1     // Security
 ]
 
+@Field static Map colorNameMap = [
+   "red": 1,
+   "red-orange": 5,
+   "orange": 21,
+   "yellow": 42,
+   "chartreuse": 60,
+   "green": 85,
+   "spring": 100,
+   "cyan": 127,
+   "azure": 155,
+   "blue": 170,
+   "violet": 212,
+   "magenta": 234,
+   "rose": 254,
+   "white": 255
+]
+
+@Field static Map effectNameMap = ["off": 0, "solid": 1, "chase": 2, "fast blink": 3, "slow blink": 4, "pulse": 5]
+
 @Field static final Map zwaveParameters = [
-   1: [input: [name: "param.1", type: "enum", title: "Dimming rate from paddle", defaultValue: 3,
-         options: [[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],[10:"10 seconds"],[30:"30 seconds"],[100:"100 seconds"]]],
+   1: [input: [name: "param.1", type: "enum", title: "Dimming rate from paddle",
+         options: [[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds (default)"],[4:"4 seconds"],[5:"5 seconds"],[10:"10 seconds"],[30:"30 seconds"],[100:"100 seconds"]]],
       size: 1],
-   2: [input: [name: "param.2", type: "enum", title: "Dimming rate from hub", defaultValue: 101,
-           options: [[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],[10:"10 seconds"],[30:"30 seconds"],[101:"Match rate from paddle"]]],
+   2: [input: [name: "param.2", type: "enum", title: "Dimming rate from hub",
+           options: [[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],[10:"10 seconds"],[30:"30 seconds"],[101:"Match rate from paddle (default)"]]],
       size: 1],
-   3: [input: [name: "param.3", type: "enum", title: "On/off fade time from paddle", defaultValue: 101,
-           options: [[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],[10:"10 seconds"],[30:"30 seconds"],[101:"Match dimming rate from paddle"]]],
+   3: [input: [name: "param.3", type: "enum", title: "On/off fade time from paddle",
+           options: [[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],[10:"10 seconds"],[30:"30 seconds"],[101:"Match dimming rate from paddle (default)"]]],
       size: 1],
-   4: [input: [name: "param.4", type: "enum", title: "On/off fade time from hub", defaultValue: 101,
-           options: [[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],[10:"10 seconds"],[30:"30 seconds"],[101:"Match dimming rate from paddle"]]],
+   4: [input: [name: "param.4", type: "enum", title: "On/off fade time from hub",
+           options: [[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],[10:"10 seconds"],[30:"30 seconds"],[101:"Match dimming rate from paddle (default)"]]],
       size: 1],
-   5: [input: [name: "param.5", type: "number", title: "Minimum dimmer level", range: 1..45, defaultValue: 1],
+   5: [input: [name: "param.5", type: "number", title: "Minimum dimmer level (default=1)", range: 1..45],
       size: 1],
-   6: [input: [name: "param.6", type: "number", title: "Maximum dimmer level", range: 55..99, defaultValue: 99],
+   6: [input: [name: "param.6", type: "number", title: "Maximum dimmer level (default=99)", range: 55..99],
       size: 1],
-   7: [input: [name: "param.7", type: "enum", title: "Paddle function", defaultValue: 0, options: [[0:"Normal"],[1:"Reverse"]]], 
+   7: [input: [name: "param.7", type: "enum", title: "Paddle function", options: [[0:"Normal (default)"],[1:"Reverse"]]], 
       size: 1],
-   8: [input: [name: "param.8", type: "number", title: "Automtically turn switch off after ... seconds (0=disable auto-off)", range: 0..45, defaultValue: 0],
+   8: [input: [name: "param.8", type: "number", title: "Automtically turn switch off after ... seconds (0=disable auto-off)", range: 0..45],
       size: 2],
-   9: [input: [name: "param.9", type: "number", title: "Default level for physical \"on\" (0=previous)", range: 0..99, defaultValue: 0],
+   9: [input: [name: "param.9", type: "number", title: "Default level for physical \"on\" (0=previous; default)", range: 0..99],
       size: 1],
-   10: [input: [name: "param.10", type: "number", title: "Default level for digital \"on\" (0=previous)", range: 0..99, defaultValue: 0],
+   10: [input: [name: "param.10", type: "number", title: "Default level for digital \"on\" (0=previous; default)", range: 0..99],
       size: 1],
-   11: [input: [name: "param.11", type: "enum", title: "State on power restore", defaultValue: 0,
-        options: [[0:"Off"],[99:"On to full brightness"],[101:"Previous state"]]],
+   11: [input: [name: "param.11", type: "enum", title: "State on power restore",
+        options: [[0:"Off (default)"],[99:"On to full brightness"],[101:"Previous state"]]],
       size: 1],
-   17: [input: [name: "param.17", type: "enum", title: "If LED bar disabled, temporarily light for ... seconds after dimmer adjustments", defaultValue: 3,
-        options: [[0:"Do not show"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],[6:"6 seconds"],[7:"7 seconds"],[8:"8 seconds"],[9:"9 seconds"],[10:"10 seconds"]]],
+   17: [input: [name: "param.17", type: "enum", title: "If LED bar disabled, temporarily light for ... seconds after dimmer adjustments",
+        options: [[0:"Do not show"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds (default)"],[4:"4 seconds"],[5:"5 seconds"],[6:"6 seconds"],[7:"7 seconds"],[8:"8 seconds"],[9:"9 seconds"],[10:"10 seconds"]]],
       size: 1],
-   18: [input: [name: "param.18", type: "enum", title: "Send new power report when power changes by", defaultValue: 10,
-        options: [[0:"Disabled"],[5:"5%"],[10:"10%"],[15:"15%"],[20:"20%"],[25:"25%"],[30:"30%"],[40:"40%"],[50:"50%"],[60:"60%"],[70:"70%"],[80:"80%"],[90:"90%"],[100:"100%"]]],
+   18: [input: [name: "param.18", type: "enum", title: "Send new power report when power changes by",
+        options: [[0:"Disabled"],[5:"5%"],[10:"10% (default)"],[15:"15%"],[20:"20%"],[25:"25%"],[30:"30%"],[40:"40%"],[50:"50%"],[60:"60%"],[70:"70%"],[80:"80%"],[90:"90%"],[100:"100%"]]],
       size: 1],
-   20: [input: [name: "param.20", type: "enum", title: "Send new energy report when energy changes by", defaultValue: 10,
-        options: [[0:"Disabled"],[5:"5%"],[10:"10%"],[15:"15%"],[20:"20%"],[25:"25%"],[30:"30%"],[40:"40%"],[50:"50%"],[60:"60%"],[70:"70%"],[80:"80%"],[90:"90%"],[100:"100%"]]],
+   20: [input: [name: "param.20", type: "enum", title: "Send new energy report when energy changes by",
+        options: [[0:"Disabled"],[5:"5%"],[10:"10% (default)"],[15:"15%"],[20:"20%"],[25:"25%"],[30:"30%"],[40:"40%"],[50:"50%"],[60:"60%"],[70:"70%"],[80:"80%"],[90:"90%"],[100:"100%"]]],
       size: 1],
-   19: [input: [name: "param.19", type: "enum", title: "Send power and energy reports every", defaultValue: 3600,
-        options: [[0:"Disabled"],[30:"30 seconds"],[60:"1 minute"],[180:"3 minutes"],[300:"5 minutes"],[600:"10 minutes"],[900:"15 minutes"],[1200:"20 minutes"],[1800:"30 minutes"],[3600:"1 hour"],[7200:"2 hours"],[10800:"3 hours"],[18000:"5 hours"],[32400: "9 hours"]]],
+   19: [input: [name: "param.19", type: "enum", title: "Send power and energy reports every",
+        options: [[0:"Disabled"],[30:"30 seconds"],[60:"1 minute"],[180:"3 minutes"],[300:"5 minutes"],[600:"10 minutes"],[900:"15 minutes"],[1200:"20 minutes"],[1800:"30 minutes"],[3600:"1 hour (default)"],[7200:"2 hours"],[10800:"3 hours"],[18000:"5 hours"],[32400: "9 hours"]]],
       size: 2],
-   21: [input: [name: "param.21", type: "enum", title: "AC power type", defaultValue: 1, options: [[0:"Non-neutral"],[1:"Neutral"]]],
+   21: [input: [name: "param.21", type: "enum", title: "AC power type", options: [[0:"Non-neutral"],[1:"Neutral (default)"]]],
       size: 1],
-   22: [input: [name: "param.22", type: "enum", title: "Switch type", defaultValue: 0, options: [[0:"Single-pole"],[1:"Mutli-way with dumb switch"],[2:"Multi-way with aux switch"]]],
+   22: [input: [name: "param.22", type: "enum", title: "Switch type", options: [[0:"Single-pole (default)"],[1:"Mutli-way with dumb switch"],[2:"Multi-way with aux switch"]]],
       size: 1],
-   51: [input: [name: "param.51", type: "enum", title: "Disable physical on/off delay", defaultValue: 0, options: [[0:"No (default)"],[1:"Yes (also disables multi-taps)"]]],
+   51: [input: [name: "param.51", type: "enum", title: "Disable physical on/off delay", options: [[0:"No (default)"],[1:"Yes (also disables multi-taps)"]]],
       size: 1],
-   52: [input: [name: "param.52", type: "enum", title: "Smart bulb mode", defaultValue: 0, options: [[0:"No"],[1:"Yes (prevents dimming below 99 when on)"]]],
+   52: [input: [name: "param.52", type: "enum", title: "Smart bulb mode", options: [[0:"No (default)"],[1:"Yes (prevents dimming below 99 when on)"]]],
       size: 1]
 ]
 
@@ -107,7 +127,13 @@ metadata {
       command "release", [[name: "Button Number*", type: "NUMBER"]]
       command "setConfigParameter", [[name:"Parameter Number*", type: "NUMBER"], [name:"Value*", type: "NUMBER"], [name:"Size*", type: "NUMBER"]]
       command "setIndicator", [[name: "Notification Value*", type: "NUMBER", description: "See https://nathanfiscus.github.io/inovelli-notification-calc to calculate"]]
-      command "setLEDColor", [[name: "Color*", type: "NUMBER", description: "Inovelli format, 0-255"]]
+      command "setIndicator", [[name:"Color", type: "ENUM", constraints: ["red", "red-orange", "orange", "yellow", "green", "spring", "cyan", "azure", "blue", "violet", "magenta", "rose", "white"]],
+                               [name:"Level", type: "ENUM", description: "Level, 0-100", constraints: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]],
+                               [name:"Effect", type: "ENUM", description: "Effect name from list", constraints: ["off", "solid", "chase", "fast blink", "slow blink", "pulse"]],
+                               [name: "Duration", type: "NUMBER", description: "Duration in seconds, 1-254 or 255 for indefinite"]]
+      command "setLEDColor", [[name: "Color*", type: "NUMBER", description: "Inovelli format, 0-255"], [name: "Level", type: "NUMBER", description: "Inovelli format, 0-10"]]
+      command "setLEDColor", [[name: "Color*", type: "ENUM", description: "Color name (from list)", constraints: ["red", "red-orange", "orange", "yellow", "chartreuse", "green", "spring", "cyan", "azure", "blue", "violet", "magenta", "rose", "white"]],
+                              [name:"Level", type: "ENUM", description: "Level, 0-100", constraints: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]]]
       command "setOnLEDLevel", [[name:"Level*", type: "ENUM", description: "Brightess (0-10, 0=off)", constraints: 0..10]]
       command "setOffLEDLevel", [[name:"Level*", type: "ENUM", description: "Brightess (0-10, 0=off)", constraints: 0..10]]
 
@@ -129,7 +155,7 @@ metadata {
 }
 
 void logsOff() {
-   log.warn("Disabling debug logging")
+   log.warn "Disabling debug logging"
    device.updateSetting("enableDebug", [value:"false", type:"bool"])
 }
 
@@ -348,7 +374,8 @@ List<String> refresh() {
       secure(zwave.switchMultilevelV1.switchMultilevelGet()),
       secure(zwave.meterV3.meterGet(scale: 0)),
       secure(zwave.meterV3.meterGet(scale: 2)),
-      secure(zwave.configurationV1.configurationGet())
+      secure(zwave.configurationV1.configurationGet()),
+      secure(zwave.versionV2.versionGet())
    ], 100)
 }
 
@@ -438,16 +465,61 @@ List<String> updated() {
 }
 
 
-// Sets "notification LED" parameter to value (0 for none or calculated 4-byte value)
+// Sets "notification LED" parameter to calculated value (calculated 4-byte base-10 value, or 0 for none)
 String setIndicator(value) {
    if (enableDebug) log.debug "setIndicator($value)"
    return setParameter(16, value, 4)
 }
 
-// Sets default LED color parameter to value (0-255)
-String setLEDColor(value) {
-   if (enableDebug) log.debug "setLEDColor($value)"
-   return setParameter(13, value, 2)
+// Sets "notification LED" parameter to value calculated based on provided parameters
+String setIndicator(String color, level, String effect, BigDecimal duration=255) {
+   if (enableDebug) log.debug "setIndicator($color, $level, $effect, $duration)"
+	Integer calcValue = 0
+   Integer intColor = colorNameMap[color?.toLowerCase()] ?: 170
+   Integer intLevel = level as Integer
+   Integer intEffect = 0
+   if (effect != null) intEffect = (effectNameMap[effect?.toLowerCase()] != null) ? effectNameMap[effect?.toLowerCase()] : 4
+   // Convert level from 0-100 to 0-10:
+   intLevel = Math.round(intLevel/10)
+   // Range check:
+   if (intLevel < 0) intLevel = 0
+   else if (intLevel > 10) intLevel = 10
+   if (duration < 1) duration = 1
+   else if (duration > 255) duration = 255
+   if (intEffect != 0) {
+      calcValue += intColor // * 1
+      calcValue += intLevel * 256
+      calcValue += duration * 65536
+      calcValue += intEffect * 16777216
+   }
+   return setParameter(16, calcValue, 4)
+}
+
+// Sets default LED color parameter to value (0-255) and level (0-10)
+List<String> setLEDColor(value, level=null) {
+   if (enableDebug) log.debug "setLEDColor(Object $value, Object $level)"
+   List<String> cmds = []   
+   cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: 13, size: 2)))
+   if (level != null) {
+      cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: level.toInteger(), parameterNumber: 14, size: 1)))
+   }
+   return delayBetween(cmds, 750)
+}
+
+// Sets default LED color parameter to named color (from map) and level (Hubitat 0-100 style)
+List<String> setLEDColor(String color, level) {
+   if (enableDebug) log.debug "setLEDColor(String $color, Object $level)"
+   Integer intColor = colorNameMap[color?.toLowerCase()] ?: 170
+   Integer intLevel = level as Integer
+   intLevel = Math.round(intLevel/10)
+   if (intLevel < 0) intLevel = 0
+   else if (intLevel > 10) intLevel = 10
+   List<String> cmds = []   
+   cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: intColor, parameterNumber: 13, size: 2)))
+   if (level != null) {
+      cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: intLevel, parameterNumber: 14, size: 1)))
+   }
+   return delayBetween(cmds, 750)
 }
 
 // Sets "on" LED level parameter to value (0-10)
@@ -464,7 +536,8 @@ String setOffLEDLevel(value) {
 
 // Custom command (for apps/users)
 String setConfigParameter(number, value, size) {
-   return secure(setParameter(number, value, size.toInteger()))
+   log.trace setParameter(number, value, size.toInteger())
+   return setParameter(number, value, size.toInteger())
 }
 
 // For internal/driver use
