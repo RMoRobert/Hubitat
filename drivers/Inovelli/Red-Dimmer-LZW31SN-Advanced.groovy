@@ -100,7 +100,7 @@ import groovy.transform.Field
       size: 1],
    22: [input: [name: "param.22", type: "enum", title: "Switch type", options: [[0:"Single-pole (default)"],[1:"Mutli-way with dumb switch"],[2:"Multi-way with aux switch"]]],
       size: 1],
-   51: [input: [name: "param.51", type: "enum", title: "Disable physical on/off delay", options: [[0:"No (default)"],[1:"Yes (also disables multi-taps)"]]],
+   51: [input: [name: "param.51", type: "enum", title: "Disable physical on/off delay", options: [[1:"No (default)"],[0:"Yes (also disables multi-taps)"]]],
       size: 1],
    52: [input: [name: "param.52", type: "enum", title: "Smart bulb mode", options: [[0:"No (default)"],[1:"Yes (prevents dimming below 99 when on)"]]],
       size: 1]

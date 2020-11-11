@@ -73,7 +73,7 @@ import groovy.transform.Field
    11: [input: [name: "param.11", type: "enum", title: "Send power and energy reports every",
         options: [[0:"Disabled"],[30:"30 seconds"],[60:"1 minute"],[180:"3 minutes"],[300:"5 minutes"],[600:"10 minutes"],[900:"15 minutes"],[1200:"20 minutes"],[1800:"30 minutes"],[3600:"1 hour (default)"],[7200:"2 hours"],[10800:"3 hours"],[18000:"5 hours"],[32400: "9 hours"]]],
       size: 2],
-   51: [input: [name: "param.51", type: "enum", title: "Disable physical on/off delay", options: [[0:"No (default)"],[1:"Yes (also disables multi-taps)"]]],
+   51: [input: [name: "param.51", type: "enum", title: "Disable physical on/off delay", options: [[1:"No (default)"],[0:"Yes (also disables multi-taps)"]]],
       size: 1]
 ]
 
