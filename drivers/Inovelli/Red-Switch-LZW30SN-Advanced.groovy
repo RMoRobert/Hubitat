@@ -38,7 +38,7 @@ import groovy.transform.Field
 
 @Field static Map colorNameMap = [
    "red": 1,
-   "red-orange": 5,
+   "red-orange": 4,
    "orange": 21,
    "yellow": 42,
    "chartreuse": 60,
@@ -96,15 +96,19 @@ metadata {
       command "release", [[name: "Button Number*", type: "NUMBER"]]
       command "setConfigParameter", [[name:"Parameter Number*", type: "NUMBER"], [name:"Value*", type: "NUMBER"], [name:"Size*", type: "NUMBER"]]
       command "setIndicator", [[name: "Notification Value*", type: "NUMBER", description: "See https://nathanfiscus.github.io/inovelli-notification-calc to calculate"]]
-       command "setIndicator", [[name:"Color", type: "ENUM", constraints: ["red", "red-orange", "orange", "yellow", "green", "spring", "cyan", "azure", "blue", "violet", "magenta", "rose", "white"]],
-                               [name:"Level", type: "ENUM", description: "Level, 0-100", constraints: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]],
+      command "setIndicator", [[name:"Color", type: "ENUM", constraints: ["red", "red-orange", "orange", "yellow", "green", "spring", "cyan", "azure", "blue", "violet", "magenta", "rose", "white"]],
+                               [name:"Level", type: "ENUM", description: "Level, 0-100", constraints: [100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0]],
                                [name:"Effect", type: "ENUM", description: "Effect name from list", constraints: ["off", "solid", "chase", "fast blink", "slow blink", "pulse"]],
                                [name: "Duration", type: "NUMBER", description: "Duration in seconds, 1-254 or 255 for indefinite"]]
       command "setLEDColor", [[name: "Color*", type: "NUMBER", description: "Inovelli format, 0-255"], [name: "Level", type: "NUMBER", description: "Inovelli format, 0-10"]]
       command "setLEDColor", [[name: "Color*", type: "ENUM", description: "Color name (from list)", constraints: ["red", "red-orange", "orange", "yellow", "chartreuse", "green", "spring", "cyan", "azure", "blue", "violet", "magenta", "rose", "white"]],
-                              [name:"Level", type: "ENUM", description: "Level, 0-100", constraints: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]]]
+                              [name:"Level", type: "ENUM", description: "Level, 0-100", constraints: [100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0]]]
       command "setOnLEDLevel", [[name:"Level*", type: "ENUM", description: "Brightess (0-10, 0=off)", constraints: 0..10]]
       command "setOffLEDLevel", [[name:"Level*", type: "ENUM", description: "Brightess (0-10, 0=off)", constraints: 0..10]]
+
+
+      // Uncomment if switching from another driver and need to "clean up" things--will expose command in UI:
+      //command "clearChildDevsAndState"
 
       fingerprint mfr:"031E", prod: "0002", deviceId: "0001", inClusters: "0x5E,0x70,0x85,0x59,0x55,0x86,0x72,0x5A,0x73,0x32,0x5B,0x98,0x9F,0x25,0x6C,0x75,0x22,0x7A"
     }
@@ -372,7 +376,6 @@ void configure() {
 // Apply preferences changes, including updating parameters
 List<String> updated() {
    log.info "updated..."
-   state.lastRan = now()
    log.warn "Debug logging is: ${enableDebug == true ? 'enabled' : 'disabled'}"
    log.warn "Description logging is: ${enableDesc == true ? 'enabled' : 'disabled'}"
    if (enableDebug) {
@@ -478,4 +481,11 @@ String setConfigParameter(number, value, size) {
 String setParameter(number, value, size) {
    if (enableDesc) log.info "Setting parameter $number (size: $size) to: $value"
    return secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: number, size: size))
+}
+
+void clearChildDevsAndState() {
+   state.clear()
+   getChildDevices()?.each {
+      deleteChildDevice(it.deviceNetworkId)
+   }
 }
