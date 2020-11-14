@@ -39,7 +39,7 @@ import groovy.transform.Field
 
 @Field static Map colorNameMap = [
    "red": 1,
-   "red-orange": 5,
+   "red-orange": 4,
    "orange": 21,
    "yellow": 42,
    "chartreuse": 60,
@@ -75,7 +75,7 @@ import groovy.transform.Field
       size: 1],
    7: [input: [name: "param.7", type: "enum", title: "Paddle function", options: [[0:"Normal (default)"],[1:"Reverse"]]], 
       size: 1],
-   8: [input: [name: "param.8", type: "number", title: "Automtically turn switch off after ... seconds (0=disable auto-off)", range: 0..45],
+   8: [input: [name: "param.8", type: "number", title: "Automtically turn switch off after ... seconds (0=disable auto-off)", range: 0..32767],
       size: 2],
    9: [input: [name: "param.9", type: "number", title: "Default level for physical \"on\" (0=previous; default)", range: 0..99],
       size: 1],
@@ -128,14 +128,17 @@ metadata {
       command "setConfigParameter", [[name:"Parameter Number*", type: "NUMBER"], [name:"Value*", type: "NUMBER"], [name:"Size*", type: "NUMBER"]]
       command "setIndicator", [[name: "Notification Value*", type: "NUMBER", description: "See https://nathanfiscus.github.io/inovelli-notification-calc to calculate"]]
       command "setIndicator", [[name:"Color", type: "ENUM", constraints: ["red", "red-orange", "orange", "yellow", "green", "spring", "cyan", "azure", "blue", "violet", "magenta", "rose", "white"]],
-                               [name:"Level", type: "ENUM", description: "Level, 0-100", constraints: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]],
+                               [name:"Level", type: "ENUM", description: "Level, 0-100", constraints: [100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0]],
                                [name:"Effect", type: "ENUM", description: "Effect name from list", constraints: ["off", "solid", "chase", "fast blink", "slow blink", "pulse"]],
                                [name: "Duration", type: "NUMBER", description: "Duration in seconds, 1-254 or 255 for indefinite"]]
       command "setLEDColor", [[name: "Color*", type: "NUMBER", description: "Inovelli format, 0-255"], [name: "Level", type: "NUMBER", description: "Inovelli format, 0-10"]]
       command "setLEDColor", [[name: "Color*", type: "ENUM", description: "Color name (from list)", constraints: ["red", "red-orange", "orange", "yellow", "chartreuse", "green", "spring", "cyan", "azure", "blue", "violet", "magenta", "rose", "white"]],
-                              [name:"Level", type: "ENUM", description: "Level, 0-100", constraints: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]]]
+                              [name:"Level", type: "ENUM", description: "Level, 0-100", constraints: [100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0]]]
       command "setOnLEDLevel", [[name:"Level*", type: "ENUM", description: "Brightess (0-10, 0=off)", constraints: 0..10]]
       command "setOffLEDLevel", [[name:"Level*", type: "ENUM", description: "Brightess (0-10, 0=off)", constraints: 0..10]]
+
+      // Uncomment if switching from another driver and need to "clean up" things--will expose command in UI:
+      //command "clearChildDevsAndState"
 
       attribute "amperage", "number"
 
@@ -159,15 +162,15 @@ void logsOff() {
    device.updateSetting("enableDebug", [value:"false", type:"bool"])
 }
 
-String secure(String cmd){
+String secure(String cmd) {
    return zwaveSecureEncap(cmd)
 }
 
-String secure(hubitat.zwave.Command cmd){
+String secure(hubitat.zwave.Command cmd) {
    return zwaveSecureEncap(cmd)
 }
 
-void parse(String description){
+void parse(String description) {
    if (enableDebug) log.debug "parse description: ${description}"
    hubitat.zwave.Command cmd = zwave.parse(description, commandClassVersions)
    if (cmd) {
@@ -175,7 +178,7 @@ void parse(String description){
    }
 }
 
-void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd){
+void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
    hubitat.zwave.Command encapCmd = cmd.encapsulatedCommand(commandClassVersions)
    if (encapCmd) {
       zwaveEvent(encapCmd)
@@ -440,7 +443,6 @@ void configure() {
 // Apply preferences changes, including updating parameters
 List<String> updated() {
    log.info "updated..."
-   state.lastRan = now()
    log.warn "Debug logging is: ${enableDebug == true ? 'enabled' : 'disabled'}"
    log.warn "Description logging is: ${enableDesc == true ? 'enabled' : 'disabled'}"
    if (enableDebug) {
@@ -544,6 +546,13 @@ String setConfigParameter(number, value, size) {
 String setParameter(number, value, size) {
    if (enableDesc) log.info "Setting parameter $number (size: $size) to: $value"
    return secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: number, size: size))
+}
+
+void clearChildDevsAndState() {
+   state.clear()
+   getChildDevices()?.each {
+      deleteChildDevice(it.deviceNetworkId)
+   }
 }
 
 /*
