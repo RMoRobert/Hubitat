@@ -773,7 +773,7 @@ void buttonEvent(buttonNumber, buttonAction, type = "digital") {
    if (enableDesc) log.info "Button $buttonNumber was $buttonAction ($type)"
 }
 
-List<String> zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd, ep=null) {
+hubitat.device.HubMultiAction zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd, ep=null) {
    if (enableDebug) log.debug "MeterReport: $cmd"
    def event
    def cmds = []
