@@ -443,10 +443,24 @@ void zwaveEvent(hubitat.zwave.Command cmd) {
 
 void zwaveEvent(hubitat.zwave.commands.versionv2.VersionReport cmd) {
 	if (enableDebug) log.debug "VersionReport: ${cmd}"
-	device.updateDataValue("firmwareVersion", "${cmd.firmware0Version}.${cmd.firmware0SubVersion}")
+	device.updateDataValue("firmwareVersion", "${cmd.firmware0Version}.${cmd.firmware0SubVersion.toString().padLeft(2,'0')}")
 	device.updateDataValue("protocolVersion", "${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion}")
 	device.updateDataValue("hardwareVersion", "${cmd.hardwareVersion}")
 }
+
+void zwaveEvent(hubitat.zwave.commands.versionv1.VersionReport cmd) {
+	if (enableDebug) log.debug "VersionReport: ${cmd}"
+   if(cmd.applicationVersion != null && cmd.applicationSubVersion != null) {
+      String firmwareVersion = "${cmd.applicationVersion}.${cmd.applicationSubVersion.toString().padLeft(2,'0')}"
+      if (enableDesc) log.info "${device.displayName} firmware version is ${firmwareVersion}"
+      device.updateDataValue("firmwareVersion", "$firmwareVersion")
+   } else if(cmd.firmware0Version != null && cmd.firmware0SubVersion != null) {
+      def firmware = "${cmd.firmware0Version}.${cmd.firmware0SubVersion.toString().padLeft(2,'0')}"
+      if (enableDesc) log.info "${device.displayName} firmware version is ${firmwareVersion}"
+      device.updateDataValue("firmwareVersion", "$firmwareVersion")
+   }
+}
+
 
 void zwaveEvent(hubitat.zwave.commands.protectionv2.ProtectionReport cmd, ep=null) {
    if (enableDebug) log.debug "ProtectionReport: ${cmd}, ep: $ep"
