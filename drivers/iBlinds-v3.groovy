@@ -197,7 +197,7 @@ void zwaveEvent(hubitat.zwave.Command cmd) {
 
 List<String> on() {
    logDebug("on()")
-   setLevel(openPosition)
+   setLevel(50)
 }
 
 List<String> off() {
