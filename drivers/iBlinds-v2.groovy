@@ -244,7 +244,7 @@ List<String> setLevel(value, duration=0) {
    // Now, send level:
    Integer setLevel = reverse ? 99 - level : level
    Integer dimmingDuration = duration < 128 ? duration : 128 + Math.round(duration / 60)
-   Integer delayTime = travelTime
+   Integer delayTime = travelTime as Integer
    if (travelTime) delayTime = travelTime as int
    if (!delayTime) delayTime = 8000
    delayBetween([
