@@ -17,7 +17,7 @@
  *  2020-01-20: Initial release
  *  2020-01-21: Fix for configure() and battery reporting
  *  2020-10-05: Minor improvements (fix battery schedule if lost)
- *  2020-11-22: Minor improvements (refacotring, more static typing)
+ *  2020-11-23: Minor improvements (refacotring, more static typing)
  */
 
 import groovy.transform.Field
