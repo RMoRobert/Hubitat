@@ -59,7 +59,7 @@ metadata {
 
 void installed() {
    logDebug("installed()")
-   runIn(15, "getBattery")
+   runIn(3, "getBattery")
    initialize()
 }
 
