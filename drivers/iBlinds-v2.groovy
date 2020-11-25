@@ -50,8 +50,8 @@ metadata {
       input name: "travelTime", type: "enum", description: "", title: "Allowance for travel time", options: [[3000: "3 seconds"], [5000:"5 seconds"],
             [8000:"8 seconds"], [10000:"10 seconds"], [15000:"15 seconds"], [20000:"20 seconds"], [60000:"1 minute"]], defaultValue: 15000
       input name: "refreshTime", type: "enum", description: "", title: "Schedule daily battery level refresh during this hour",
-            options: [[0:"12 Midnight"], [4:"4 AM"], [5:"5 AM"], [6:"6 AM"], [10:"10 AM"], [13:"1 PM"], [15:"3 PM"], [17:"5 PM"], [23:"11 PM"], [1000: "Disabled"], [2000: "Random"]],
-            defaultValue: 4
+            options: [[0:"12 Midnight"],[1:"1 AM"],[4:"4 AM"],[5:"5 AM"],[6:"6 AM"],[9:"9 AM"],[10:"10 AM"],[11:"11 AM"],[13:"1 PM"],[15:"3 PM"],
+                      [17:"5 PM"],[22: "10 PM"],[23:"11 PM"],[1000: "Disabled"],[2000: "Random"]], defaultValue: 4
       input name: "enableDebug", type: "bool", title: "Enable debug logging", defaultValue: true
       input name: "enableDesc", type: "bool", title: "Enable descriptionText logging", defaultValue: true
    }
@@ -89,6 +89,8 @@ void scheduleBatteryRefresh() {
    String cronStr
    Integer s = Math.round(Math.random() * 60)
    Integer m = Math.round(Math.random() * 60)
+   if (s >= 60) s = 59
+   if (m >= 60) m = 59
    Integer hour = (refreshTime != null) ? refreshTime as Integer : 4
    if (hour == 2000) { // if set to random time
       Integer h = Math.round(Math.random() * 23)
