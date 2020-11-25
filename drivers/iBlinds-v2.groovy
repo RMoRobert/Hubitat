@@ -1,4 +1,6 @@
 /**
+ *  iBlinds v2 (manufactured by HAB Home Intel) community driver for Hubitat
+ * 
  *  Copyright 2020 Robert Morris
  *  Original includes code copyrigt 2020 iBlinds
  *

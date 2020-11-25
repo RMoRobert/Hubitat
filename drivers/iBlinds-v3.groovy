@@ -1,4 +1,6 @@
 /**
+ *  iBlinds v3 (manufactured by HAB Home Intel) community driver for Hubitat
+ * 
  *  Copyright 2020 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
