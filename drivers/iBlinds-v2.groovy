@@ -18,6 +18,7 @@
  *  2020-01-21: Fix for configure() and battery reporting
  *  2020-10-05: Minor improvements (fix battery schedule if lost)
  *  2020-11-23: Minor improvements (refacotring, more static typing)
+ *  2020-11-24: Added missing "position" events; updated device fingerprint; battery reports now always generate event (state change)
  */
 
 import groovy.transform.Field
@@ -30,22 +31,22 @@ import groovy.transform.Field
 
 metadata {
    definition (name: "iBlinds v2 (Community Driver)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/iBlinds-v2.groovy") {
-      capability "Switch Level"
       capability "Actuator"
-      capability "Switch"
-      capability "Window Shade"   
+      capability "WindowShade" 
+      capability "SwitchLevel"
+      capability "Switch"  
       capability "Refresh"
       capability "Battery"
       capability "Configuration"
-      
-      fingerprint deviceId: "13", inClusters: "0x5E,0x85,0x59,0x86,0x72,0x5A,0x73,0x26,0x25,0x80,0x70", mfr: "647", deviceJoinName: "iBlinds"
+
+      fingerprint  mfr: "0287", prod: "0003", deviceId: "000D", inClusters: "0x5E,0x85,0x59,0x86,0x72,0x5A,0x73,0x26,0x25,0x80,0x70" 
    }
    
    preferences {
       input name: "openPosition", type: "number", description: "", title: "Open to this position by default:", range: 1..98, defaultValue: 50, required: true
       input name: "reverse", type: "bool", description: "", title: "Reverse close direction (close up instead of down)", required: true
       input name: "travelTime", type: "enum", description: "", title: "Allowance for travel time", options: [[3000: "3 seconds"], [5000:"5 seconds"],
-            [8000:"8 seconds"], [10000:"10 seconds"], [15000:"15 seconds"], [20000:"20 seconds"], [60000:"1 minute"]], defaultValue: 8000
+            [8000:"8 seconds"], [10000:"10 seconds"], [15000:"15 seconds"], [20000:"20 seconds"], [60000:"1 minute"]], defaultValue: 15000
       input name: "refreshTime", type: "enum", description: "", title: "Schedule daily battery level refresh during this hour",
             options: [[0:"12 Midnight"], [4:"4 AM"], [5:"5 AM"], [6:"6 AM"], [10:"10 AM"], [13:"1 PM"], [15:"3 PM"], [17:"5 PM"], [23:"11 PM"], [1000: "Disabled"], [2000: "Random"]],
             defaultValue: 4
@@ -62,6 +63,7 @@ void installed() {
 
 void updated() {
    logDebug("updated()")
+   log.warn "now - last = ${now()} - ${state.lastBattAttemptAt} == ${now() - state.lastBattAttemptAt}"
    initialize()
 }
 
@@ -86,14 +88,19 @@ void scheduleBatteryRefresh() {
    String cronStr
    Integer s = Math.round(Math.random() * 60)
    Integer m = Math.round(Math.random() * 60)
-   Integer hour = refreshTime
-   if (hour == null) hour = 4
-   if ((hour as int) == 2000) { // if set to random time
+   Integer hour = (refreshTime != null) ? refreshTime as Integer : 4
+   if (hour == 2000) { // if set to random time
       Integer h = Math.round(Math.random() * 23)
-      if (h == 2) h = 3 // avoid maintenance window
+      if (h == 2) h = 3 // avoid default maintenance window
       cronStr = "${s} ${m} ${h} ? * * *"
-   } else if ((hour as int) >= 0 && (hour as int) <= 23) {
+   } else if (hour >= 0 && hour <= 23) {
       cronStr = "${s} ${m} ${hour} ? * * *"
+   }
+   else if (hour == 1000) {
+      logDebug "Not scheduled battery refresh because configured as disabled"
+   }
+   else {
+      log.debug "invalid battery refresh time configuration: hour = $hour"
    }
    logDebug("battery schedule = \"${cronStr}\"")
    if (cronStr) schedule(cronStr, "getBattery")
@@ -138,11 +145,13 @@ private void dimmerEvents(hubitat.zwave.Command cmd) {
    } 
    if (position < 100) {
       sendEvent(name: "level", value: position, unit: "%")
+      sendEvent(name: "position", value: position, unit: "%")
    }
    sendEvent(name: "switch", value: switchValue)
    sendEvent(name: "windowShade", value: shadePosition)
    if (device.currentValue("switch") != switchValue) logDesc("$device.displayName switch is $switchValue")
    if (device.currentValue("level") != position) logDesc("$device.displayName level is $position")
+   if (device.currentValue("position") != position) logDesc("$device.displayName position is $position")
    if (device.currentValue("windowShade") != shadePosition) logDesc("$device.displayName windowShade position is $shadePosition")
 }
 
@@ -185,8 +194,8 @@ void zwaveEvent(hubitat.zwave.commands.batteryv1.BatteryReport cmd) {
    if (cmd.batteryLevel == 0xFF) {
       batteryLevel = 1
    }
-   if (device.currentValue("battery") != batteryLevel) logDesc("$device.displayName battery level is ${batteryLevel}%")
-   sendEvent(name: "battery", value: batteryLevel, unit: "%")
+   logDesc("$device.displayName battery level is ${batteryLevel}%")
+   sendEvent(name: "battery", value: batteryLevel, unit: "%", isStateChange: true)
 }
 
 void zwaveEvent(hubitat.zwave.Command cmd) {
@@ -239,7 +248,9 @@ List<String> setLevel(value, duration=0) {
    */
    // First, if a battery refresh hasn't happened in the last day and is scheduled to,
    // attempt to recover this schedule by re-scheduling:
-   if (refreshTime != "1000" && (now() - (state.lastBattAttemptAt ?: 0) > 86400000)) scheduleBatteryRefresh()
+   if (refreshTime != "1000" && (now() - (state.lastBattAttemptAt ?: 0) > 86400000)) {
+      scheduleBatteryRefresh()
+   }
 
    // Now, send level:
    Integer setLevel = reverse ? 99 - level : level
@@ -254,14 +265,19 @@ List<String> setLevel(value, duration=0) {
 }
 
 void getBattery() {
-   logDebug("getBattery()")    
+   logDebug("getBattery()")
    state.lastBattAttemptAt = now()
+   sendHubCommand(
+      new hubitat.device.HubAction(zwave.batteryV1.batteryGet().format(),
+                                    hubitat.device.Protocol.ZWAVE)
+   )
 }
 
 List<String> refresh() {
    logDebug("refresh()")
+   state.lastBattAttemptAt = now()
    delayBetween([
-      // zwave.switchBinaryV1.switchBinaryGet().format(),
+      //zwave.switchBinaryV1.switchBinaryGet().format(),
       zwave.switchMultilevelV2.switchMultilevelGet().format(),
       zwave.batteryV1.batteryGet().format(),
    ], 200)

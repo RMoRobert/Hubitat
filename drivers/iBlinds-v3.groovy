@@ -12,6 +12,8 @@
  * 
  *  Version History
  *  2020-11-22: Initial release for iBlinds v3 (portions based on v2 driver)
+ *  2020-11-24: Added missing "position" events, Z-Wave parameter 1 option and paramter 3 auto-setting (for reporting to hub);
+ *              Added option for default digital "on"/"open" position; battery reports now always generate event (state change)
  */
 
 import groovy.transform.Field
@@ -23,36 +25,38 @@ import groovy.transform.Field
 ]
 
 @Field static final Map zwaveParameters = [
-   /* 1: [input: [name: "param.1", type: "number", title: "Auto-calibrartion tightness for closed (smaller = tighter, default = 22)",
-         range: 15..30], size: 1], */
+   1: [input: [name: "param.1", type: "enum", title: "Tightness of gap when closed (used for auto-calibration)",
+         options: [["-1": "Do not configure (keep previous/existing configuration)"],[15: "15 - Tightest"],[16:"16"],[17:"17"],[18:"18"],[19:"19"],[20:"20"],[21:"21"],[22:"22 [DEFAULT]"],[23:"23"],
+         [24:"24"],[25:"25"],[26:"26"],[27:"27"],[28:"28"],[29:"16"],[29:"29"],[30:"30 - Least Tight"]]], size: 1, ignoreValue: "-1"],
+   6: [input: [name: "param.6", type: "number", title: "Default blind movement speed (0 = ASAP [default], larger = slower)", range: 0..100],
+      size: 1],
    2: [input: [name: "param.2", type: "enum", title: "Reverse direction of blinds",
            options: [[0:"No (close down) [DEFAULT]"],[1:"Yes (close up)"]]], size: 1],
    /* 3: [input: [name: "param.3", type: "enum", title: "Disable automatic Z-Wave report",
            options: [[0:"Yes [DEFAULT]"],[1:"No (recommended for Hubitat)"]],
       size: 1], */
    4: [input: [name: "param.4", type: "number", title: "Default \"on\" level for manual push button (default = 50)",
-           range: 1..99], size: 1],
-   6: [input: [name: "param.6", type: "number", title: "Default blind movement speed (0 = ASAP (default), larger = slower)", range: 0..100],
-      size: 1]
+           range: 1..99], size: 1]
 ]
 
 metadata {
    definition (name: "iBlinds v3 (Community Driver)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/iBlinds-v3.groovy") {
-      capability "Switch Level"
       capability "Actuator"
-      capability "Switch"
-      capability "Window Shade"   
+      capability "WindowShade" 
+      capability "SwitchLevel"
+      capability "Switch"  
       capability "Refresh"
       capability "Battery"
       capability "Configuration"
-      
-      fingerprint deviceId: "13", inClusters: "0x5E,0x85,0x59,0x86,0x72,0x5A,0x73,0x26,0x25,0x80,0x70", mfr: "647", deviceJoinName: "iBlinds"
+
+      fingerprint  mfr: "0287", prod: "0004", deviceId: "0071", inClusters: "0x5E,0x55,0x98,0x9F,0x6C"
    }
    
    preferences {
       zwaveParameters.each {
          input it.value.input
       }
+      input name: "openPosition", type: "number", description: "", title: "\"Open\" command opens to... (default=50):", defaultValue: 50, range: 1..99
       input name: "enableDebug", type: "bool", title: "Enable debug logging", defaultValue: true
       input name: "enableDesc", type: "bool", title: "Enable descriptionText logging", defaultValue: true
    }
@@ -63,35 +67,37 @@ List<String> installed() {
    runIn(15, "getBattery")
    initialize()
 }
-x
+
 List<String> updated() {
    logDebug("updated()")
    initialize()
 }
 
-// Set daily schedule for battery refresh; schedule disable of debug logging if enabled
 List<String> initialize() {    
    logDebug("Initializing")
+   unschedule()
    Integer disableTime = 1800
    if (enableDebug) {
       log.debug "Debug logging will be automatically disabled in ${disableTime} seconds"
       runIn(disableTime, debugOff)
    }
+   return configure()
+}
+
+List<String> configure() {
+   log.warn "configure()"   
    List<String> cmds = []
    zwaveParameters.each { param, data ->
-      if (settings[data.input.name] != null) {
+      if (settings[data.input.name] != null && settings[data.input.name] != data.ignoreValue) {
          if (enableDebug) log.debug "Setting parameter $param (size:  ${data.size}) to ${settings[data.input.name]}"
          cmds.add(zwave.configurationV1.configurationSet(scaledConfigurationValue: settings[data.input.name] as BigInteger, parameterNumber: param, size: data.size))
       }
    }
+   // Parameter 3 = 1 to send Report back to Hubitat after Set:
+   cmds.add(zwave.configurationV1.configurationSet(scaledConfigurationValue: 1, parameterNumber: 3, size: 1))
    cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
    cmds << zwaveSecureEncap(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 1))
    return delayBetween(cmds, 250)
-}
-
-void configure() {
-   log.warn "configure()"
-   initialize()
 }
 
 void debugOff() {
@@ -121,24 +127,30 @@ void zwaveEvent(hubitat.zwave.commands.switchmultilevelv2.SwitchMultilevelReport
 
 private void dimmerEvents(hubitat.zwave.Command cmd) {
    logDebug("Dimmer events:  $cmd")
-   def position = cmd.value
-   if (reverse) {
-      position = 99 - position
-   }
+   Integer position = cmd.value as Integer
    String switchValue = "off"
-   String shadePosition = "closed"
+   String windowShadeState = "closed"
    if (position > 0 && position < 99) {
       switchValue = "on"
-      shadePosition = "open"
+      windowShadeState = "open"
    } 
-   if (position < 100) {
+   if (position < 100 && device.currentValue("level") != position) {
+      logDesc("$device.displayName level is $position")
       sendEvent(name: "level", value: position, unit: "%")
    }
-   sendEvent(name: "switch", value: switchValue)
-   sendEvent(name: "windowShade", value: shadePosition)
-   if (device.currentValue("switch") != switchValue) logDesc("$device.displayName switch is $switchValue")
-   if (device.currentValue("level") != position) logDesc("$device.displayName level is $position")
-   if (device.currentValue("windowShade") != shadePosition) logDesc("$device.displayName windowShade position is $shadePosition")
+   if (device.currentValue("switch") != switchValue) {
+      sendEvent(name: "switch", value: switchValue)
+      logDesc("$device.displayName switch is $switchValue")
+   }
+   if (device.currentValue("level") != position) {
+      logDesc("$device.displayName level is $position")
+   }
+   if (device.currentValue("position") != position) {
+      logDesc("$device.displayName position is $position")
+   }
+   if (device.currentValue("windowShade") != windowShadeState) {
+      logDesc("$device.displayName windowShade position is $windowShadeState")
+   }      
 }
 
 void zwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) {
@@ -180,8 +192,8 @@ void zwaveEvent(hubitat.zwave.commands.batteryv1.BatteryReport cmd) {
    if (cmd.batteryLevel == 0xFF) {
       batteryLevel = 1
    }
-   if (device.currentValue("battery") != batteryLevel) logDesc("$device.displayName battery level is ${batteryLevel}%")
-   sendEvent(name: "battery", value: batteryLevel, unit: "%")
+   logDesc("$device.displayName battery level is ${batteryLevel}%")
+   sendEvent(name: "battery", value: batteryLevel, unit: "%", isStateChange: true)
 }
 
 void zwaveEvent(hubitat.zwave.commands.versionv2.VersionReport cmd) {
@@ -197,7 +209,8 @@ void zwaveEvent(hubitat.zwave.Command cmd) {
 
 List<String> on() {
    logDebug("on()")
-   setLevel(50)
+   Integer openTo = settings["openPosition"] ? (settings["openPosition"]  as Integer) : 50   
+   setLevel(openTo)
 }
 
 List<String> off() {
@@ -207,12 +220,13 @@ List<String> off() {
 
 List<String> open() {
    logDebug("open()")
-   on()
+   Integer openTo = settings["openPosition"] ? (settings["openPosition"]  as Integer) : 50   
+   setLevel(openTo)
 }
 
 List<String> close() {
    logDebug("close()")
-   off()
+   setLevel(0)
 }
 
 List<String> setPosition(value) {
@@ -236,7 +250,7 @@ List<String> setLevel(value, duration) {
 List<String> refresh() {
    logDebug("refresh()")
    delayBetween([
-      // zwaveSecureEncap(zwave.switchBinaryV1.switchBinaryGet()),
+      //zwaveSecureEncap(zwave.switchBinaryV1.switchBinaryGet()),
       zwaveSecureEncap(zwave.switchMultilevelV2.switchMultilevelGet()),
       zwaveSecureEncap(zwave.batteryV1.batteryGet()),
    ], 200)
