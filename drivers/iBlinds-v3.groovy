@@ -56,7 +56,7 @@ metadata {
       zwaveParameters.each {
          input it.value.input
       }
-      input name: "openPosition", type: "number", description: "", title: "\"Open\" command opens to... (default=50):", defaultValue: 50, range: 1..99
+      input name: "openPosition", type: "number", description: "", title: "\"Open\" command opens to... (default = 50):", defaultValue: 50, range: 1..99
       input name: "enableDebug", type: "bool", title: "Enable debug logging", defaultValue: true
       input name: "enableDesc", type: "bool", title: "Enable descriptionText logging", defaultValue: true
    }
