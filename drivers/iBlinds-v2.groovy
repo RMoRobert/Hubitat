@@ -63,7 +63,6 @@ void installed() {
 
 void updated() {
    logDebug("updated()")
-   log.warn "now - last = ${now()} - ${state.lastBattAttemptAt} == ${now() - state.lastBattAttemptAt}"
    initialize()
 }
 
