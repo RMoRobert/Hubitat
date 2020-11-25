@@ -66,7 +66,6 @@ metadata {
 
 List<String> installed() {
    logDebug("installed()")
-   runIn(15, "getBattery")
    initialize()
 }
 
