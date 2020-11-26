@@ -143,17 +143,16 @@ private void dimmerEvents(hubitat.zwave.Command cmd) {
       logDesc("$device.displayName level is $position")
       sendEvent(name: "level", value: position, unit: "%")
    }
+   if (device.currentValue("position") != position) {
+      sendEvent(name: "position", value: position, unit: "%")
+      logDesc("$device.displayName position is $position")
+   }
    if (device.currentValue("switch") != switchValue) {
       sendEvent(name: "switch", value: switchValue)
       logDesc("$device.displayName switch is $switchValue")
    }
-   if (device.currentValue("level") != position) {
-      logDesc("$device.displayName level is $position")
-   }
-   if (device.currentValue("position") != position) {
-      logDesc("$device.displayName position is $position")
-   }
-   if (device.currentValue("windowShade") != windowShadeState) {
+   if (device.currentValue("windowShade") != windowShadeState) {      
+      sendEvent(name: "windowShade", value: windowShadeState)
       logDesc("$device.displayName windowShade position is $windowShadeState")
    }      
 }
