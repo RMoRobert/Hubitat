@@ -2,9 +2,9 @@
 	"packageName": "Lights on Motion Plus",
 	"minimumHEVersion": "2.1.1",
 	"author": "Robert Morris",
-	"dateReleased": "2020-10-29",
+	"dateReleased": "2020-11-25",
 	"licenseFile": "",
-	"releaseNotes": "LoMP 5.0.5 and 5.0.4: Various additional fixes for lights not turning on in some situations\n\nLoMP 5.0.3: Fix for occasional issue where lights get stuck in 'dimmed' state and LoMP tries to restore\n\nLoMP 5.0.2: Minor bugfix for 'don't perform 'on' action if already on' setting being ignored in most cases.\n\nLoMP 5.0.1: Minor bugfix for per-mode dim-to level exceptions.\n\nLoMP 5.0 is a complete rewrite. See Community forum thread for more details.",
+	"releaseNotes": "LoMP 5.1: Light states restored even if non-dimming \"inactive\" action configured (in case other modes are different); fixed bug with scenes not being activated if \"off only\" inactive action configured\n\nLoMP 5.0.5 and 5.0.4: Various additional ifixes for lights not turning on in some situations\n\nLoMP 5.0.3: Fix for occasional issue where lights get stuck in 'dimmed' state and LoMP tries to restore\n\nLoMP 5.0.2: Minor bugfix for 'don't perform 'on' action if already on' setting being ignored in most cases.\n\nLoMP 5.0.1: Minor bugfix for per-mode dim-to level exceptions.\n\nLoMP 5.0 is a complete rewrite. See Community forum thread for more details.",
 	"apps" : [
 		{
 			"id": "3cff72f1-feea-48d5-91fb-b4bfda6c5f01",
@@ -22,7 +22,7 @@
 			"namespace": "RMoRobert",
 			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/LightsOnMotionPlus/LightsOnMotionPlus5.groovy",
 			"required": true,
-			"version": "5.0.5",
+			"version": "5.1.0",
 			"oauth": false
 		}
 	]
