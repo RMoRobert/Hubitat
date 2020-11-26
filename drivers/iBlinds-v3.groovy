@@ -98,7 +98,7 @@ List<String> configure() {
    // Parameter 3 = 1 to send Report back to Hubitat after Set:
    cmds << zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: 1, parameterNumber: 3, size: 1))
    cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
-   cmds << zwaveSecureEncap(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 1))
+   cmds << zwaveSecureEncap(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 0))
    cmds << zwaveSecureEncap(zwave.manufacturerSpecificV2.manufacturerSpecificGet())
    cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
    log.warn cmds
