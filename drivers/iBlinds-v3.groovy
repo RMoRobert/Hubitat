@@ -16,6 +16,7 @@
  *  2020-11-22: Initial release for iBlinds v3 (portions based on v2 driver)
  *  2020-11-24: Added missing "position" events, Z-Wave parameter 1 option and paramter 3 auto-setting (for reporting to hub);
  *              Added option for default digital "on"/"open" position; battery reports now always generate event (state change)
+ *  2020-11-25: Minor fixes (parameter 3 auto-set failed with secure pairing) and tweaks to request and parse MSR, DSR, and other Z-Wave reports
  */
 
 import groovy.transform.Field
