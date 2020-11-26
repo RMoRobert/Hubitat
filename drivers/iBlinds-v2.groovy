@@ -21,6 +21,7 @@
  *  2020-10-05: Minor improvements (fix battery schedule if lost)
  *  2020-11-23: Minor improvements (refacotring, more static typing)
  *  2020-11-24: Added missing "position" events; updated device fingerprint; battery reports now always generate event (state change)
+ *  2020-11-25: Minor tweaks to request and parse MSR and version on configure() (and installation)
  */
 
 import groovy.transform.Field
@@ -57,15 +58,17 @@ metadata {
    }
 }
 
-void installed() {
+List<String> installed() {
    logDebug("installed()")
    runIn(3, "getBattery")
    initialize()
+   configure()
 }
 
-void updated() {
+List<String> updated() {
    logDebug("updated()")
    initialize()
+   configure()
 }
 
 // Set daily schedule for battery refresh; schedule disable of debug logging if enabled
@@ -80,9 +83,13 @@ void initialize() {
    }
 }
 
-void configure() {
+List<String> configure() {
    log.warn "configure()"
-   initialize()
+   List<String> cmds = []
+   cmds << zwave.manufacturerSpecificV2.manufacturerSpecificGet().format()
+   cmds << zwave.versionV2.versionGet().format()
+   cmds << zwave.batteryV1.batteryGet().format()
+   return delayBetween(cmds, 300)
 }
 
 void scheduleBatteryRefresh() {
@@ -181,6 +188,13 @@ void zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.ManufacturerSpecif
    String msr = String.format("%04X-%04X-%04X", cmd.manufacturerId, cmd.productTypeId, cmd.productId)
    device.updateDataValue("MSR", msr)
    sendEvent(descriptionText: "$device.displayName MSR: $msr", isStateChange: false)
+}
+
+void zwaveEvent(hubitat.zwave.commands.versionv2.VersionReport cmd) {
+	if (enableDebug) log.debug "VersionReport: ${cmd}"
+	device.updateDataValue("firmwareVersion", "${cmd.firmware0Version}.${cmd.firmware0SubVersion.toString().padLeft(2,'0')}")
+	device.updateDataValue("protocolVersion", "${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion}")
+	device.updateDataValue("hardwareVersion", "${cmd.hardwareVersion}")
 }
 
 void zwaveEvent(hubitat.zwave.commands.switchmultilevelv2.SwitchMultilevelStopLevelChange cmd) {
