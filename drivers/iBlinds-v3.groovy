@@ -95,10 +95,13 @@ List<String> configure() {
       }
    }
    // Parameter 3 = 1 to send Report back to Hubitat after Set:
-   cmds.add(zwave.configurationV1.configurationSet(scaledConfigurationValue: 1, parameterNumber: 3, size: 1))
+   cmds << zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: 1, parameterNumber: 3, size: 1))
    cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
    cmds << zwaveSecureEncap(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 1))
-   return delayBetween(cmds, 250)
+   cmds << zwaveSecureEncap(zwave.manufacturerSpecificV2.manufacturerSpecificGet())
+   cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
+   log.warn cmds
+   return delayBetween(cmds, 300)
 }
 
 void debugOff() {
@@ -176,7 +179,6 @@ void zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.ManufacturerSpecif
    logDebug("productTypeId:    ${cmd.productTypeId}")
    String msr = String.format("%04X-%04X-%04X", cmd.manufacturerId, cmd.productTypeId, cmd.productId)
    device.updateDataValue("MSR", msr)
-   sendEvent(descriptionText: "$device.displayName MSR: $msr", isStateChange: false)
 }
 
 void zwaveEvent(hubitat.zwave.commands.switchmultilevelv2.SwitchMultilevelStopLevelChange cmd) {
@@ -202,6 +204,21 @@ void zwaveEvent(hubitat.zwave.commands.versionv2.VersionReport cmd) {
 	device.updateDataValue("firmwareVersion", "${cmd.firmware0Version}.${cmd.firmware0SubVersion.toString().padLeft(2,'0')}")
 	device.updateDataValue("protocolVersion", "${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion}")
 	device.updateDataValue("hardwareVersion", "${cmd.hardwareVersion}")
+}
+
+void zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.DeviceSpecificReport cmd) {
+	if (enableDebug) log.debug "DeviceSpecificReport: ${cmd}"
+   switch (cmd.deviceIdType) {
+      case 1: // Serial number
+         String serialNumber= ""
+         if (cmd.deviceIdDataFormat == 1) {
+               cmd.deviceIdData.each { serialNumber += hubitat.helper.HexUtils.integerToHexString(it & 0xff, 1).padLeft(2, '0')}
+         } else {
+               cmd.deviceIdData.each { serialNumber += (char)it }
+         }
+         device.updateDataValue("serialNumber", serialNumber)
+         break
+   }
 }
 
 void zwaveEvent(hubitat.zwave.Command cmd) {
