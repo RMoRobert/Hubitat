@@ -17,6 +17,7 @@
  *  2020-11-24: Added missing "position" events, Z-Wave parameter 1 option and paramter 3 auto-setting (for reporting to hub);
  *              Added option for default digital "on"/"open" position; battery reports now always generate event (state change)
  *  2020-11-25: Minor fixes (parameter 3 auto-set failed with secure pairing) and tweaks to request and parse MSR, DSR, and other Z-Wave reports
+ *  2020-11-27: Fixed issues with Z-Wave parameters not getting set correctly in some cases
  */
 
 import groovy.transform.Field
@@ -92,7 +93,7 @@ List<String> configure() {
    zwaveParameters.each { param, data ->
       if (settings[data.input.name] != null && settings[data.input.name] != data.ignoreValue) {
          if (enableDebug) log.debug "Setting parameter $param (size:  ${data.size}) to ${settings[data.input.name]}"
-         cmds.add(zwave.configurationV1.configurationSet(scaledConfigurationValue: settings[data.input.name] as BigInteger, parameterNumber: param, size: data.size))
+         cmds << zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: settings[data.input.name] as BigInteger, parameterNumber: param, size: data.size))
       }
    }
    // Parameter 3 = 1 to send Report back to Hubitat after Set:
@@ -101,7 +102,6 @@ List<String> configure() {
    cmds << zwaveSecureEncap(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 0))
    cmds << zwaveSecureEncap(zwave.manufacturerSpecificV2.manufacturerSpecificGet())
    cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
-   log.warn cmds
    return delayBetween(cmds, 300)
 }
 
