@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-11-25
+ *  Last modified: 2020-11-30
  *
  *  Changelog:
  * 
+ * 5.2.0 - Added per-mode delay options; fixed issue that prevented lights from turning on with motion in some cases if "remember states" not used
  * 5.1.0 - Light states restored even if non-dimming "inactive" action configured (in case other modes are different); fixed bug with scenes not being activated if "off only" inactive actino configured
  * 5.0.5 - Additional fix for lights not turning on in some situations
  * 5.0.4 - Fix for lights not turning on in some situations (5.0.2 bug)
@@ -65,7 +66,8 @@ definition(
    description: "Do not install directly. Install Lights on Motion Plus app, then create new automations using that app.",
    iconUrl: "",
    iconX2Url: "",
-   iconX3Url: ""
+   iconX3Url: "",
+   documentationLink: "https://community.hubitat.com/t/release-lights-on-motion-plus-dim-before-off-remember-individual-bulb-states-etc/7178"
 )
 
 preferences {
@@ -105,7 +107,7 @@ def pageMain() {
             input name: "notIfOn", type: "bool", title: "Don't perform \"on\" action if any specified lights are already on",
                defaultValue: true
          }
-         input name: "inactiveAction", type: "enum", title: "When motion becomes inactive...", options: inactiveActions, defaultValue: "dimOff",
+         input name: "inactiveAction", type: "enum", title: "When motion becomes inactive...", options: inactiveActions,
             required: true, submitOnChange: true
          if (settings.any { it.key.startsWith("inactiveAction") && it.value != "no" }) {
             input name: "inactiveMinutes", type: "number", title: "Minutes to wait after motion becomes inactive before dimming or turning off (if configured)", required: true,
@@ -232,16 +234,21 @@ def pagePerModeSettings(Map params) {
                   }
                }
             }
-            input name: "inactiveAction.${modeID}", type: "enum", title: "When motion becomes inactive...", options: inactiveActions, defaultValue: 'dimOff',
+            input name: "inactiveAction.${modeID}", type: "enum", title: "When motion becomes inactive...", options: inactiveActions,
                required: true, submitOnChange: true
             if (settings["inactiveAction.${modeID}"]?.contains('dim')) {
-               input name: "dimToLevel.override.${modeID}", type: "bool", title: "Dim to different level than default above?", submitOnChange: true, width: 6
+               input name: "dimToLevel.override.${modeID}", type: "bool", title: "Dim to different level than non-per-mode setting?", submitOnChange: true, width: 6
                if (settings["dimToLevel.override.${modeID}"]) { 
                   input name: "dimToLevel.${modeID}", type: "number", options: 1..99, title: "Dim to level", width: 6, defaultValue: 10
                }
                input name: "boolRemember.${modeID}", type: "bool", title: "If light states captured (before dim/off), save to ${modeName} mode-specific cache (turn off to save to non-exception cache)", defaultValue: true
             }
             if (settings["inactiveAction.${modeID}"] != ('no')) {
+               input name: "inactiveMinutes.override.${modeID}", type: "bool", title: "Override non-per-mode \"minutes to wait after motion becomes inactive\" setting?", submitOnChange: true
+               if (settings["inactiveMinutes.override.${modeID}"]) {
+                  input name: "inactiveMinutes.${modeID}", type: "number", title: "Minutes to wait after motion becomes inactive before dimming or turning off for ${modeName} mode:",
+                     description: "number of minutes"
+               }
                input name: "offLights.${modeID}", type: "capability.switch", title: "Choose additional lights to dim or turn off (optional; will override non-exception \"additional off\" light(s) if selected)", multiple: true
             }
          }      
@@ -286,7 +293,7 @@ def pageDeletePerMode() {
    }
 }
 
-def motionHandler(evt) {
+void motionHandler(evt) {
    logDebug "motionHandler: ${evt.device} ${evt.value} (mode ${location.currentMode.name} [${location.currentMode.id}]) ===", 1, "trace"
    // Before we start, set isDimmed to false if no lights on (which could have happened if user or other app
    // turned lights off before app did)
@@ -509,24 +516,33 @@ void performActiveAction() {
 void performInactiveAction() {
    logDebug "performInactiveAction", 2, "trace"
    String suffix = getSettingModeSuffix()
+   Integer delay = getInactiveDelay()
    switch (settings["inactiveAction${suffix}"]) {
       case "dimOff":
-         logDebug "  Dim then off configured; scheduling dim for ${(settings['inactiveMinutes'] ?: 0) * 60}s and off after dim interval", 2, "debug"
-         runIn((settings["inactiveMinutes"] ?: 0) * 60, scheduledDimHandler)
-         runIn((settings["inactiveMinutes"] ?: 0) * 60 +
-               (settings["dimTime"] ?: 30), scheduledOffHandler)
+         logDebug "  Dim then off configured; scheduling dim for ${delay}s and off after dim interval", 2, "debug"
+         runIn(delay, scheduledDimHandler)
+         runIn(delay + (settings["dimTime"] ?: 30), scheduledOffHandler)
          break
       case "offOnly":
-         logDebug "  Off configured; scheduling off for ${(settings['inactiveMinutes'] ?: 0) * 60}s", 2, "debug"
-         runIn((settings["inactiveMinutes"] ?: 0) * 60, scheduledOffHandler)
+         logDebug "  Off configured; scheduling off for ${delay}s", 2, "debug"
+         runIn(delay, scheduledOffHandler)
          break
       case "dimOnly":
-         logDebug "  Dim only configured; scheduling dim for ${(settings['inactiveMinutes'] ?: 0) * 2}s", 2, "debug"
-         runIn((settings["inactiveMinutes"] ?: 0) * 60, scheduledDimHandler)
+         logDebug "  Dim only configured; scheduling dim for ${delay}s", 2, "debug"
+         runIn(delay, scheduledDimHandler)
          break
       case "no":
          break
    }
+}
+
+// Returns (in seconds) user-configured delay for "inactive" actions, including per-mode exceptions if configured
+Integer getInactiveDelay() {
+   Integer delay = settings["inactiveMinutes"] ?: 0   
+   if (settings["inactiveMinutes.override.${location.getCurrentMode().id}"]) {
+      delay = settings["inactiveMinutes.${location.getCurrentMode().id}"] ?: 0
+   }
+   return delay * 69
 }
 
 // Returns true if configured lux restrictions are OK (or not set), otherwise false
@@ -574,7 +590,7 @@ Boolean isTimeOK() {
    return timeOK
 }
 
-def scheduledOffHandler() {
+void scheduledOffHandler() {
    logDebug "scheduledOffHandler", 2, "trace"
    if (!state.isDimmed) captureStates()
    getDevicesToTurnOff(true).each { it.off() }
@@ -582,7 +598,7 @@ def scheduledOffHandler() {
    logDebug "Turned off all lights", 1, "debug"
 }
 
-def scheduledDimHandler() {
+void scheduledDimHandler() {
    state.isDimmed = true
    logDebug "scheduledDimHandler", 2, "trace"
    captureStates()
@@ -698,9 +714,9 @@ void captureStates(Long modeID=location.getCurrentMode().id) {
 
 void restoreStates() {
    // TODO: Add option to pass "fallback action" or device to on() if states not found? For scenes, may want to activate instead
-   logDebug "restoreStates", 1, "trace"
+   logDebug "restoreStates()", 1, "trace"
    if (settings["boolRemember"]) {
-      logDebug "  Configured to remember...", 2, "debug"
+      logDebug "  Configured to remember states...", 2, "debug"
       String stateKey = "capturedStates"
       if (settings["perMode"] && settings["boolRemember.${location.getCurrentMode().id}"]) stateKey += ".${location.getCurrentMode().id}"
       List<com.hubitat.app.DeviceWrapper> devsToRestore = getDevicesToTurnOff(state.isDimmed) // Get all devices if dimmed, on-only devices if not
@@ -747,11 +763,16 @@ void restoreStates() {
          logDebug "No captured light states were on; turned on all lights", 2, "debug"
       }
    }
+   else {
+      logDebug "  Configured not to remember states...", 2, "debug"
+      getDevicesToTurnOn().each { it.on() }
+      logDebug "Finished \"restoring\" states (turned \"on\" devices on because not configured to remember states)"
+   }
 }
 
 // Un-selects "use per mode exceptions" and erases all settings (devices and other inputs) associated with them
 void removePerModeSettings() {
-   def settingNamesToRemove = [] as Set
+   Set settingNamesToRemove = [] as Set
    List perModeSettingStrings = [
       "perMode", "activeAction.", "scene.", "sceneGroup.", "lights.", "onColor.L.", "onColor.CT.",
       "onColor.H.", "onColor.S.", "inactiveAction.", "dimToLevel."            
@@ -769,7 +790,7 @@ void removePerModeSettings() {
 }
 
 void removeCapturedStates() {
-   def toRemove = [] as Set
+   Set toRemove = [] as Set
    toRemove = state?.keySet()?.findAll{ it.startsWith("capturedStates") }
    logDebug "Removing: $toRemove", 2, "warn"
    toRemove.each {
@@ -777,7 +798,7 @@ void removeCapturedStates() {
    }
 }
 
-void appButtonHandler(btn) {
+void appButtonHandler(String btn) {
    switch (btn) {
       case 'btnRemovePerMode':
          removePerModeSettings()
@@ -794,17 +815,17 @@ void appButtonHandler(btn) {
 // App Methods
 //=========================================================================
 
-def installed() {
+void installed() {
    log.debug "${app.label} installed"
    initialize()
 }
 
-def updated() {
+void updated() {
    log.trace "${app.label} updated"
    initialize()
 }
 
-def initialize() {   
+void initialize() {   
    log.trace "${app.label} initializing..."
    unschedule()   
    unsubscribe()
