@@ -20,7 +20,8 @@
  *
  *  Changelog:
  * 
- * 5.2.0 - Added per-mode delay options; fixed issue that prevented lights from turning on with motion in some cases if "remember states" not used
+ * 5.2.0 - Added per-mode delay options; added "grace period" (turn lights back on with motion if recently turned off, regardless of settings);
+ *       - Fixed issue that prevented lights from turning on with motion in some cases if "remember states" not used
  * 5.1.0 - Light states restored even if non-dimming "inactive" action configured (in case other modes are different); fixed bug with scenes not being activated if "off only" inactive actino configured
  * 5.0.5 - Additional fix for lights not turning on in some situations
  * 5.0.4 - Fix for lights not turning on in some situations (5.0.2 bug)
@@ -119,6 +120,8 @@ def pageMain() {
                range: "5..86400", defaultValue: 30, required: true
          }
          input name: "offLights", type: "capability.switch", title: "Choose additional lights to turn off or dim (optional)", multiple: true
+         input name: "gracePeriod", type: "enum", title: "Grace period: turn lights back on if motion detected (even if not configured to turn on) if turned off due to inactivity within last...",
+            options: [[0:"(no grace period)"],[3: "3 seconds"],[5: "5 seconds"],[7:"7 seconds"],[10:"10 seconds"],[15:"15 seconds"],[30:"30 seconds"],[60: "1 minute"]]
       }
       section("Modes") {
          if (!perMode) input name: "perMode", type: "bool", title: "Configure exceptions per mode", submitOnChange: true 
@@ -361,6 +364,7 @@ Boolean verifyNoneOn(Boolean includeExtraOffLights=false) {
          devsToCheck += settings["offLights"]
       }
    }
+   logDebug "verifyNoneOn returning ${!(devsToCheck.any { it.currentValue("switch") == 'on'})}", 2, "trace"
    return !(devsToCheck.any { it.currentValue("switch") == "on"})
 }
 
@@ -435,6 +439,7 @@ void performActiveAction() {
             logDebug "    -> not performing any action (anyOn = $anyOn; dimmed = ${state.isDimmed}; notIfOn = $notIfOn)", 2, "debug"
          }
          state.isDimmed = false
+         state.inGrace = false
          break
       case "onColor":
          logDebug '  action is "onColor"', 2, "debug"
@@ -475,6 +480,7 @@ void performActiveAction() {
             }
          }
          state.isDimmed = false
+         state.inGrace = false
          break
       case "onScene":
          logDebug '  action is "onScene"', 2, "debug"
@@ -497,13 +503,21 @@ void performActiveAction() {
             getDevicesToTurnOn().each { it.on() }
          }
          state.isDimmed = false
+         state.inGrace = false
          break
       case "no":
          logDebug "  action is 'no'", 2, "debug"
          if (state.isDimmed) {
             restoreStates()
             state.isDimmed = false
+            state.inGrace = false
             logDebug "Restored light states even though no action was configured because lights were dimmed", 1, "debug"
+         }
+         else if (state.inGrace) {
+            logDebug "Restoring light states even though no action was configured because in grace period", 1, "debug"
+            restoreStates()
+            state.inGrace = false
+            state.isDimmed = false
          }
          else {
             logDebug "Not turning lights on because no action configured", 2, "debug"
@@ -520,16 +534,16 @@ void performInactiveAction() {
    switch (settings["inactiveAction${suffix}"]) {
       case "dimOff":
          logDebug "  Dim then off configured; scheduling dim for ${delay}s and off after dim interval", 2, "debug"
-         runIn(delay, scheduledDimHandler)
-         runIn(delay + (settings["dimTime"] ?: 30), scheduledOffHandler)
+         runIn(delay, "scheduledDimHandler")
+         runIn(delay + (settings["dimTime"] ?: 30), "scheduledOffHandler")
          break
       case "offOnly":
          logDebug "  Off configured; scheduling off for ${delay}s", 2, "debug"
-         runIn(delay, scheduledOffHandler)
+         runIn(delay, "scheduledOffHandler")
          break
       case "dimOnly":
          logDebug "  Dim only configured; scheduling dim for ${delay}s", 2, "debug"
-         runIn(delay, scheduledDimHandler)
+         runIn(delay, "scheduledDimHandler")
          break
       case "no":
          break
@@ -595,6 +609,12 @@ void scheduledOffHandler() {
    if (!state.isDimmed) captureStates()
    getDevicesToTurnOff(true).each { it.off() }
    state.isDimmed = false
+   if (settings["gracePeriod"]?.isInteger() && settings["gracePeriod"] as Integer != 0) {
+      Integer graceSeconds = settings["gracePeriod"] as Integer
+      logDebug "  Grace period configured for $graceSeconds seconds"
+      state.inGrace = true
+      runIn(graceSeconds, "scheduledGraceEndHandler")
+   }
    logDebug "Turned off all lights", 1, "debug"
 }
 
@@ -618,6 +638,11 @@ void scheduledDimHandler() {
    logDebug "Dimmed all applicable lights", 1, "debug"
 }
 
+void scheduledGraceEndHandler() {
+   state.inGrace = false
+   logDebug "scheduledGraceEndHandler()", 2, "trace"
+}
+
 def modeChangeHandler(evt) {
    if (settings["changeWithMode"]) {
       logDebug "modeChangeHandler: configured to handle", 2, "trace"
@@ -636,7 +661,7 @@ def modeChangeHandler(evt) {
             case "on":
                restoreStates()
                state.isDimmed = false
-               state.isDimmed = false
+               state.inGrace = false
                break
             case "onColor":
                if (settings["onColor.CT${suffix}"]) {
@@ -658,10 +683,12 @@ def modeChangeHandler(evt) {
                   }
                }
                state.isDimmed = false
+               state.inGrace = false
                break
             case "onScene":
                getDevicesToTurnOn().each { it.on() }
                state.isDimmed = false
+               state.inGrace = false
                break
             default:
                logDebug "Not adjusting lights on mode change because not applicable for configured action for this mode", 2, "debug"
@@ -829,7 +856,8 @@ void initialize() {
    log.trace "${app.label} initializing..."
    unschedule()   
    unsubscribe()
-   state.isDimmed = false
+   state.isDimmed = false   
+   state.inGrace = false
    subscribe(onSensors, "motion", motionHandler)
    subscribe(keepOnSensors, "motion", motionHandler)
    if (changeWithMode) {
