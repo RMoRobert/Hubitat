@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-11-30
+ *  Last modified: 2020-12-06
  *
  *  Changelog:
  * 
+ * 5.2.1 - Added ability to choose "on" vs. "off" state for kill switches
  * 5.2.0 - Added per-mode delay options; added "grace period" (turn lights back on with motion if recently turned off, regardless of settings);
  *       - Fixed issue that prevented lights from turning on with motion in some cases if "remember states" not used
  * 5.1.0 - Light states restored even if non-dimming "inactive" action configured (in case other modes are different); fixed bug with scenes not being activated if "off only" inactive actino configured
@@ -149,8 +150,12 @@ def pageMain() {
          paragraph "Coming soon: use button devices to perform actions for active/inactive (besides sensor)"
       }*/
       section("Restrictions") {
-         input name: "onKillSwitch", type: "capability.switch", title: "Do not turn lights on if this switch is on", multiple: true
-         input name: "offKillSwitch", type: "capability.switch", title: "Do not turn lights off (or dim) if this switch is on", multiple: true
+         input name: "onKillSwitch", type: "capability.switch", title: "Switch to disable turning on lights", multiple: true, submitOnChange: true
+         input name: "offKillSwitch", type: "capability.switch", title: "Switch to disable turning off (or dimming) ligts", multiple: true, submitOnChange: true
+         if (onKillSwitch || offKillSwitch) {
+            input name: "killSwitchState", type: "enum", title: "Disable when switch(es) is (are)...", required: true,
+               defaultValue: "on", options: ["on", "off"]
+         }
          input name: "timeRestrict", type: "bool", title: "Use time restrictions", submitOnChange: true
          if (timeRestrict) {
             paragraph "Turn lights on only if between start time and end time"
@@ -314,7 +319,7 @@ void motionHandler(evt) {
             // If dimmed or all restrictions OK, then perform active action
             if (state.isDimmed ||
                 (isTimeOK() && isLuxOK()) &&
-                (settings["onKillSwitch"] == null || onKillSwitch.every {it.currentValue("switch") != "on"})) {
+                (settings["onKillSwitch"] == null || onKillSwitch.every {it.currentValue("switch") != (settings["killSwitchState"] ?: "on")})) {
                // TODO: Change motionHandler or performActiveAciton to avoid unnecessary
                // actions (e.g., restoring lights if not really needed bc already on and not
                // dimmed, etc.) while stil respecting above settings
@@ -329,7 +334,7 @@ void motionHandler(evt) {
             logDebug "Motion inactive and at least one light on", 2, "debug"
             if ((settings["luxBehavior"] == "noOn" || isLuxOK()) &&
                 isTimeOK() &&
-                (settings["offKillSwitch"] == null || offKillSwitch.every { it.currentValue("switch") != "on"}))
+                (settings["offKillSwitch"] == null || offKillSwitch.every { it.currentValue("switch") != (settings["killSwitchState"] ?: "on")}))
             {
                performInactiveAction()
             }
