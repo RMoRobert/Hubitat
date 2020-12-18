@@ -16,9 +16,8 @@
  *
  *  Author: Robert Morris
  *
- * == App version: 2.5.0 ==
- *
  * Changelog:
+ * 2.6   (2020-12-17) - Added options to turn switchs off/on if devices are/aren't in expected states
  * 2.5   (2020-09-20) - Added thermostats and contact/lock "name grouping"
  * 2.0.1 (2020-08-02) - Made easier to remove "all OK" notification/TTS if desired
  * 2.0   (2020-08-02) - New parent/child strucutre, additional notification options
@@ -62,7 +61,7 @@ def pageMain() {
          input name: "boolMotionActive", type: "bool", title: "Announce only if sensor(s) active", defaultValue: true
          input name: "thermostats", type: "capability.thermostat", title: "Choose thermostats:", submitOnChange: true, multiple: true
          if (settings["thermostats"]) {
-            input name: "thermostatCoolThreshold", type: "number", title: "if cooling setpoint below:", width: 6        
+            input name: "thermostatCoolThreshold", type: "number", title: "if cooling setpoint below:", width: 6
             input name: "thermostatHeatThreshold", type: "number", title: "if heating setpoint above:", width: 6
             paragraph "(heating and cooling setpoints will be evaluated only when thermostat in heating or cooling mode, respectively)"
          }
@@ -95,9 +94,8 @@ def pageMain() {
          input name: "speechDevice", type: "capability.speechSynthesis", title: "Announce this device:",  multiple: true
          input name: "notificationDevice", type: "capability.notification", title: "Send notification to this device:", multiple: true
          input name: "notificationTime", type: "time", title: "Daily at this time (optional):"
-         input name: "sensorAway", type: "capability.presenceSensor", title: "Or any time this presence sensor becomes not present", multiple: true
-         paragraph "Or any time this switch is turned on:"
-         input name: "announcementSwitch", type: "capability.switch", title: "Switch"
+         input name: "sensorAway", type: "capability.presenceSensor", title: "Or any time this presence sensor becomes not present", multiple: true 
+         input name: "announcementSwitch", type: "capability.switch", title: "Or any time this switch is turned on"
          input name: "allGoodSpeech", type: "text", title: "Text to speak if all devices are OK (blank for no speech if all devices OK):",
             defaultValue: (app.getInstallationState() == "INCOMPLETE" ? "All devices are OK" : ""), required: false
          input name: "allGoodNotification", type: "text", title: "Notification text to send if all devices are OK (blank for no notification if all devices OK):",
@@ -106,6 +104,9 @@ def pageMain() {
             defaultValue: ""
          input name: "appendText", type: "text", title: "Text to append to announcements/notifications (optional)",
             defaultValue: ""
+         input name: "goodSwitches", type: "capability.switch", title: "Turn this switch on if all devices are OK when announcement or notification is requested", multiple: true
+         input name: "badSwitches", type: "capability.switch", title: "Turn this switch on if any devices are not OK when announcement or notification is requested", multiple: true
+         paragraph "The above switches will also be turned off if the stated condition is no longer true when an annoucement or notification is requested."
       }
 
       section(styleSection("View/Test Report")) {
@@ -252,11 +253,21 @@ String getDeviceStatusReport() {
    return statusReport
 }
 
-// Sends notification and/or TTS announcement with list of devices in undesired state unless none and not configured to send/speak if none
+/** Sends notification and/or TTS announcement with list of devices in undesired state unless none and not configured to send/speak if none
+ *  Also, turn on switches if configured
+ */
 void doNotificationOrAnnouncement() {
    logDebug "doNotificationOrAnnouncement() called...preparing report."
    String notificationText = getDeviceStatusReport()
    String speechText = "$notificationText"
+   if (notificationText) {
+      settings["badSwitches"]?.each { it.on() }
+      settings["goodSwitches"]?.each { it.off() }
+   }
+   else {
+      settings["goodSwitches"]?.each { it.on() }
+      settings["badSwitches"]?.each { it.off() }
+   }
    if (!notificationText && allGoodNotification) notificationText = allGoodNotification
    if (!speechText && allGoodSpeech) speechText = allGoodSpeech
    if (isModeOK()) {
@@ -264,14 +275,14 @@ void doNotificationOrAnnouncement() {
          logDebug "Sending notification for undesired devices: \"${notificationText}\""
          notificationDevice?.deviceNotification(notificationText)
       }
-      else {         
+      else {
          logDebug "Notification skipped: nothing to report"
       }
       if (speechText) {
          logDebug "Doing TTS for undesired devices: \"${speechText}\""
          speechDevice?.speak(speechText)
       }
-      else {         
+      else {
          logDebug "TTS skipped: nothing to report"
       }
    }
@@ -363,7 +374,6 @@ def initialize() {
    if (settings["debugLogging"]) {
       log.debug "Debug logging is enabled for ${app.label}. It will remain enabled until manually disabled."
    }
-
    unsubscribe()
    if (settings["notificationTime"]) schedule(settings["notificationTime"], scheduleHandler) 
    if (settings["announcementSwitch"]) subscribe(settings["announcementSwitch"], "switch", switchHandler)

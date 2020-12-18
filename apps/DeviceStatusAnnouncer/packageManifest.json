@@ -2,9 +2,9 @@
 	"packageName": "Device Status Announcer",
 	"minimumHEVersion": "2.1.0",
 	"author": "Robert Morris",
-	"dateReleased": "2020-09-20",
+	"dateReleased": "2020-12-17",
 	"licenseFile": "",
-	"releaseNotes": "Added thermostat support and name grouping for contact sensors and locks.\n\nNOTE FOR 1.X UPGRADERS: New parent/child app structure; 1.x users should uninstall first and will require manual re-creation. v2 adds additional options for device notification/TTS text and triggers.",
+	"releaseNotes": "Version 2.6: Added ability to turn on/off switches when devices are/aren't in desired states.\n\nPrevious releases:\nAdded thermostat support and name grouping for contact sensors and locks.\n\nNOTE FOR 1.X UPGRADERS: New parent/child app structure; 1.x users should uninstall first and will require manual re-creation. v2 adds additional options for device notification/TTS text and triggers.",
 	"apps" : [
 		{
 			"id": "425a08652-8725-4028-9bd3-1ec9e0e0ce90",
@@ -22,7 +22,7 @@
 			"namespace": "RMoRobert",
 			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceStatusAnnouncer/DeviceStatusAnnouncer2Child.groovy",
 			"required": true,
-			"version": "2.5.0",
+			"version": "2.6.0",
 			"oauth": false
 		}
 	]
