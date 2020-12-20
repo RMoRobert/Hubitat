@@ -16,6 +16,8 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v2.1.2  (2020-12-20) - Modified setParameter() to log only with debug logging enabled
+ *  v2.1.1  (2020-11-18) - Fixed local vs. Z-Wave dimming parameter reversal (typo in Inovelli manual)
  *  v2.1    (2020-11-10) - Added second set of "friendly" setIndicator and setLEDColor commands; allow more unset preferences (will not change if not set)
  *  v2.0    (2020-11-07) - Complete rewrite, update for S2/C-7 and new dimmer firmware
  *                         NOTE: See forum thread for details; not 100% compatible with 1.x. Recommend renaming
@@ -57,17 +59,17 @@ import groovy.transform.Field
 @Field static Map effectNameMap = ["off": 0, "solid": 1, "chase": 2, "fast blink": 3, "slow blink": 4, "pulse": 5]
 
 @Field static final Map zwaveParameters = [
-   1: [input: [name: "param.1", type: "enum", title: "Dimming rate from paddle",
+   1: [input: [name: "param.1", type: "enum", title: "Dimming rate from hub",
          options: [[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds (default)"],[4:"4 seconds"],[5:"5 seconds"],[10:"10 seconds"],[30:"30 seconds"],[100:"100 seconds"]]],
       size: 1],
-   2: [input: [name: "param.2", type: "enum", title: "Dimming rate from hub",
-           options: [[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],[10:"10 seconds"],[30:"30 seconds"],[101:"Match rate from paddle (default)"]]],
+   2: [input: [name: "param.2", type: "enum", title: "Dimming rate from paddle",
+           options: [[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],[10:"10 seconds"],[30:"30 seconds"],[101:"Match \"dimming rate from hub\" (default)"]]],
       size: 1],
    3: [input: [name: "param.3", type: "enum", title: "On/off fade time from paddle",
-           options: [[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],[10:"10 seconds"],[30:"30 seconds"],[101:"Match dimming rate from paddle (default)"]]],
+           options: [[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],[10:"10 seconds"],[30:"30 seconds"],[101:"Match \"dimming rate from hub\" (default)"]]],
       size: 1],
    4: [input: [name: "param.4", type: "enum", title: "On/off fade time from hub",
-           options: [[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],[10:"10 seconds"],[30:"30 seconds"],[101:"Match dimming rate from paddle (default)"]]],
+           options: [[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],[10:"10 seconds"],[30:"30 seconds"],[101:"Match \"dimming rate from hub\" (default)"]]],
       size: 1],
    5: [input: [name: "param.5", type: "number", title: "Minimum dimmer level (default=1)", range: 1..45],
       size: 1],
@@ -538,13 +540,12 @@ String setOffLEDLevel(value) {
 
 // Custom command (for apps/users)
 String setConfigParameter(number, value, size) {
-   log.trace setParameter(number, value, size.toInteger())
    return setParameter(number, value, size.toInteger())
 }
 
 // For internal/driver use
 String setParameter(number, value, size) {
-   if (enableDesc) log.info "Setting parameter $number (size: $size) to: $value"
+   if (enableDebug) log.debug "setParameter(number: $number, value: $value, size: $size)"
    return secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: number, size: size))
 }
 

@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v2.1.1  (2020-12-20) - Modified setParameter() to log only with debug logging enabled
  *  v2.1    (2020-11-10) - Added second set of "friendly" setIndicator and setLEDColor commands; allow more unset preferences (will not change if not set)
  *  v2.0    (2020-11-07) - Substantial rewrite, update for S2/C-7 and new switch firmware
  *                         NOTE: See forum thread for details; not 100% compatible with 1.x. Recommend renaming
@@ -479,7 +480,7 @@ String setConfigParameter(number, value, size) {
 
 // For internal/driver use
 String setParameter(number, value, size) {
-   if (enableDesc) log.info "Setting parameter $number (size: $size) to: $value"
+   if (enableDebug) log.debug "setParameter(number: $number, value: $value, size: $size)"
    return secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: number, size: size))
 }
 
