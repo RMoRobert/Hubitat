@@ -16,6 +16,8 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.0.1 (2020-12-22) - Fixes for "speed" attribute reporting on fan component; removed local/remote control setting because
+ *                        seems to override per-endpoint settings on switch upon save (can uncomment if want to use)
  *  v1.0    (2020-11-14) - Initial release
  * 
  */
@@ -206,8 +208,8 @@ metadata {
       zwaveParameters.each {
          input it.value.input
       }      
-      input name: "disableLocal", type: "bool", title: "Disable local control (at wall/switch)"
-      input name: "disableRemote", type: "bool", title: "Disable remote control (from Z-Wave/hub)"
+      //input name: "disableLocal", type: "bool", title: "Disable local control (at wall/switch)"
+      //input name: "disableRemote", type: "bool", title: "Disable remote control (from Z-Wave/hub)"
       input name: "enableDebug", type: "bool", title: "Enable debug logging", defaultValue: true
       input name: "enableDesc", type: "bool", title: "Enable descriptionText logging", defaultValue: true
    }
@@ -373,14 +375,15 @@ void zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport
          }
          else if (ep as Integer == 2) {
             String speed = "off"
-            if (cmd.value == 1) speed = "auto" // actually "breeze mode"
-            else if (cmd.value > 1 && cmd.value <= 33) speed = "low"
-            else if (cmd.value > 33 && cmd.value <= 66) speed = "medium"
-            else if (cmd.value > 66) speed = "high"
-            cd.parse([[name:"speed", value: onOff, descriptionText:"${cd.displayName} fan speed is $speed"]])
+            Integer speedVal = cmd.value as Integer
+            if (speedVal == 1) speed = "auto" // actually "breeze mode"
+            else if (speedVal > 1 && speedVal <= 33) speed = "low"
+            else if (speedVal > 33 && speedVal <= 66) speed = "medium"
+            else if (speedVal > 66) speed = "high"
+            cd.parse([[name:"speed", value: speed, descriptionText:"${cd.displayName} fan speed is $speed"]])
             if (cmd.value && cmd.value <= 100) {
-               if (cd.currentValue("level") != cmd.value) cd.parse([[name:"level", value: cmd.value, descriptionText:"${cd.displayName} level is ${cmd.value}"]])
-               if (cd.currentValue("speed") != speed) cd.parse([[name:"speed", value: speed, descriptionText:"${cd.displayName} level is $speed"]])
+               if (cd.currentValue("level") != cmd.value) cd.parse([[name:"level", value: speedVal, descriptionText:"${cd.displayName} level is ${cmd.value}"]])
+               if (cd.currentValue("speed") != speed) cd.parse([[name:"speed", value: speed, descriptionText:"${cd.displayName} speed is $speed"]])
             }
             else {
                if (cd.currentValue("switch") != "off") cd.parse([[name:"switch", value: "off", descriptionText:"${cd.displayName} switch is off"]])
@@ -559,8 +562,8 @@ String componentOn(cd) {
       cmd = secure(encap(zwave.switchMultilevelV1.switchMultilevelSet(value: 0xFF), 1))
    }
    else if (cd.deviceNetworkId.endsWith("-2")) {
-      cmd = secure(encap(zwave.basicV1.basicSet(value: 0xFF), 2)) 
-      //cmd = secure(encap(zwave.switchMultilevelV1.switchMultilevelSet(value: 0xFF), 2))
+      //cmd = secure(encap(zwave.basicV1.basicSet(value: 0xFF), 2))
+      cmd = secure(encap(zwave.switchMultilevelV1.switchMultilevelSet(value: 0xFF), 2))
    }
    else {
       log.warn "Unknown child device: $ep"
@@ -729,8 +732,8 @@ List<String> initialize() {
    sendEvent(name: "numberOfButtons", value: 14)
    cmds << secure(zwave.versionV2.versionGet())
    cmds << secure(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 1))
-   cmds << secure(zwave.protectionV2.protectionSet(localProtectionState: settings["disableLocal"] ? 1 : 0,
-                                             rfProtectionState: settings["disableRemote"] ? 1 : 0))
+   //cmds << secure(zwave.protectionV2.protectionSet(localProtectionState: settings["disableLocal"] ? 1 : 0,
+   //                                          rfProtectionState: settings["disableRemote"] ? 1 : 0))
    return delayBetween(cmds, 250)
 }
 
