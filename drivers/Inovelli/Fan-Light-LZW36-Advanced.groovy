@@ -290,7 +290,7 @@ void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd, ep = null) {
          Boolean allOff = true
          Integer otherEp = (ep as Integer == 1 ? 2 : 1)
          com.hubitat.app.ChildDeviceWrapper otherCd = getChildDevice("${device.id}-${otherEp}")
-         if (otherCd.currentValue("switch") != "off") allOff = false
+         if (otherCd.currentValue("switch") != "on") allOff = false
          if (allOff && device.currentValue("switch") != "off") {
             if (enableDesc) log.info "${device.displayName} switch is off"
             sendEvent([name: "switch", value: "off"])
@@ -347,7 +347,7 @@ void zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd, ep
          Boolean allOff = true
          Integer otherEp = (ep as Integer == 1 ? 2 : 1)
          com.hubitat.app.ChildDeviceWrapper otherCd = getChildDevice("${device.id}-${otherEp}")
-         if (otherCd.currentValue("switch") != "off") allOff = false
+         if (otherCd.currentValue("switch") != "on") allOff = false
          if (allOff && device.currentValue("switch") != "off") {
             if (enableDesc) log.info "${device.displayName} switch is off"
             sendEvent([name: "switch", value: "off"])
@@ -402,7 +402,7 @@ void zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport
          Boolean allOff = true
          Integer otherEp = (ep as Integer == 1 ? 2 : 1)
          com.hubitat.app.ChildDeviceWrapper otherCd = getChildDevice("${device.id}-${otherEp}")
-         if (otherCd.currentValue("switch") != "off") allOff = false
+         if (otherCd.currentValue("switch") != "on") allOff = false
          if (allOff && device.currentValue("switch") != "off") {
             if (enableDesc) log.info "${device.displayName} switch is off"
             sendEvent([name: "switch", value: "off"])
