@@ -487,7 +487,7 @@ void performActiveAction() {
                   if (settings["onColor.L${suffix}"] != null) getDevicesToTurnOn().each { it.setLevel(settings["onColor.L${suffix}"]) }
                }
             }
-            if (settings["doOn"]) getDevicesToTurnOn().each { it.on()) }
+            if (settings["doOn"]) getDevicesToTurnOn().each { it.on() }
          }
          state.isDimmed = false
          state.inGrace = false
@@ -692,7 +692,7 @@ def modeChangeHandler(evt) {
                      if (settings["onColor.L${suffix}"] != null) getDevicesToTurnOn().each { it.setLevel(settings["onColor.L${suffix}"]) }
                   }
                }
-               //if (settings["doOn"]) getDevicesToTurnOn().each { it.on()) } // shouldn't be needed since already on
+               //if (settings["doOn"]) getDevicesToTurnOn().each { it.on() } // shouldn't be needed since already on
                state.isDimmed = false
                state.inGrace = false
                break
