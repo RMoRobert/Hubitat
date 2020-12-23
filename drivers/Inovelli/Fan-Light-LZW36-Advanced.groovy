@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.0.3 (2020-12-23) - Fixes for config params/preferenes not being saved with S2
  *  v1.0.2 (2020-12-22) - Fixes for "speed" attribute reporting on fan component; removed local/remote control setting because
  *                        seems to override per-endpoint settings on switch upon save (can uncomment if want to use); fix
  *                        for on/off state of parent device
