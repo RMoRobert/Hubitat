@@ -16,8 +16,9 @@
  * =======================================================================================
  * 
  *  Changelog:
- *  v1.0.1 (2020-12-22) - Fixes for "speed" attribute reporting on fan component; removed local/remote control setting because
- *                        seems to override per-endpoint settings on switch upon save (can uncomment if want to use)
+ *  v1.0.2 (2020-12-22) - Fixes for "speed" attribute reporting on fan component; removed local/remote control setting because
+ *                        seems to override per-endpoint settings on switch upon save (can uncomment if want to use); fix
+ *                        for on/off state of parent device
  *  v1.0    (2020-11-14) - Initial release
  * 
  */
@@ -294,7 +295,7 @@ void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd, ep = null) {
             if (enableDesc) log.info "${device.displayName} switch is off"
             sendEvent([name: "switch", value: "off"])
          }
-         else if (allOff && device.currentValue("switch") != "on") {
+         else if (!allOff && device.currentValue("switch") != "on") {
             if (enableDesc) log.info "${device.displayName} switch is on"
             sendEvent([name: "switch", value: "on"])
          }
