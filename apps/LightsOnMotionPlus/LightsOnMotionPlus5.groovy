@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-12-22
+ *  Last modified: 2020-12-23
  *
  *  Changelog:
- * 
+ *
+ * 5.2.3 - Fixed error that would appear in UI when no "kill switches" selected
  * 5.2.2 - Fixed "Turn on and set level" not honoring "send on() after setLevel()" preference (for prestaging)
  * 5.2.1 - Added ability to choose "on" vs. "off" state for kill switches
  * 5.2.0 - Added per-mode delay options; added "grace period" (turn lights back on with motion if recently turned off, regardless of settings);
@@ -156,7 +157,7 @@ def pageMain() {
          if (onKillSwitch || offKillSwitch) {
             input name: "killSwitchState", type: "enum", title: "Disable when switch(es) is (are)...", required: true,
                defaultValue: "on", options: ["on", "off"]
-            if (onKillSwitch.size() > 1 || offKillSwitch.size() > 1) {
+            if (onKillSwitch?.size() > 1 || offKillSwitch?.size() > 1) {
                paragraph "(Note: the specified portion[s] of the automation will be disabled if <em>any</em> selected switch is in the selected state.)"
             }
          }
@@ -274,7 +275,7 @@ String getPerModeDescription(Long modeID) {
    if (settings["perMode"] && settings["perMode.${modeID}"]) {
       if (settings["lights.override.${modeID}"]) {
          String devList = ""
-         settings["lights.${modeID}"].eachWithIndex { dev, idx ->
+         settings["lights.${modeID}"]?.eachWithIndex { dev, idx ->
             devList += dev.displayName
             if (idx < settings["lights.${modeID}"].size() - 1) devList += ", "
          }
