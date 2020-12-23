@@ -352,7 +352,7 @@ void zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd, ep
             if (enableDesc) log.info "${device.displayName} switch is off"
             sendEvent([name: "switch", value: "off"])
          }
-         else if (allOff && device.currentValue("switch") != "on") {
+         else if (!allOff && device.currentValue("switch") != "on") {
             if (enableDesc) log.info "${device.displayName} switch is on"
             sendEvent([name: "switch", value: "on"])
          }
@@ -407,7 +407,7 @@ void zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport
             if (enableDesc) log.info "${device.displayName} switch is off"
             sendEvent([name: "switch", value: "off"])
          }
-         else if (allOff && device.currentValue("switch") != "on") {
+         else if (!allOff && device.currentValue("switch") != "on") {
             if (enableDesc) log.info "${device.displayName} switch is on"
             sendEvent([name: "switch", value: "on"])
          }
