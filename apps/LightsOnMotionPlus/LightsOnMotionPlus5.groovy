@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-12-06
+ *  Last modified: 2020-12-22
  *
  *  Changelog:
  * 
+ * 5.2.2 - Fixed "Turn on and set level" not honoring "send on() after setLevel()" preference (for prestaging)
  * 5.2.1 - Added ability to choose "on" vs. "off" state for kill switches
  * 5.2.0 - Added per-mode delay options; added "grace period" (turn lights back on with motion if recently turned off, regardless of settings);
  *       - Fixed issue that prevented lights from turning on with motion in some cases if "remember states" not used
@@ -150,11 +151,14 @@ def pageMain() {
          paragraph "Coming soon: use button devices to perform actions for active/inactive (besides sensor)"
       }*/
       section("Restrictions") {
-         input name: "onKillSwitch", type: "capability.switch", title: "Switch to disable turning on lights", multiple: true, submitOnChange: true
-         input name: "offKillSwitch", type: "capability.switch", title: "Switch to disable turning off (or dimming) ligts", multiple: true, submitOnChange: true
+         input name: "onKillSwitch", type: "capability.switch", title: "Switch(es) to disable turning on lights", multiple: true, submitOnChange: true
+         input name: "offKillSwitch", type: "capability.switch", title: "Switch(es) to disable turning off (or dimming) ligts", multiple: true, submitOnChange: true
          if (onKillSwitch || offKillSwitch) {
             input name: "killSwitchState", type: "enum", title: "Disable when switch(es) is (are)...", required: true,
                defaultValue: "on", options: ["on", "off"]
+            if (onKillSwitch.size() > 1 || offKillSwitch.size() > 1) {
+               paragraph "(Note: the specified portion[s] of the automation will be disabled if <em>any</em> selected switch is in the selected state.)"
+            }
          }
          input name: "timeRestrict", type: "bool", title: "Use time restrictions", submitOnChange: true
          if (timeRestrict) {
@@ -483,6 +487,7 @@ void performActiveAction() {
                   if (settings["onColor.L${suffix}"] != null) getDevicesToTurnOn().each { it.setLevel(settings["onColor.L${suffix}"]) }
                }
             }
+            if (settings["doOn"]) getDevicesToTurnOn().each { it.on()) }
          }
          state.isDimmed = false
          state.inGrace = false
@@ -687,6 +692,7 @@ def modeChangeHandler(evt) {
                      if (settings["onColor.L${suffix}"] != null) getDevicesToTurnOn().each { it.setLevel(settings["onColor.L${suffix}"]) }
                   }
                }
+               if (settings["doOn"]) getDevicesToTurnOn().each { it.on()) }
                state.isDimmed = false
                state.inGrace = false
                break
