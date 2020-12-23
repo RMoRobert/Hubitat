@@ -244,14 +244,6 @@ private hubitat.zwave.Command encap(hubitat.zwave.Command cmd, Integer endpoint)
    }
 }
 
-String secure(String cmd) {
-   return zwaveSecureEncap(cmd)
-}
-
-String secure(hubitat.zwave.Command cmd) {
-   return zwaveSecureEncap(cmd)
-}
-
 void zwaveEvent(hubitat.zwave.commands.securityv1.SecurityMessageEncapsulation cmd) {
    hubitat.zwave.Command encapCmd = cmd.encapsulatedCommand(commandClassVersions)
    if (encapCmd) {
@@ -324,8 +316,8 @@ void zwaveEvent(hubitat.zwave.commands.basicv1.BasicSet cmd) {
       sendEvent(name: "level", value: cmd.value, unit: "%")
    }
    List<hubitat.zwave.Command> cmds = []
-   cmds << secure(encap(zwave.switchBinaryV1.switchBinaryGet(), 1))
-   cmds << secure(encap(zwave.switchBinaryV1.switchBinaryGet(), 2))
+   cmds << zwaveSecureEncap(encap(zwave.switchBinaryV1.switchBinaryGet(), 1))
+   cmds << zwaveSecureEncap(encap(zwave.switchBinaryV1.switchBinaryGet(), 2))
    sendHubCommand(new hubitat.device.HubMultiAction(delayBetween(cmds), 300), hubitat.device.Protocol.ZWAVE)
 }
 
@@ -489,21 +481,21 @@ void createFanAndLightChildDevices() {
 
 String on() {
    if (enableDebug) log.debug "on()"
-   return secure(zwave.basicV1.basicSet(value: 0xFF))   
+   return zwaveSecureEncap(zwave.basicV1.basicSet(value: 0xFF))   
    // Try this instead?   
-   //return secure(zwave.switchMultilevelV1.switchMultilevelSet(value: 0xFF))
+   //return zwaveSecureEncap(zwave.switchMultilevelV1.switchMultilevelSet(value: 0xFF))
 }
 
 String off() {
    if (enableDebug) log.debug "off()"
-   return secure(zwave.basicV1.basicSet(value: 0x00))   
+   return zwaveSecureEncap(zwave.basicV1.basicSet(value: 0x00))   
    // Try this instead?   
-   //return secure(zwave.switchMultilevelV1.switchMultilevelSet(value: 0x00))
+   //return zwaveSecureEncap(zwave.switchMultilevelV1.switchMultilevelSet(value: 0x00))
 }
 
 String setLevel(value) {
    if (enableDebug) log.debug "setLevel($value)"
-   return secure(zwave.switchMultilevelV2.switchMultilevelSet(value: value < 100 ? value : 99))
+   return zwaveSecureEncap(zwave.switchMultilevelV2.switchMultilevelSet(value: value < 100 ? value : 99))
    // TEST, if above doesn't work, try:
    // zwave.basicV1.basicSet(value: value < 100 ? value : 99)
 }
@@ -515,11 +507,11 @@ String setLevel(value, duration) {
 
 String startLevelChange(direction) {
    Integer upDown = direction == "down" ? 1 : 0
-   return secure(zwave.switchMultilevelV1.switchMultilevelStartLevelChange(upDown: upDown, ignoreStartLevel: 1, startLevel: 0))
+   return zwaveSecureEncap(zwave.switchMultilevelV1.switchMultilevelStartLevelChange(upDown: upDown, ignoreStartLevel: 1, startLevel: 0))
 }
 
 String stopLevelChange() {
-   return secure(zwave.switchMultilevelV1.switchMultilevelStopLevelChange())
+   return zwaveSecureEncap(zwave.switchMultilevelV1.switchMultilevelStopLevelChange())
 }
 
 String setSpeed(value) {
@@ -560,11 +552,11 @@ String componentOn(cd) {
    if (enableDebug) log.debug "componentOn($cd)"
    String cmd = ""
    if (cd.deviceNetworkId.endsWith("-1")) {
-      cmd = secure(encap(zwave.switchMultilevelV1.switchMultilevelSet(value: 0xFF), 1))
+      cmd = zwaveSecureEncap(encap(zwave.switchMultilevelV1.switchMultilevelSet(value: 0xFF), 1))
    }
    else if (cd.deviceNetworkId.endsWith("-2")) {
-      //cmd = secure(encap(zwave.basicV1.basicSet(value: 0xFF), 2))
-      cmd = secure(encap(zwave.switchMultilevelV1.switchMultilevelSet(value: 0xFF), 2))
+      //cmd = zwaveSecureEncap(encap(zwave.basicV1.basicSet(value: 0xFF), 2))
+      cmd = zwaveSecureEncap(encap(zwave.switchMultilevelV1.switchMultilevelSet(value: 0xFF), 2))
    }
    else {
       log.warn "Unknown child device: $ep"
@@ -576,11 +568,11 @@ String componentOff(cd) {
    if (enableDebug) log.debug "componentOff($cd)"
    String cmd = ""
    if (cd.deviceNetworkId.endsWith("-1")) {
-      cmd = secure(encap(zwave.switchMultilevelV1.switchMultilevelSet(value: 0x00), 1))
+      cmd = zwaveSecureEncap(encap(zwave.switchMultilevelV1.switchMultilevelSet(value: 0x00), 1))
    }
    else if (cd.deviceNetworkId.endsWith("-2")) {   
-      cmd = secure(encap(zwave.switchMultilevelV1.switchMultilevelSet(value: 0x00), 2))
-      cmd = secure(encap(zwave.switchMultilevelV1.switchMultilevelSet(value: 0x00), 2))
+      cmd = zwaveSecureEncap(encap(zwave.switchMultilevelV1.switchMultilevelSet(value: 0x00), 2))
+      cmd = zwaveSecureEncap(encap(zwave.switchMultilevelV1.switchMultilevelSet(value: 0x00), 2))
    }
    else {
       log.warn "Unknown child device: $ep"
@@ -626,11 +618,11 @@ String componentSetLevel(cd, level, transitionTime = null) {
    if (transitionTime > 255) transitionTime = 255
    String cmd = ""
    if (cd.deviceNetworkId.endsWith("-1")) { // Light
-      cmd = secure(encap(zwave.switchMultilevelV2.switchMultilevelSet(value: level < 100 ? level : 99, dimmingDuration: transitionTime), 1))      
+      cmd = zwaveSecureEncap(encap(zwave.switchMultilevelV2.switchMultilevelSet(value: level < 100 ? level : 99, dimmingDuration: transitionTime), 1))      
    }
    else if (cd.deviceNetworkId.endsWith("-2")) { // Fan
-      //cmd = secure(encap(zwave.switchMultilevelV1.switchMultilevelSet(value: level), 2))
-      cmd = secure(encap(zwave.switchMultilevelV2.switchMultilevelSet(value: level < 100 ? level : 99, dimmingDuration: transitionTime), 2))  
+      //cmd = zwaveSecureEncap(encap(zwave.switchMultilevelV1.switchMultilevelSet(value: level), 2))
+      cmd = zwaveSecureEncap(encap(zwave.switchMultilevelV2.switchMultilevelSet(value: level < 100 ? level : 99, dimmingDuration: transitionTime), 2))  
    }
    else {
       log.warn "Unknown child device: $ep"
@@ -648,11 +640,11 @@ String componentStartLevelChange(cd, direction) {
    Boolean upDownVal = direction == "down" ? true : false
    Integer startLevel = 0
    if (cd.deviceNetworkId.endsWith("-1")) {
-      cmd = secure(encap(zwave.switchMultilevelV2.switchMultilevelStartLevelChange(ignoreStartLevel: true,
+      cmd = zwaveSecureEncap(encap(zwave.switchMultilevelV2.switchMultilevelStartLevelChange(ignoreStartLevel: true,
                                  startLevel: startLevel, upDown: upDownVal, dimmingDuration:4), 1))
    }
    else if (cd.deviceNetworkId.endsWith("-2")) {
-      cmd = secure(encap(zwave.switchMultilevelV2.switchMultilevelStartLevelChange(ignoreStartLevel: true,
+      cmd = zwaveSecureEncap(encap(zwave.switchMultilevelV2.switchMultilevelStartLevelChange(ignoreStartLevel: true,
                                  startLevel: startLevel, upDown: upDownVal, dimmingDuration:4), 2))
    }
    else {
@@ -664,10 +656,10 @@ String componentStartLevelChange(cd, direction) {
 String componentStopLevelChange(cd) {
    if (enableDebug) log.debug "componentStopLevelChange($cd)"
    if (cd.deviceNetworkId.endsWith("-1")) {
-      cmd = secure(encap(zwave.switchMultilevelV2.switchMultilevelStopLevelChange(), 1))
+      cmd = zwaveSecureEncap(encap(zwave.switchMultilevelV2.switchMultilevelStopLevelChange(), 1))
    }
    else if (cd.deviceNetworkId.endsWith("-2")) {
-      cmd = secure(encap(zwave.switchMultilevelV2.switchMultilevelStopLevelChange(), 2))
+      cmd = zwaveSecureEncap(encap(zwave.switchMultilevelV2.switchMultilevelStopLevelChange(), 2))
    }
    else {
       log.warn "Unknown child device: $ep"
@@ -678,19 +670,19 @@ String componentStopLevelChange(cd) {
 List<String> refresh() {
    if (enableDesc) log.info "refresh()"
    List<String> cmds = []
-   cmds << secure(encap(zwave.switchMultilevelV1.switchMultilevelGet(), 1))
-   cmds << secure(encap(zwave.switchMultilevelV1.switchMultilevelGet(), 2))
-   cmds << secure(zwave.meterV2.meterGet(scale: 0))
-   cmds << secure(zwave.meterV2.meterGet(scale: 2))
+   cmds << zwaveSecureEncap(encap(zwave.switchMultilevelV1.switchMultilevelGet(), 1))
+   cmds << zwaveSecureEncap(encap(zwave.switchMultilevelV1.switchMultilevelGet(), 2))
+   cmds << zwaveSecureEncap(zwave.meterV2.meterGet(scale: 0))
+   cmds << zwaveSecureEncap(zwave.meterV2.meterGet(scale: 2))
    return cmds
 }
 
 List<String> reset() {
    if (enableDebug) log.info "reset(): resetting power/energy statistics for ${device.displayName}"
    List<String> cmds = []
-   cmds << secure(zwave.meterV2.meterReset())
-   cmds << secure(zwave.meterV2.meterGet(scale: 0))
-   cmds << secure(zwave.meterV2.meterGet(scale: 2))
+   cmds << zwaveSecureEncap(zwave.meterV2.meterReset())
+   cmds << zwaveSecureEncap(zwave.meterV2.meterGet(scale: 0))
+   cmds << zwaveSecureEncap(zwave.meterV2.meterGet(scale: 2))
    return delayBetween(cmds, 1000)
 }
 
@@ -727,13 +719,13 @@ List<String> initialize() {
    zwaveParameters.each { param, data ->
       if (settings[data.input.name] != null) {
          if (enableDebug) log.debug "Setting parameter $param (size:  ${data.size}) to ${settings[data.input.name]}"
-         cmds.add(zwave.configurationV1.configurationSet(scaledConfigurationValue: settings[data.input.name] as BigInteger, parameterNumber: param, size: data.size))
+         cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: settings[data.input.name] as BigInteger, parameterNumber: param, size: data.size)))
       }
    }
    sendEvent(name: "numberOfButtons", value: 14)
-   cmds << secure(zwave.versionV2.versionGet())
-   cmds << secure(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 1))
-   //cmds << secure(zwave.protectionV2.protectionSet(localProtectionState: settings["disableLocal"] ? 1 : 0,
+   cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
+   cmds << zwaveSecureEncap(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 1))
+   //cmds << zwaveSecureEncap(zwave.protectionV2.protectionSet(localProtectionState: settings["disableLocal"] ? 1 : 0,
    //                                          rfProtectionState: settings["disableRemote"] ? 1 : 0))
    return delayBetween(cmds, 250)
 }
@@ -802,8 +794,8 @@ hubitat.device.HubMultiAction zwaveEvent(hubitat.zwave.commands.meterv3.MeterRep
       }
    }
    else {
-      if (cmd.scale == 0) cmds << secure(zwave.meterV2.meterGet(scale: 0))
-      if (cmd.scale == 2) cmds << secure(zwave.meterV2.meterGet(scale: 2))
+      if (cmd.scale == 0) cmds << zwaveSecureEncap(zwave.meterV2.meterGet(scale: 0))
+      if (cmd.scale == 2) cmds << zwaveSecureEncap(zwave.meterV2.meterGet(scale: 2))
    }
    if (cmds) return response(cmds) else return null
 }
@@ -814,7 +806,7 @@ String setConfigParameter(number, value, size) {
 
 String setParameter(number, value, size) {
    if (enableDebug) log.debug "setParameter(number: $number, value: $value, size: $size)a"
-   return secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: number.toInteger(), size: size.toInteger()))
+   return zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: number.toInteger(), size: size.toInteger()))
 }
 
 void clearChildDevsAndState() {
@@ -888,9 +880,9 @@ String setLightIndicator(String color, level, String effect, BigDecimal duration
 List<String> setFanLEDColor(value, level=null) {
    if (enableDebug) log.debug "setLEDColor(Object $value, Object $level)"
    List<String> cmds = []   
-   cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: 20, size: 2)))
+   cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: 20, size: 2)))
    if (level != null) {
-      cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: level.toInteger(), parameterNumber: 21, size: 1)))
+      cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: level.toInteger(), parameterNumber: 21, size: 1)))
    }
    return delayBetween(cmds, 750)
 }
@@ -904,9 +896,9 @@ List<String> setFanLEDColor(String color, level) {
    if (intLevel < 0) intLevel = 0
    else if (intLevel > 10) intLevel = 10
    List<String> cmds = []   
-   cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: intColor, parameterNumber: 20, size: 2)))
+   cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intColor, parameterNumber: 20, size: 2)))
    if (level != null) {
-      cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: intLevel, parameterNumber: 21, size: 1)))
+      cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intLevel, parameterNumber: 21, size: 1)))
    }
    return delayBetween(cmds, 750)
 }
@@ -927,9 +919,9 @@ String setFanOffLEDLevel(value) {
 List<String> setLightLEDColor(value, level=null) {
    if (enableDebug) log.debug "setLEDColor(Object $value, Object $level)"
    List<String> cmds = []   
-   cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: 18, size: 2)))
+   cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: 18, size: 2)))
    if (level != null) {
-      cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: level.toInteger(), parameterNumber: 19, size: 1)))
+      cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: level.toInteger(), parameterNumber: 19, size: 1)))
    }
    return delayBetween(cmds, 750)
 }
@@ -943,9 +935,9 @@ List<String> setLightLEDColor(String color, level) {
    if (intLevel < 0) intLevel = 0
    else if (intLevel > 10) intLevel = 10
    List<String> cmds = []   
-   cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: intColor, parameterNumber: 18, size: 2)))
+   cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intColor, parameterNumber: 18, size: 2)))
    if (level != null) {
-      cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: intLevel, parameterNumber: 19, size: 1)))
+      cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intLevel, parameterNumber: 19, size: 1)))
    }
    return delayBetween(cmds, 750)
 }
