@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-12-23
+ *  Last modified: 2020-12-27
  *
  *  Changelog:
  *
+ * 5.2.4 - "Keep on" sensors now also trigger "on" action during grace period (previously only "turn on" sensors did)
  * 5.2.3 - Fixed error that would appear in UI when no "kill switches" selected
  * 5.2.2 - Fixed "Turn on and set level" not honoring "send on() after setLevel()" preference (for prestaging)
  * 5.2.1 - Added ability to choose "on" vs. "off" state for kill switches
@@ -318,11 +319,12 @@ void motionHandler(evt) {
       unschedule("scheduledDimHandler")
       unschedule("scheduledOffHandler")
       // If it's a "turn on sensor" or lights were dimmed (from inactivity)...
-      if (onSensors.any { it.deviceId == evt.deviceId} || state.isDimmed) {
+      if (onSensors.any { it.deviceId == evt.deviceId} || state.isDimmed ||
+         (state.inGrace && (settings["gracePeriod"]?.isInteger() && settings["gracePeriod"] as Integer != 0))) {
          // If no lights on or configured to not care or currenly dimmed...
-         if ((settings["notIfOn"] == false) || state.isDimmed || verifyNoneOn()) {
+         if ((settings["notIfOn"] == false) || state.isDimmed || state.inGrace || verifyNoneOn()) {
             // If dimmed or all restrictions OK, then perform active action
-            if (state.isDimmed ||
+            if (state.isDimmed || state.inGrace ||
                 (isTimeOK() && isLuxOK()) &&
                 (settings["onKillSwitch"] == null || onKillSwitch.every {it.currentValue("switch") != (settings["killSwitchState"] ?: "on")})) {
                // TODO: Change motionHandler or performActiveAciton to avoid unnecessary
