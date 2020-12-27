@@ -36,8 +36,9 @@ metadata {
 
       attribute "feelsLike", "NUMBER"
       attribute "windSpeed", "NUMBER"
-      attribute "windGust", "NUMBER"
       attribute "windDirection", "STRING"
+      attribute "windGust", "NUMBER"
+      attribute "windGustDirection", "NUMBER"
 
       attribute "lastUpdated", "NUMBER"
       attribute "status", "string"
@@ -161,7 +162,7 @@ void parseWeather(Map wxData) {
             break
          case "baromrelin":
             eventName = "pressure"
-            eventValue = val
+            eventValue = (val as BigDecimal).setScale(2, BigDecimal.ROUND_HALF_UP)
             doSendEvent(eventName, eventValue, "inHg")
             break
          case "solarradiation":
@@ -179,51 +180,24 @@ void parseWeather(Map wxData) {
             eventValue = val
             doSendEvent(eventName, eventValue, "mph")
             break
+         case "winddir":
+            eventName = "windDirection"
+            eventValue = degreesToDirection(val)
+            doSendEvent(eventName, eventValue)
+            break
          case "windgustmph":
             eventName = "windGust"
             eventValue = val
             doSendEvent(eventName, eventValue, "mph")
             break
-         case "winddir":
-            eventName = "windDirection"
-            switch (val as Integer) {
-               case 0..10:
-                  eventValue = "N"; break
-               case 11..33:
-                  eventValue = "NNE"; break
-               case 34..55:
-                  eventValue = "NE"; break
-               case 56..78:
-                  eventValue = "ENE"; break
-               case 79..100:
-                  eventValue = "E"; break
-               case 101..123:
-                  eventValue = "ESE"; break
-               case 124..145:
-                  eventValue = "SE"; break
-               case 146..168:
-                  eventValue = "SSE"; break
-               case 169..190:
-                  eventValue = "S"; break
-               case 191..213:
-                  eventValue = "SSW"; break
-               case 214..235:
-                  eventValue = "SW"; break
-               case 236..258:
-                  eventValue = "WSW"; break
-               case 259..280:
-                  eventValue = "W"; break
-               case 281..303:
-                  eventValue = "WNW"; break
-               case 304..325:
-                  eventValue = "NW"; break
-               case 326..349:
-                  eventValue = "NNW"; break
-               case 349..360:
-                  eventValue = "N"; break
-               default:
-                  eventValue = "unknown"
-            }
+         case "windgustdir":
+            eventName = "windGustDirection"
+            eventValue = degreesToDirection(val)
+            doSendEvent(eventName, eventValue)
+            break
+         case "uv":
+            eventName = "ultravioletIndex"
+            eventValue = val
             doSendEvent(eventName, eventValue)
             break
          case "dateutc":
@@ -235,6 +209,50 @@ void parseWeather(Map wxData) {
          default:
             if (enableDebug) log.debug "skipping key: $key"
       }
+   }
+}
+
+/**
+ *  Converts degrees (0-360) to cardinal direction string like "N" or "ESE" for wind
+ */
+String degreesToDirection(Integer degrees) {
+   switch (degrees) {
+      case 0..10:
+         eventValue = "N"; break
+      case 11..33:
+         eventValue = "NNE"; break
+      case 34..55:
+         eventValue = "NE"; break
+      case 56..78:
+         eventValue = "ENE"; break
+      case 79..100:
+         eventValue = "E"; break
+      case 101..123:
+         eventValue = "ESE"; break
+      case 124..145:
+         eventValue = "SE"; break
+      case 146..168:
+         eventValue = "SSE"; break
+      case 169..190:
+         eventValue = "S"; break
+      case 191..213:
+         eventValue = "SSW"; break
+      case 214..235:
+         eventValue = "SW"; break
+      case 236..258:
+         eventValue = "WSW"; break
+      case 259..280:
+         eventValue = "W"; break
+      case 281..303:
+         eventValue = "WNW"; break
+      case 304..325:
+         eventValue = "NW"; break
+      case 326..349:
+         eventValue = "NNW"; break
+      case 349..360:
+         eventValue = "N"; break
+      default:
+         eventValue = "unknown"
    }
 }
 
