@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.0.4 (2021-01-07) - Workaround for empty meterValue in MeterReports
  *  v1.0.3 (2020-12-23) - Fixes for config params/preferenes not being saved with S2
  *  v1.0.2 (2020-12-22) - Fixes for "speed" attribute reporting on fan component; removed local/remote control setting because
  *                        seems to override per-endpoint settings on switch upon save (can uncomment if want to use); fix
@@ -770,10 +771,8 @@ void buttonEvent(buttonNumber, buttonAction, type = "digital") {
    if (enableDesc) log.info "Button $buttonNumber was $buttonAction ($type)"
 }
 
-hubitat.device.HubMultiAction zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd, ep=null) {
+void zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd, ep=null) {
    if (enableDebug) log.debug "MeterReport: $cmd"
-   def event
-   def cmds = []
    if (cmd.meterValue != []) {
       if (cmd.scale == 0) {
          if (cmd.meterType == 161) {
@@ -795,10 +794,12 @@ hubitat.device.HubMultiAction zwaveEvent(hubitat.zwave.commands.meterv3.MeterRep
       }
    }
    else {
-      if (cmd.scale == 0) cmds << zwaveSecureEncap(zwave.meterV2.meterGet(scale: 0))
-      if (cmd.scale == 2) cmds << zwaveSecureEncap(zwave.meterV2.meterGet(scale: 2))
+      if (enableDebug) "meterValue was empty, re-requesting for scale ${cmd.scale}"
+      String zwCmd
+      if (cmd.scale == 0) zwCmd = zwaveSecureEncap(zwave.meterV2.meterGet(scale: 0))
+      if (cmd.scale == 2) zwCmd = zwaveSecureEncap(zwave.meterV2.meterGet(scale: 2))
+      sendHubCommand(new hubitat.device.HubAction(zwCmd, hubitat.device.Protocol.ZWAVE))
    }
-   if (cmds) return response(cmds) else return null
 }
 
 String setConfigParameter(number, value, size) {
