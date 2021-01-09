@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.0.5 (2021-01-08) - Fix for "switch" attribute not updating on fan component
  *  v1.0.4 (2021-01-07) - Workaround for empty meterValue in MeterReports
  *  v1.0.3 (2020-12-23) - Fixes for config params/preferenes not being saved with S2
  *  v1.0.2 (2020-12-22) - Fixes for "speed" attribute reporting on fan component; removed local/remote control setting because
@@ -379,10 +380,12 @@ void zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport
             if (cmd.value && cmd.value <= 100) {
                if (cd.currentValue("level") != cmd.value) cd.parse([[name:"level", value: speedVal, descriptionText:"${cd.displayName} level is ${cmd.value}"]])
                if (cd.currentValue("speed") != speed) cd.parse([[name:"speed", value: speed, descriptionText:"${cd.displayName} speed is $speed"]])
+               if (cd.currentValue("switch") != "on") cd.parse([[name:"switch", value: "on", descriptionText:"${cd.displayName} switch is on"]])
             }
             else {
                if (cd.currentValue("switch") != "off") cd.parse([[name:"switch", value: "off", descriptionText:"${cd.displayName} switch is off"]])
                if (cd.currentValue("speed") != "off") cd.parse([[name:"speed", value: "off", descriptionText:"${cd.displayName} speed is off"]])
+               if (cd.currentValue("switch") != "off") cd.parse([[name:"switch", value: "off", descriptionText:"${cd.displayName} switch is off"]])
             }
          }
       }
