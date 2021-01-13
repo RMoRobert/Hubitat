@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.0.6 (2021-01-13) - Fix for parent device "switch" attribute not matching expected states
  *  v1.0.5 (2021-01-08) - Fix for "switch" attribute not updating on fan component
  *  v1.0.4 (2021-01-07) - Workaround for empty meterValue in MeterReports
  *  v1.0.3 (2020-12-23) - Fixes for config params/preferenes not being saved with S2
@@ -283,9 +284,9 @@ void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd, ep = null) {
       }
       else {
          Boolean allOff = true
-         Integer otherEp = (ep as Integer == 1 ? 2 : 1)
+         Integer otherEp = (ep as Integer == 1) ? 2 : 1
          com.hubitat.app.ChildDeviceWrapper otherCd = getChildDevice("${device.id}-${otherEp}")
-         if (otherCd.currentValue("switch") != "on") allOff = false
+         if (otherCd.currentValue("switch") != "on") allOff = true
          if (allOff && device.currentValue("switch") != "off") {
             if (enableDesc) log.info "${device.displayName} switch is off"
             sendEvent([name: "switch", value: "off"])
@@ -340,9 +341,9 @@ void zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd, ep
       }
       else {
          Boolean allOff = true
-         Integer otherEp = (ep as Integer == 1 ? 2 : 1)
+         Integer otherEp = (ep as Integer == 1) ? 2 : 1
          com.hubitat.app.ChildDeviceWrapper otherCd = getChildDevice("${device.id}-${otherEp}")
-         if (otherCd.currentValue("switch") != "on") allOff = false
+         if (otherCd.currentValue("switch") != "on") allOff = true
          if (allOff && device.currentValue("switch") != "off") {
             if (enableDesc) log.info "${device.displayName} switch is off"
             sendEvent([name: "switch", value: "off"])
@@ -397,9 +398,9 @@ void zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport
       }
       else {
          Boolean allOff = true
-         Integer otherEp = (ep as Integer == 1 ? 2 : 1)
+         Integer otherEp = (ep as Integer == 1) ? 2 : 1
          com.hubitat.app.ChildDeviceWrapper otherCd = getChildDevice("${device.id}-${otherEp}")
-         if (otherCd.currentValue("switch") != "on") allOff = false
+         if (otherCd.currentValue("switch") != "on") allOff = true
          if (allOff && device.currentValue("switch") != "off") {
             if (enableDesc) log.info "${device.displayName} switch is off"
             sendEvent([name: "switch", value: "off"])
