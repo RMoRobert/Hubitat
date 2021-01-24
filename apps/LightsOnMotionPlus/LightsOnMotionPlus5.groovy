@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-12-27
+ *  Last modified: 2021-01-24
  *
  *  Changelog:
  *
+ * 5.3   - Added option to run Rule actions when lights turn off or dim; fixed incorrect inactivity delay calculation
  * 5.2.4 - "Keep on" sensors now also trigger "on" action during grace period (previously only "turn on" sensors did)
  * 5.2.3 - Fixed error that would appear in UI when no "kill switches" selected
  * 5.2.2 - Fixed "Turn on and set level" not honoring "send on() after setLevel()" preference (for prestaging)
@@ -48,6 +49,7 @@
  */
 
 import groovy.transform.Field
+import hubitat.helper.RMUtils
 
 @Field static final List<Map<String,String>> activeActions = [
    [on: 'Turn on lights'],
@@ -85,6 +87,7 @@ def pageMain() {
    state.remove('perModeSettingsRemoved')
    state.remove('perModePageModeName')
    state.remove('perModePageModeID')
+   List<Map<Long,String>> ruleList = RMUtils.getRuleList()
    dynamicPage(name: "pageMain", title: "Lights on Motion Plus", install: true, uninstall: true) {
       section() {
          label title: "Name this Lights on Motion Plus app:", required: true
@@ -125,7 +128,7 @@ def pageMain() {
          }
          input name: "offLights", type: "capability.switch", title: "Choose additional lights to turn off or dim (optional)", multiple: true
          input name: "gracePeriod", type: "enum", title: "Grace period: turn lights back on if motion detected (even if not configured to turn on) if turned off due to inactivity within last...",
-            options: [[0:"(no grace period)"],[3: "3 seconds"],[5: "5 seconds"],[7:"7 seconds"],[10:"10 seconds"],[15:"15 seconds"],[30:"30 seconds"],[60: "1 minute"]]
+            options: [[0:"(no grace period)"],[5: "5 seconds"],[7:"7 seconds"],[10:"10 seconds"],[15:"15 seconds"],[30:"30 seconds"],[60: "1 minute"],[300:"5 minutes"]]
       }
       section("Modes") {
          if (!perMode) input name: "perMode", type: "bool", title: "Configure exceptions per mode", submitOnChange: true 
@@ -205,6 +208,8 @@ def pageMain() {
          input name: "logLevel", type: "enum", title: "Debug logging level",
             options: [[0: 'Disabled'], [1: 'Moderate logging'], [2: 'Verbose logging']],
             defaultValue: 0
+         input name: "dimRule", type: "enum", title: "Run these Rule actions after lights dim", options: ruleList, multiple: true
+         input name: "offRule", type: "enum", title: "Run these Rule actions after lights turn off", options: ruleList, multiple: true
          input name: "noRestoreScene", type: "bool", title: 'Re-activate "Turn on and set scene" or "Turn on and set color..." settings instead of restoring saved state when motion detected during dim'
          input name: "doOn", type: "bool", title: "Send \"On\" command after \"Set Level\" or \"Set Color\" when restoring states (enable if devices use prestaging)"
          input name: "btnClearCaptured", type: "button", title: "Clear all captured states"
@@ -565,11 +570,11 @@ void performInactiveAction() {
 
 // Returns (in seconds) user-configured delay for "inactive" actions, including per-mode exceptions if configured
 Integer getInactiveDelay() {
-   Integer delay = settings["inactiveMinutes"] ?: 0   
+   Integer delay = settings["inactiveMinutes"] ?: 0
    if (settings["inactiveMinutes.override.${location.getCurrentMode().id}"]) {
       delay = settings["inactiveMinutes.${location.getCurrentMode().id}"] ?: 0
    }
-   return delay * 69
+   return delay * 60
 }
 
 // Returns true if configured lux restrictions are OK (or not set), otherwise false
@@ -628,6 +633,12 @@ void scheduledOffHandler() {
       state.inGrace = true
       runIn(graceSeconds, "scheduledGraceEndHandler")
    }
+   if (settings["offRule"] != null) {
+      logDebug "Also running \"turn off\" rule actions"
+      settings["offRule"].each { rule ->
+         RMUtils.sendAction(rule, "runRuleAct", app.label)
+      }
+   }
    logDebug "Turned off all lights", 1, "debug"
 }
 
@@ -646,6 +657,12 @@ void scheduledDimHandler() {
       }
       else {
          logDebug "Not dimming ${it.displayName} because not on", 2, "debug"
+      }
+   }
+   if (settings["dimRule"] != null) {
+      logDebug "Also running \"dimmed\" rule actions"
+      settings["dimRule"].each { rule ->
+         RMUtils.sendAction(rule, "runRuleAct", app.label)
       }
    }
    logDebug "Dimmed all applicable lights", 1, "debug"
