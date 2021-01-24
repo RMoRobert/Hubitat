@@ -634,10 +634,8 @@ void scheduledOffHandler() {
       runIn(graceSeconds, "scheduledGraceEndHandler")
    }
    if (settings["offRule"] != null) {
-      logDebug "Also running \"turn off\" rule actions"
-      settings["offRule"].each { rule ->
-         RMUtils.sendAction(rule, "runRuleAct", app.label)
-      }
+      logDebug "Also running \"turn off\" rule actions"\
+      RMUtils.sendAction(offRule, "runRuleAct", app.label)
    }
    logDebug "Turned off all lights", 1, "debug"
 }
@@ -661,9 +659,7 @@ void scheduledDimHandler() {
    }
    if (settings["dimRule"] != null) {
       logDebug "Also running \"dimmed\" rule actions"
-      settings["dimRule"].each { rule ->
-         RMUtils.sendAction(rule, "runRuleAct", app.label)
-      }
+      RMUtils.sendAction(dimRule, "runRuleAct", app.label)
    }
    logDebug "Dimmed all applicable lights", 1, "debug"
 }
