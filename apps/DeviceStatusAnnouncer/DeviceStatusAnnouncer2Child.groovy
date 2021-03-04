@@ -59,6 +59,8 @@ def pageMain() {
          input name: "boolDoorUnlocked", type: "bool", title: "Announce only if lock(s) unlocked", defaultValue: true
          input name: "motionSensors", type: "capability.motionSensor", title: "Choose motion sensors:", multiple: true
          input name: "boolMotionActive", type: "bool", title: "Announce only if sensor(s) active", defaultValue: true
+         input name: "switches", type: "capability.switch", title: "Choose switches:", submitOnChange: true, multiple: true
+         input name: "boolSwitchOpen", type: "bool", title: "Announce only if switch(es) on", defaultValue: true
          input name: "thermostats", type: "capability.thermostat", title: "Choose thermostats:", submitOnChange: true, multiple: true
          if (settings["thermostats"]) {
             input name: "thermostatCoolThreshold", type: "number", title: "if cooling setpoint below:", width: 6
@@ -163,10 +165,12 @@ String getDeviceStatusReport() {
    com.hubitat.app.DeviceWrapperList contacts = settings["contactSensors"]
    com.hubitat.app.DeviceWrapperList locks = settings["doorLocks"]
    com.hubitat.app.DeviceWrapperList motions = settings["motionSensors"]
+   com.hubitat.app.DeviceWrapperList switches = settings["switches"]
    if (!(settings["boolIncludeDisabled"])) {
       contacts = contacts?.findAll { it.isDisabled != true }
       locks = locks?.findAll { it.isDisabled != true }
       motions = motions?.findAll { it.isDisabled != true }
+      switches = switches?.findAll { it.isDisabled != true }
    }
    state.contactLockGroups?.each { groupId ->
       if (settings["contactLockGroup.${groupId}.devs"] && settings["contactLockGroup.${groupId}.name"]) {
@@ -218,6 +222,14 @@ String getDeviceStatusReport() {
       }
       else {
          statusReportList << "${it.displayName} is ${it.currentValue("motion")}"
+      }
+   }
+   switches?.each {
+      if (boolSwitchOpen != false) {
+         if (it.currentValue("switch") == "on") statusReportList << "${it.displayName} is on"
+      }
+      else {
+         statusReportList << "${it.displayName} is ${it.currentValue("switch")}"
       }
    }
    thermostats?.each {
