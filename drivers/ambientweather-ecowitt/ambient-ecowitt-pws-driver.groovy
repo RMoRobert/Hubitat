@@ -5,7 +5,11 @@
  * firmware 1.6.9 or above, which added local server options) or local Ecowitt GW1000 gateway. Note that
  * AmbientWeather users with recent firmware no longer need the Ecowitt gateway to retrieve data locally.
  *
- *  Copyright 2020 Robert Morris
+ * Communicates to ambientweather.net (with your API and app keys) or local AmbientWeather console (on
+ * firmware 1.6.9 or above, which added local server options) or local Ecowitt GW1000 gateway. Note that
+ * AmbientWeather users with recent firmware no longer need the Ecowitt gateway to retrieve data locally.
+ *
+ *  Copyright 2020-2021 Robert Morris
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -22,7 +26,7 @@
  *  - FOR LOCAL STATION DATA:
  *    1. Add this code to "Drivers Code" on Hubitat and save (if you haven't already added it)
  *    2. Ensure WS-2000 (or other compatible AmbientWeather console) is on at least firmware 1.6.9, which adds the "custom server"
-*        configuration option. EcoWitt GW1000 and similar should be compatible out-of-box.
+*        configuration option. Ecowitt GW1000 and similar should be compatible out-of-box.
  *    3. On WS-2000 console, go to Settings > Weather Server > Customized, and configure with these settings:
  *       * State: Enable (to turn on this feature)
  *       * Protocol type: "Same as AMBWeather" (recommended; Wunderground or Ecowitt format should also work)
@@ -32,10 +36,10 @@
  *       * Path: the default of "/data/report/" is fine, as the driver ignores this; the path must end with slash or be "/" (no quotes) itself
  *       * (if using Wunderground, recommend removing ".php" and ending path with slash also, e.g., "/weatherstation/"; station ID and key are ignored but
  *          likely must be included, possibly in a WU-valid format; again, AMBWeather format is recommended instead)
- *       As of this writing, this setup can only be done from the console itself and not the AmbientWeather mobile app. For EcoWitt devices,
+ *       As of this writing, this setup can only be done from the console itself and not the AmbientWeather mobile app. For Ecowitt devices,
  *       this configuration can be done from the WS View app; use similar configuration to the above for custom server.
  *    4. Create a new virtual device on Hubitat with the name of your choice. The Device Network ID should be set to the MAC address of
- *       your AmbientWeather console (or EcoWitt) in all caps with no separators, e.g., AABBCCDD1234
+ *       your AmbientWeather console (or Ecowitt) in all caps with no separators, e.g., AABBCCDD1234
  *    5. Choose appropriate "Local" option for data source in device preferences, hit "Save Preferences," and verify information is received within
  *       configured reporting timeframe. Verify device configuration (e.g., hub IP and port) or check Hubitat logs if problems occur.
  *  - FOR CLOUD (AMBIENTWEATHER.NET) DATA:
@@ -50,9 +54,10 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-12-28
+ *  Last modified: 2021-03-23
  *
  *  Changelog:
+ *  v2.1    - Additional attribute name matches
  *  v2.0    - Updated to handle local Ambient Weather "custom servers" (AMBWeather, Ecowitt, or WU format; AMBWeather or Ecowitt recommended)
  *          - Added separate handling for local vs. cloud connections and new local options for Ambient Weather
  *  v1.0    - Initial Release
@@ -63,7 +68,7 @@
  @Field static Map<Long,Boolean> lastUpdateOK = [:]
 
 metadata {
-   definition (name: "Ambient Weather/EcoWitt PWS", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/ambientweather-ecowitt/ambient-ecowitt-pws-driver.groovy") {
+   definition (name: "Ambient Weather/Ecowitt PWS", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/ambientweather-ecowitt/ambient-ecowitt-pws-driver.groovy") {
       capability "Sensor"
       capability "TemperatureMeasurement"
       capability "RelativeHumidityMeasurement"
@@ -84,7 +89,7 @@ metadata {
    
    preferences() {
       input name: "source", type: "enum", title: "Station data source (do \"Save Preferences\" after changing this option)",
-         options: [["local": "Local: Ambient Weather WS-2000 or compatible"],["localEW": "Local: EcoWitt GW1000 or compatible"],["cloud":"Cloud: AmbientWeather.net API"]], required: true
+         options: [["local": "Local: Ambient Weather WS-2000 or compatible"],["localEW": "Local: Ecowitt GW1000 or compatible"],["cloud":"Cloud: AmbientWeather.net API"]], required: true
       if (source == "local" || source == "localEW") {
          // No preferences, but remove unneeded ones (can comment this out if you don't want that):
          device.removeSetting("legacyParsing")
@@ -255,6 +260,7 @@ void parseWeather(Map wxData) {
    wxData.each { key, val ->
       switch (key) {
          case "tempf":
+         case "tempinf":
             eventName = "temperature"
             eventValue = convertTemperatureIfNeeded(val as BigDecimal,"f",1)
             doSendEvent(eventName, eventValue, "°${location.temperatureScale}")
