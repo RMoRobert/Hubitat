@@ -25,7 +25,7 @@
 
 
 metadata {
-   definition (name: "Command Logger: RGBW Bulb", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/main/drivers/command-loggers/command-logger-rgbw-bulb.groovy") {
+   definition (name: "Command Logger: RGBW Bulb", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/command-loggers/command-logger-rgbw-bulb.groovy") {
       capability "Actuator"
       capability "Configuration"
       capability "Color Control"
