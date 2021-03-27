@@ -21,10 +21,12 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2019-06-19
+ *  Last modified: 2020-10-11
  * 
  *  Changelog:
  * 
+ *  v2.0 (2020-10-11) - Adjusted capability whitespace to match Hubitat docs;
+ *                      Removed stored notifications as mobile app now can
  *  v1.0 (2019-06-19) - Initial Release
  *
  */ 
@@ -33,19 +35,19 @@
 metadata {
 	definition (name: "Notification Proxy Device", namespace: "RMoRobert", author: "Robert Morirs") {
 		capability "Notification"
+      capability "PresenceSensor"
 		attribute "lastNotification", "string"
 		attribute "secondToLastNotification", "string"
 		
 		// Can comment out the below three lines if not using presence, but useful to trick apps that are looking for
 		// a presence device such as a Mobile App Device to be able to use this device too:
-		capability "Presence Sensor"
+
 		command "arrived"
-        command "departed"
+      command "departed"
 	}
 	
 	preferences() {
     	section("") {
-			input "storeNotifications", "bool", title: "Store previous two notifications as device attributes"
         	input "debugMode", "bool", title: "Enable debug logging"
 		}
 	}   
@@ -60,16 +62,7 @@ def updated(){
 }
 
 def initialize() {
-	if (storeNotifications) {
-		logDebug("Resetting last two stored notification values to empty strings because device re-initialized")
-		state.secondToLastNotification = ""
- 		state.lastNotification = ""
-	}
-	else {
-		logDebug("Removing last two stored notification values, if present, since configured to not store")
-		state.remove("secondToLastNotification")
-		state.remove("lastNotification")
-	}
+   log.debug "Inititalizing..."
 }
 
 // Probably won't happen in a virtual driver but...
@@ -79,11 +72,7 @@ def parse(String description) {
 
 def deviceNotification(text) {
 	logDebug("Received notification, sending to devices: ${text}")
-    sendEvent(name: "deviceNotification", value: text)
-	if (secondToLastNotification) {
-		state.secondToLastNotification = state.lastNotification
-		state.lastNotification = text
-	}	
+    sendEvent(name: "deviceNotification", value: text, isStateChange: true)
 }
 
 // Custom command for manipulating presence. Can remove/comment out if not wanted
