@@ -106,7 +106,7 @@ def pageMain() {
               page: "pageViewReport",
               title: "View current report",
               description: "Evaluate all devices now according to the criteria above, and display a report of \"inactive\" devices.")
-			paragraph "The \"Text Notification Now\" button will send a notification to your selected device(s) if there is inactivity to report. This a manual method to trigger the same report the above options would also create:"
+			paragraph "The \"Test Notification Now\" button will send a notification to your selected device(s) if there is inactivity to report. This a manual method to trigger the same report the above options would also create:"
 			input name: "btnTestNotification", type: "button", title: "Test Notification Now"
 		}
 		
