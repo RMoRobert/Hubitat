@@ -32,7 +32,7 @@ import groovy.transform.Field
    1: [input: [name: "param.1", type: "enum", title: "Tightness of gap when closed (used for auto-calibration)",
          options: [["-1": "Do not configure (keep previous/existing configuration)"],[15: "15 - Tightest"],[16:"16"],[17:"17"],[18:"18"],[19:"19"],[20:"20"],[21:"21"],[22:"22 [DEFAULT]"],[23:"23"],
          [24:"24"],[25:"25"],[26:"26"],[27:"27"],[28:"28"],[29:"16"],[29:"29"],[30:"30 - Least Tight"]]], size: 1, ignoreValue: "-1"],
-   6: [input: [name: "param.6", type: "number", title: "Default blind movement speed (0 = ASAP [default], larger = slower)", range: 0..100],
+   6: [input: [name: "param.6", type: "number", title: "Default blind movement speed (0 = ASAP [DEFAULT], larger = slower)", range: 0..100],
       size: 1],
    2: [input: [name: "param.2", type: "enum", title: "Reverse direction of blinds",
            options: [[0:"No (close down) [DEFAULT]"],[1:"Yes (close up)"]]], size: 1],
@@ -68,6 +68,7 @@ metadata {
 
 List<String> installed() {
    logDebug("installed()")
+   runIn(5, zwaveSecureEncap(zwave.batteryV1.batteryGet()))
    initialize()
 }
 
