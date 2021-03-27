@@ -16,6 +16,8 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.1.0 (2021-03-26) - Updates for Hubitat 2.2.6 (button commands, supported fan speeds)
+ *                        Additional fixes (final fix?) for child/parent switch attributes reflecting in parent
  *  v1.0.6 (2021-01-13) - Fix for parent device "switch" attribute not matching expected states
  *  v1.0.5 (2021-01-08) - Fix for "switch" attribute not updating on fan component
  *  v1.0.4 (2021-01-07) - Workaround for empty meterValue in MeterReports
@@ -61,7 +63,9 @@
 
 import groovy.transform.Field
 
-@Field static Map colorNameMap = [
+@Field static final List supportedFanSpeeds = ["low", "medium", "high", "auto", "off"]
+
+@Field static final Map colorNameMap = [
    "red": 1,
    "red-orange": 4,
    "orange": 21,
@@ -78,7 +82,7 @@ import groovy.transform.Field
    "white": 255
 ]
 
-@Field static Map effectNameMap = ["off": 0, "solid": 1, "chase": 2, "fast blink": 3, "slow blink": 4, "pulse": 5]
+@Field static final Map effectNameMap = ["off": 0, "solid": 1, "chase": 2, "fast blink": 3, "slow blink": 4, "pulse": 5]
 
 @Field static final Map zwaveParameters = [
    1: [input: [name: "param.1", type: "enum", title: "Dimming rate for light from hub",
@@ -282,21 +286,27 @@ void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd, ep = null) {
             sendEvent([name: "switch", value: "on"])
          }
       }
-      else {
-         Boolean allOff = true
-         Integer otherEp = (ep as Integer == 1) ? 2 : 1
-         com.hubitat.app.ChildDeviceWrapper otherCd = getChildDevice("${device.id}-${otherEp}")
-         if (otherCd.currentValue("switch") != "on") allOff = true
-         if (allOff && device.currentValue("switch") != "off") {
-            if (enableDesc) log.info "${device.displayName} switch is off"
-            sendEvent([name: "switch", value: "off"])
-         }
-         else if (!allOff && device.currentValue("switch") != "on") {
-            if (enableDesc) log.info "${device.displayName} switch is on"
-            sendEvent([name: "switch", value: "on"])
-         }
-      }
+      checkParentSwitchState()
+   }   
+}
+
+// Checks state of child switches and sets parent to on/off accordingly
+// Intended to be called after zwaveEvent parsing that may change child switch states
+void checkParentSwitchState() {
+   if (enableDebug) log.debug "checkParentSwitchStates()"
+   Boolean allOff
+   com.hubitat.app.ChildDeviceWrapper cd1 = getChildDevice("${device.id}-1")
+   com.hubitat.app.ChildDeviceWrapper cd2 = getChildDevice("${device.id}-2")
+   allOff = (cd1.currentValue("switch") == "off") && (cd2.currentValue("switch") == "off")
+   if (allOff && device.currentValue("switch") != "off") {
+      if (enableDesc) log.info "${device.displayName} switch is off"
+      sendEvent([name: "switch", value: "off", descriptionText: "${device.displayName} switch is off"])
    }
+   else if (!allOff && device.currentValue("switch") != "on") {
+      if (enableDesc) log.info "${device.displayName} switch is on"
+      sendEvent([name: "switch", value: "on", descriptionText: "${device.displayName} switch is on"])
+   }
+   cd1 = null; cd2 = null // help GC?
 }
 
 private void dimmerEvents(hubitat.zwave.Command cmd) {
@@ -322,7 +332,7 @@ void zwaveEvent(hubitat.zwave.commands.basicv1.BasicSet cmd) {
    List<hubitat.zwave.Command> cmds = []
    cmds << zwaveSecureEncap(encap(zwave.switchBinaryV1.switchBinaryGet(), 1))
    cmds << zwaveSecureEncap(encap(zwave.switchBinaryV1.switchBinaryGet(), 2))
-   sendHubCommand(new hubitat.device.HubMultiAction(delayBetween(cmds), 300), hubitat.device.Protocol.ZWAVE)
+   sendHubCommand(new hubitat.device.HubMultiAction(delayBetween(cmds, 300), hubitat.device.Protocol.ZWAVE))
 }
 
 void zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd, ep = null) {
@@ -338,21 +348,8 @@ void zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd, ep
             if (enableDesc) log.info "${device.displayName} switch is on"
             sendEvent([name: "switch", value: "on"])
          }
-      }
-      else {
-         Boolean allOff = true
-         Integer otherEp = (ep as Integer == 1) ? 2 : 1
-         com.hubitat.app.ChildDeviceWrapper otherCd = getChildDevice("${device.id}-${otherEp}")
-         if (otherCd.currentValue("switch") != "on") allOff = true
-         if (allOff && device.currentValue("switch") != "off") {
-            if (enableDesc) log.info "${device.displayName} switch is off"
-            sendEvent([name: "switch", value: "off"])
-         }
-         else if (!allOff && device.currentValue("switch") != "on") {
-            if (enableDesc) log.info "${device.displayName} switch is on"
-            sendEvent([name: "switch", value: "on"])
-         }
-      }
+      }        
+      checkParentSwitchState()
    }
 }
 
@@ -377,14 +374,13 @@ void zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport
             else if (speedVal > 1 && speedVal <= 33) speed = "low"
             else if (speedVal > 33 && speedVal <= 66) speed = "medium"
             else if (speedVal > 66) speed = "high"
-            cd.parse([[name:"speed", value: speed, descriptionText:"${cd.displayName} fan speed is $speed"]])
+            //cd.parse([[name:"speed", value: speed, descriptionText:"${cd.displayName} fan speed is $speed"]])
             if (cmd.value && cmd.value <= 100) {
                if (cd.currentValue("level") != cmd.value) cd.parse([[name:"level", value: speedVal, descriptionText:"${cd.displayName} level is ${cmd.value}"]])
                if (cd.currentValue("speed") != speed) cd.parse([[name:"speed", value: speed, descriptionText:"${cd.displayName} speed is $speed"]])
                if (cd.currentValue("switch") != "on") cd.parse([[name:"switch", value: "on", descriptionText:"${cd.displayName} switch is on"]])
             }
             else {
-               if (cd.currentValue("switch") != "off") cd.parse([[name:"switch", value: "off", descriptionText:"${cd.displayName} switch is off"]])
                if (cd.currentValue("speed") != "off") cd.parse([[name:"speed", value: "off", descriptionText:"${cd.displayName} speed is off"]])
                if (cd.currentValue("switch") != "off") cd.parse([[name:"switch", value: "off", descriptionText:"${cd.displayName} switch is off"]])
             }
@@ -395,21 +391,8 @@ void zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport
             if (enableDesc) log.info "${device.displayName} switch is on"
             sendEvent([name: "switch", value: "on"])
          }
-      }
-      else {
-         Boolean allOff = true
-         Integer otherEp = (ep as Integer == 1) ? 2 : 1
-         com.hubitat.app.ChildDeviceWrapper otherCd = getChildDevice("${device.id}-${otherEp}")
-         if (otherCd.currentValue("switch") != "on") allOff = true
-         if (allOff && device.currentValue("switch") != "off") {
-            if (enableDesc) log.info "${device.displayName} switch is off"
-            sendEvent([name: "switch", value: "off"])
-         }
-         else if (!allOff && device.currentValue("switch") != "on") {
-            if (enableDesc) log.info "${device.displayName} switch is on"
-            sendEvent([name: "switch", value: "on"])
-         }
-      }
+      }      
+      checkParentSwitchState()
    }
    else {
       if (enableDebug) log.warn "Ignoring SwitchMultiLevelReport for ep $ep"
@@ -528,7 +511,6 @@ String setSpeed(value) {
    }
 }
 
-
 String cycleSpeed() {
    if (enableDebug) log.debug "cycleSpeed()"
    String currentSpeed = "off"
@@ -636,9 +618,9 @@ String componentSetLevel(cd, level, transitionTime = null) {
    return cmd
 }
 
-void componentRefresh(cd) {
+String componentRefresh(cd) {
    if (enableDebug) log.debug "componentRefresh($cd)"
-   log.debug "Component refresh not supported; refresh parent device"
+   return zwaveSecureEncap(encap(zwave.switchMultilevelV1.switchMultilevelGet(), cd.deviceNetworkId.endsWith("-1") ? 1 : 2))
 }
 
 String componentStartLevelChange(cd, direction) {
@@ -729,6 +711,8 @@ List<String> initialize() {
       }
    }
    sendEvent(name: "numberOfButtons", value: 14)
+   groovy.json.JsonBuilder fanSpeeds = new groovy.json.JsonBuilder(supportedFanSpeeds)
+   getChildDevice("${device.id}-2").sendEvent([name: "supportedFanSpeeds", value: fanSpeeds])
    cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
    cmds << zwaveSecureEncap(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 1))
    //cmds << zwaveSecureEncap(zwave.protectionV2.protectionSet(localProtectionState: settings["disableLocal"] ? 1 : 0,
@@ -767,12 +751,26 @@ void zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification c
       else if (cmd.sceneNumber == 5) buttonNumber = 12
       else if (cmd.sceneNumber == 6) buttonNumber = 14
    }
-   buttonEvent(buttonNumber, buttonAction, "phyiscal")
+   sendEvent(name: buttonAction, value: buttonNumber, isStateChange: true, type: "physical")
+   if (enableDesc) log.info "Button $buttonNumber was $buttonAction (physical)"
 }
 
-void buttonEvent(buttonNumber, buttonAction, type = "digital") {
-   sendEvent(name: buttonAction, value: buttonNumber, isStateChange: true, type: type)
-   if (enableDesc) log.info "Button $buttonNumber was $buttonAction ($type)"
+void push(Number buttonNumber) {
+   if (enableDebug) log.debug "push(buttonNumber)"
+   sendEvent(name: "pushed", value: buttonNumber, isStateChange: true, type: "digital")
+   if (enableDesc) log.info "Button $buttonNumber was pushed (digital)"
+}
+
+void hold(Number buttonNumber) {
+   if (enableDebug) log.debug "hold(buttonNumber)"
+   sendEvent(name: "held", value: buttonNumber, isStateChange: true, type: "digital")
+   if (enableDesc) log.info "Button $buttonNumber was held (digital)"
+}
+
+void release(Number buttonNumber) {
+   if (enableDebug) log.debug "release(buttonNumber)"
+   sendEvent(name: "released", value: buttonNumber, isStateChange: true, type: "digital")
+   if (enableDesc) log.info "Button $buttonNumber was released (digital)"
 }
 
 void zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd, ep=null) {
