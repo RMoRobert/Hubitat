@@ -35,14 +35,14 @@
 
 import groovy.transform.Field
 
-@Field Map eventMap = [
+@Field static Map eventMap = [
     	"pushed": ["capability":"PushableButton", userAction: "push", "multiPresses": true],
     	"held": ["capability":"HoldableButton", userAction: "hold", "multiPresses": false],
     	"released": ["capability":"ReleasableButton", userAction: "release", "multiPresses": false],
     	"doubleTapped": ["capability":"DoubleTapableButton", userAction: "double tap", "multiPresses": true]
     ]
 
-@Field Map actionMap = [
+@Field static Map actionMap = [
     	"on": [displayName: "Turn on", "multiPresses": true],
         "scene": [displayName: "Turn on scene", "multiPresses": true],
         "hueScene": [displayName: "Activate CoCoHue scene", "multiPresses": true],

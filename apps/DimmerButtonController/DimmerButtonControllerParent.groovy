@@ -30,6 +30,7 @@
  * == Parent version: 2.0.0 ==
  *
  * Changelog:
+ * 2.0.2 (2020-10-24)  - Minor bugfix in parent app for new installs
  * 2.0    (2020-04-12) - Allows creation of DBC 2.0 child apps; prevented child apps from being created and possibly orphaned
  *                       if parent not fully installed first
  * 1.1                 - Removed mode input
@@ -64,7 +65,7 @@ preferences {
             section('Dimmer Button Controller Child Apps') {
                 app(name: 'childApps2', appName: 'Dimmer Button Controller (Child App) 2', namespace: 'RMoRobert', title: 'Add new Dimmer Button Controller automation', multiple: true)
                 // Show DBC 1.x child (and allow new creation) if any instances already exist:
-                if (getChildApps().find { it.name == 'Dimmer Button Controller (Child App)' }) {
+                if (app?.getChildApps()?.find { it.name == 'Dimmer Button Controller (Child App)' }) {
                     app(name: 'childApps1', appName: 'Dimmer Button Controller (Child App)', namespace: 'RMoRobert',
                         title: 'Add new Dimmer Button Controller 1.x automation (deprecated)', multiple: true)
                 }
