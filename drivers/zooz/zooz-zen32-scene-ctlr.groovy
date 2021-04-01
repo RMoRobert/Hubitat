@@ -259,7 +259,7 @@ void push(btnNum) {
 void hold(btnNum) {
    sendEvent(name: "held", value: btnNum, isStateChange: true, type: "digital")
 }
-x
+
 void release(btnNum) {
    sendEvent(name: "released", value: btnNum, isStateChange: true, type: "digital")
 }
