@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 1.4.1 (2021-04-06) - Fixed error when running report notification
  * 1.4   (2021-04-05) - Added more refresh options; added link to device pages on "manual" report page
  * 1.3   (2020-12-18) - Added ability to refresh selected devices before report, ability to select multiple notification
  *                      devices, and better default date/time formatting on "View current report" page
@@ -107,7 +108,7 @@ def pageMain() {
               page: "pageViewReport",
               title: "View current report",
               description: "Evaluate all devices now according to the criteria above, and display a report of \"inactive\" devices.")
-			paragraph "The \"Text Notification Now\" button will send a notification to your selected device(s) if there is inactivity to report. This a manual method to trigger the same report the above options would also create:"
+			paragraph "The \"Test Notification Now\" button will send a notification to your selected device(s) if there is inactivity to report. This a manual method to trigger the same report the above options would also create:"
 			input name: "btnTestNotification", type: "button", title: "Test Notification Now"
 		}
 		
@@ -229,8 +230,11 @@ def pageRemoveGroup(params) {
 def pageViewReport() {
    logDebug "Loading \"View current report\" page... (if you have device refresh enabled, this may take several seconds)"
 	dynamicPage(name: "pageViewReport", title: "Device Activity Check", uninstall: false, install: false, nextPage: "pageMain") {
+      if (refreshBeforeViewReport) {
+         performRefreshes()
+      }
 		section(styleSection("Inactive Device Report")) {
-			List<com.hubitat.app.DeviceWrapper> inactiveDevices = getInactiveDevices(settings["refreshBeforeViewReport"] ?: false)
+			List<com.hubitat.app.DeviceWrapper> inactiveDevices = getInactiveDevices(true)
 			if (inactiveDevices) {
 				paragraph "<strong>Device</strong>", width: 6
 				paragraph "<strong>Last Activity</strong>", width: 6
@@ -260,7 +264,6 @@ List<com.hubitat.app.DeviceWrapper> getInactiveDevices(Boolean sortByName=true) 
    logDebug "getInactiveDevices()...", "trace"
 	List<Integer> groups = state.groups ?: [1]
 	List<com.hubitat.app.DeviceWrapper> inactiveDevices = []
-	List<com.hubitat.app.DeviceWrapper> toRefreshDevices = []
 	Long currEpochTime = now()
    Closure inactivityDetectionClosure
    Closure disabledCheckClosure = { com.hubitat.app.DeviceWrapper dev -> !(dev.isDisabled()) || !(settings["boolIncludeDisabled"]) }
@@ -276,9 +279,6 @@ List<com.hubitat.app.DeviceWrapper> getInactiveDevices(Boolean sortByName=true) 
             disabledCheckClosure(dev)
          }
          inactivityDetectionClosure = inactivityDetectionClosure.curry(cutoffEpochTime)
-         if (settings["group${groupNum}.refreshDevs"] && (settings["group${groupNum}.inactivityMethod"] == "activity" || settings["group${groupNum}.inactivityMethod"] == null)) {
-            toRefreshDevices += settings["group${groupNum}.devices"]?.findAll { settings["group${groupNum}.refreshDevs"].contains (it.getId()) }
-         }
       }
       // For presence-based devices:
       else if (settings["group${groupNum}.inactivityMethod"] == "presence") {
@@ -420,7 +420,7 @@ void sendInactiveNotification(Boolean includeLastActivityTime=(settings["include
       pauseExecution(500)
    }
    logDebug "Preparing list of inactive devices..."
-	List<com.hubitat.app.DeviceWrapper> inactiveDevices = getInactiveDevices(true, true) 
+	List<com.hubitat.app.DeviceWrapper> inactiveDevices = getInactiveDevices(true) 
 	String notificationText = ""
 	if (inactiveDevices && isModeOK()) {
 		notificationText += (settings["includeHubName"] ? "${app.label} - ${location.name}:" : "${app.label}:")		
