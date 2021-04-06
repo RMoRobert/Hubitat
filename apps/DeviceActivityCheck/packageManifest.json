@@ -2,16 +2,16 @@
    "packageName": "Device Activity Check",
    "minimumHEVersion": "2.1.0",
    "author": "Robert Morris",
-   "dateReleased": "2020-12-17",
+   "dateReleased": "2021-04-05",
    "licenseFile": "",
-   "releaseNotes": "Version 1.3: Added ability to refresh devices before sending notification, choose multiple notification devices, and added default date/time formatting for reprot page\n\nPrevious releases:\n * Added ability to monitor presence instead of just device activity\n * Added ability to ignore disabled devices (on by default)",
+   "releaseNotes": "Version 1.4: Added links to device pages on hub report/test page; improved refresh behavior.\nVersion 1.3: Added ability to refresh devices before sending notification, choose multiple notification devices, and added default date/time formatting for reprot page\n\nPrevious releases:\n * Added ability to monitor presence instead of just device activity\n * Added ability to ignore disabled devices (on by default)",
    "apps": [{
          "id": "2fd4ad8d-ac71-4dd1-892d-d169b7a9753b",
          "name": "Device Activity Check",
          "namespace": "RMoRobert",
          "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceActivityCheck/DeviceActivityCheck1.groovy",
          "required": true,
-         "version": "1.3.0",
+         "version": "1.4.0",
          "primary": true,
          "oauth": false
       }]
