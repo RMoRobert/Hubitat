@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v2.1.2  (2021-04-13) - Avoid converting button number to string when creating event
  *  v2.1.2  (2020-12-20) - Modified setParameter() to log only with debug logging enabled
  *  v2.1.1  (2020-11-18) - Fixed local vs. Z-Wave dimming parameter reversal (typo in Inovelli manual)
  *  v2.1    (2020-11-10) - Added second set of "friendly" setIndicator and setLEDColor commands; allow more unset preferences (will not change if not set)
@@ -347,7 +348,7 @@ void zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification c
    if (btnNum) {
       String descriptionText = "${device.displayName} button ${btnNum} was ${btnAction}"
       if (enableDesc) log.info "${descriptionText}"
-      sendEvent(name: "${btnAction}", value: "${btnNum}", descriptionText: descriptionText, isStateChange: true, type: "physical")
+      sendEvent(name: "${btnAction}", value: btnNum, descriptionText: descriptionText, isStateChange: true, type: "physical")
    }
 }
 

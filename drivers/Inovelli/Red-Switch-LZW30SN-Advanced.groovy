@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v2.1.2  (2021-04-13) - Fixed parameter 8 (notification) typo; avoid converting button number to string when creating event
  *  v2.1.1  (2020-12-20) - Modified setParameter() to log only with debug logging enabled
  *  v2.1    (2020-11-10) - Added second set of "friendly" setIndicator and setLEDColor commands; allow more unset preferences (will not change if not set)
  *  v2.0    (2020-11-07) - Substantial rewrite, update for S2/C-7 and new switch firmware
@@ -301,7 +302,7 @@ void zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification c
    if (btnNum) {
       String descriptionText = "${device.displayName} button ${btnNum} was ${btnAction}"
       if (enableDesc) log.info "${descriptionText}"
-      sendEvent(name: "${btnAction}", value: "${btnNum}", descriptionText: descriptionText, isStateChange: true, type: "physical")
+      sendEvent(name: "${btnAction}", value: btnNum, descriptionText: descriptionText, isStateChange: true, type: "physical")
    }
 }
 
@@ -405,7 +406,7 @@ List<String> updated() {
 // Sets "notification LED" parameter to calculated value (calculated 4-byte base-10 value, or 0 for none)
 String setIndicator(value) {
    if (enableDebug) log.debug "setIndicator($value)"
-   return setParameter(16, value, 4)
+   return setParameter(8, value, 4)
 }
 
 // Sets "notification LED" parameter to value calculated based on provided parameters
