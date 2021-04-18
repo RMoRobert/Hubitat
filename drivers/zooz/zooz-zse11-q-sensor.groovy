@@ -14,7 +14,8 @@
  * 
  *  Version History
  *  2021-04-16: Initial release
- *  2021-04-18: Improvements to initial configuration when DC-powered, minor fixes (serial number parsing)
+ *  2021-04-17: Improvements to initial configuration when DC-powered, minor fixes (serial number parsing)
+ *  2021-04-18: Fix for parameter 13 and 172 size
  */
 
 import groovy.transform.Field
@@ -52,7 +53,7 @@ import groovy.transform.Field
            [45:"45 seconds"],[60:"1 minute"],[90:"1.5 minutes"],[120:"2 minutes"],[180:"3 minutes"],[240:"4 minutes"],
            [300:"5 minutes"],[600:"10 minutes"],[900:"15 minutes"],[1800:"30 minutes"],[2700:"45 minutes"],
            [3600:"1 hour"]]],
-      size: 1],
+      size: 2],
    19: [input: [name: "param.19", type: "enum", title: "LED flash for motion",
            options: [[0:"Do not flash when motion is detected"],[1:"Flash when motion is detected (default)"]]],
       size: 1],
@@ -77,7 +78,7 @@ import groovy.transform.Field
            options: [[1:"1 hour"],[2:"2 hours"],[3:"3 hours"],[4:"4 hours (default)"],[5:"5 hours"],
            [6:"6 hours"],[9:"9 hours"],[12:"12 hours"],[18:"18 hours"],[24:"24 hours"],[48:"48 hours"],
            [120:"5 days (120 hours)"],[240:"10 days (240 hours)"],[480:"20 days (480 hours)"],[744:"31 days (744 hours)"]]],
-      size: 1]
+      size: 2]
 ]
 
 @Field static final String wakeUpInstructions = "To wake the device immediately, press and hold the Z-Wave button for 3 seconds."
@@ -95,7 +96,7 @@ metadata {
       capability "PowerSource"
       capability "Configuration"
       capability "Refresh"
-
+      
       // Can uncomment this if want easy way to do without switching to "Device" driver:
       //command "clearChildDevsAndState"
 
@@ -122,8 +123,8 @@ void sendToDevice(List<String> cmds, Integer delay=300) {
    sendHubCommand(new hubitat.device.HubMultiAction(commands(cmds, delay), hubitat.device.Protocol.ZWAVE))
 }
 
-void sendToDevice(String cmd, Long delay=300) {
-   if (logEnable) log.debug "sendToDevice(String $cmd, $delay)"
+void sendToDevice(String cmd) {
+   if (logEnable) log.debug "sendToDevice(String $cmd)"
    sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(cmd), hubitat.device.Protocol.ZWAVE))
 }
 
@@ -280,13 +281,14 @@ void zwaveEvent(hubitat.zwave.commands.wakeupv2.WakeUpNotification cmd) {
    if (txtEnable) log.info "${device.displayName} woke up"
    List<String> cmds = getPendingConfigureAndRefreshCommands()
 
-   cmds << zwave.wakeUpV2.wakeUpNoMoreInformation().format()
+   //cmds << zwave.wakeUpV2.wakeUpNoMoreInformation().format()
   
-   state.pendingRefresh = false
    state.pendingConfigure = false
    state.initialized = true
 
-   sendToDevice(cmds, 500)
+   if (cmds) sendToDevice(cmds, 800)
+   pauseExecution(900)
+   sendToDevice(zwave.wakeUpV2.wakeUpNoMoreInformation().format())
 }
 
 void zwaveEvent(hubitat.zwave.Command cmd){
@@ -404,17 +406,29 @@ List<String> getPendingConfigureAndRefreshCommands(Boolean refreshOnly=false) {
 // (of differences) if any, or empty list if not
 List<String> getPendingConfigurationChanges() {
    List<String> changes = []
+   List<Short> paramsToGet = []
    zwaveParameters.each { param, data ->
       if (settings[data.input.name] != null) {
-         if ((getStoredConfigParamValue(param) == null || getStoredConfigParamValue(param) != settings[data.input.name] as BigInteger) || state.pendingConfigure) {
-            changes << zwave.configurationV1.configurationSet(scaledConfigurationValue: settings[data.input.name] as BigInteger, parameterNumber: param, size: data.size).format()
-            changes << zwave.configurationV1.configurationGet(parameterNumber: param).format()
+         Short paramNumber = param as Short
+         Short paramSize = data.size as Short
+         BigInteger paramValue = settings[data.input.name] as BigInteger
+         if ((getStoredConfigParamValue(paramNumber) == null || getStoredConfigParamValue(paramNumber) != paramValue) || state.pendingConfigure) {
+            if (logEnable) log.debug "parameter $paramNumber (size $paramSize) is ${getStoredConfigParamValue(paramNumber)} but should be $paramValue; adding to commands..."
+            changes << zwave.configurationV1.configurationSet(scaledConfigurationValue: paramValue,
+                                                              parameterNumber: paramNumber,
+                                                              size: paramSize).format()
+            paramsToGet << paramNumber
          }
       }
    }
+   if (paramsToGet) {
+      paramsToGet.each {
+         changes << zwave.configurationV1.configurationGet(parameterNumber: it).format()
+      }
+   }
    if (device.currentValue("powerSource") != "dc" &&
-       (getDataValue("zwWakeupInterval") && ((getDataValue("zwWakeupInterval") as Integer) != defaultWakeUpInterval)) ||
-       state.pendingRefresh) {
+      (getDataValue("zwWakeupInterval") && ((getDataValue("zwWakeupInterval") as Integer) != defaultWakeUpInterval)) ||
+      state.pendingRefresh) {
       changes << zwave.wakeUpV2.wakeUpIntervalSet(seconds: defaultWakeUpInterval, nodeid: zwaveHubNodeId ?: 1).format()
    }
    if (logEnable) "getPendingConfigurationChanges: $changes"
