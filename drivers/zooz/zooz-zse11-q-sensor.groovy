@@ -13,19 +13,20 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
- *  2021-04-15: Initial release
+ *  2021-04-16: Initial release
+ *  2021-04:18: Improvements to initial configuration when DC-powered, minor fixes (serial number parsing)
  */
 
 import groovy.transform.Field
 
 @Field static final Map commandClassVersions = [
-	0x30: 2,    // SensorBinary
+   0x30: 2,    // SensorBinary
    0x31: 5,    // Sensor Multilevel
-	0x55: 1,    // Transport Service
+   0x55: 1,    // Transport Service
    0x59: 1,    // AssociationGrpInfo
    0x5A: 1,    // DeviceResetLocally
    0x5E: 2,    // ZwaveplusInfo
-	0x6C: 1,    // Supervision
+   0x6C: 1,    // Supervision
    0x70: 2,    // Configuration
    0x71: 3,    // Notification
    0x72: 2,    // ManufacturerSpecific
@@ -91,9 +92,12 @@ metadata {
       capability "IlluminanceMeasurement"
       capability "TemperatureMeasurement"
       capability "TamperAlert"
-		capability "PowerSource"
+      capability "PowerSource"
       capability "Configuration"
       capability "Refresh"
+
+      // Can uncomment this if want easy way to do without switching to "Device" driver:
+      //command "clearChildDevsAndState"
 
       fingerprint mfr:"027A", prod:"0201", deviceId:"0006", inClusters:"0x5E,0x6C,0x55,0x98,0x9F"
       fingerprint mfr:"027A", prod:"0201", deviceId:"0006"
@@ -159,20 +163,21 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
 }
 
 void zwaveEvent(hubitat.zwave.commands.versionv2.VersionReport cmd) {
-	if (logEnable) log.debug "VersionReport: ${cmd}"
-	device.updateDataValue("firmwareVersion", "${cmd.firmware0Version}.${cmd.firmware0SubVersion}")
-	device.updateDataValue("protocolVersion", "${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion}")
-	device.updateDataValue("hardwareVersion", "${cmd.hardwareVersion}")
+   if (logEnable) log.debug "VersionReport: ${cmd}"
+   device.updateDataValue("firmwareVersion", "${cmd.firmware0Version}.${cmd.firmware0SubVersion}")
+   device.updateDataValue("protocolVersion", "${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion}")
+   device.updateDataValue("hardwareVersion", "${cmd.hardwareVersion}")
 }
 
 void zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.DeviceSpecificReport cmd) {
    if (logEnable) log.debug "DeviceSpecificReport v2: ${cmd}"
    switch (cmd.deviceIdType) {
-      case 1:
+      case 1: // apparently not used for this, but just in case?
+      case 2:
          // serial number
          String serialNumber = ""
          if (cmd.deviceIdDataFormat==1) {
-            cmd.deviceIdData.each { serialNumber += hubitat.helper.HexUtils.integerToHexString(it & 0xff, 1).padLeft(2, '0')}
+            cmd.deviceIdData.each { serialNumber += hubitat.helper.HexUtils.integerToHexString(it & 0xFF, 1).padLeft(2, '0')}
          } else {
             cmd.deviceIdData.each { serialNumber += (char)it }
          }
@@ -207,7 +212,7 @@ void zwaveEvent(hubitat.zwave.commands.batteryv1.BatteryReport cmd) {
 }
 
 void zwaveEvent(hubitat.zwave.commands.sensorbinaryv2.SensorBinaryReport cmd) {
-	if (logEnable) log.debug "SensorBinaryReport: $cmd"
+   if (logEnable) log.debug "SensorBinaryReport: $cmd"
    if (cmd.sensorType == hubitat.zwave.commands.sensorbinaryv2.SensorBinaryReport.SENSOR_TYPE_MOTION) {
       if (cmd.sensorValue) {
          String descText = "${device.displayName} motion is active"
@@ -295,26 +300,23 @@ void installed(){
 
 void refresh() {
    if (logEnable) log.debug "refresh()"
+   state.pendingRefresh = true
    if (device.currentValue("powerSource") == "dc") {
       log.debug "Device is DC-powered; running refresh commands now"
-      List<String> cmds = getPendingConfigureAndRefreshCommands  
+      List<String> cmds = getPendingConfigureAndRefreshCommands(true)
       state.pendingRefresh = false
-      state.pendingConfigure = false
       state.initialized = true
       sendToDevice(cmds, 500)
    }
    else {
-      state.pendingConfigure = true
-      log.debug "Configuration will be applied when the device wakes up. ${wakeUpInstructions}"
+      if (logEnable) log.debug "Device will fetch new data when the device wakes up. ${wakeUpInstructions}"
    }
-   state.pendingRefresh = true
-   if (logEnable) log.debug "Device will fetch new data when the device wakes up. ${wakeUpInstructions}"
 }
 
 void configure() {
    log.debug "configure()"
-   if (device.currentValue("powerSource") == "dc") {
-      log.debug "Device is DC-powered; running configure commands now"
+   if (device.currentValue("powerSource") != "battery") {
+      log.debug "running configure commands now (device is DC-powered or just installed/awake)"
       List<String> cmds = getPendingConfigureAndRefreshCommands()   
       state.pendingRefresh = false
       state.pendingConfigure = false
@@ -337,8 +339,9 @@ void updated() {
       runIn(1800, "logsOff")
    }
    if (device.currentValue("powerSource") == null) { // look for Z-Wave Battery command class (0x80)
-      String powerSource = (((zwaveInfo?.cc?.find { it.toString() == "80" }) || (zwaveInfo?.sec?.find { it.toString() == "80" }))
-         ? "battery" : "dc")
+      String powerSource = (device.getDataValue("inClusters")?.tokenize(",")?.contains("0x80") ||
+                           device.getDataValue("secureInClusters")?.tokenize(",")?.contains("0x80")) ? "battery" : "dc"
+      log.trace "**** powerSource = $powerSource"
       sendEvent(name: "powerSource", value: powerSource, descriptionText: "${device.displayName} power source is $powerSource")
       if (txtEnable) log.info "${device.displayName} power source is $powerSource"
    }
@@ -360,7 +363,7 @@ void updated() {
 }
 
 List<String> getPendingConfigureAndRefreshCommands(Boolean refreshOnly=false) {
-    List<String> cmds = []
+   List<String> cmds = []
 
    // refresh (or initial fetch if needed)
    if (state.pendingRefresh || device.currentValue("battery") == null && device.currentValue("powerSource") != "dc") {
@@ -369,25 +372,25 @@ List<String> getPendingConfigureAndRefreshCommands(Boolean refreshOnly=false) {
    if (state.pendingRefresh || !getDataValue("firmwareVersion")) {
       cmds  << zwave.versionV2.versionGet().format()
       //cmds << zwave.manufacturerSpecificV2.deviceSpecificGet().format()
-      cmds << zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 1).format()
+      cmds << zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 2).format()
    }
    if (state.pendingRefresh || !(getDataValue("zwWakeupInterval"))) {
       cmds << zwave.wakeUpV2.wakeUpIntervalGet().format()
    }
    if (state.pendingRefresh || device.currentValue("temperature") == null) {
-	   cmds << zwave.sensorMultilevelV5.sensorMultilevelGet(scale: 2,
-         sensorType: hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelSupportedScaleReport.SENSOR_TYPE_TEMPERATURE_VERSION_1)
+      cmds << zwave.sensorMultilevelV5.sensorMultilevelGet(scale: 2,
+         sensorType: hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelSupportedScaleReport.SENSOR_TYPE_TEMPERATURE_VERSION_1).format()
    }
    if (state.pendingRefresh || device.currentValue("humidity") == null) {
-	   cmds << zwave.sensorMultilevelV5.sensorMultilevelGet(scale: 2,
-         sensorType: hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelSupportedScaleReport.SENSOR_TYPE_RELATIVE_HUMIDITY_VERSION_2)
+      cmds << zwave.sensorMultilevelV5.sensorMultilevelGet(scale: 2,
+         sensorType: hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelSupportedScaleReport.SENSOR_TYPE_RELATIVE_HUMIDITY_VERSION_2).format()
    }
    if (state.pendingRefresh || device.currentValue("illuminance") == null) {
-	   cmds << zwave.sensorMultilevelV5.sensorMultilevelGet(scale: 2,
-         sensorType: hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelSupportedScaleReport.SENSOR_TYPE_LUMINANCE_VERSION_1)
+      cmds << zwave.sensorMultilevelV5.sensorMultilevelGet(scale: 2,
+         sensorType: hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelSupportedScaleReport.SENSOR_TYPE_LUMINANCE_VERSION_1).format()
    }
    if (state.pendingRefresh || device.currentValue("motion") == null) {
-	   cmds << zwave.sensorBinaryV2.sensorBinaryGet(sensorType: hubitat.zwave.commands.sensorbinaryv2.SensorBinaryReport.SENSOR_TYPE_MOTION)
+      cmds << zwave.sensorBinaryV2.sensorBinaryGet(sensorType: hubitat.zwave.commands.sensorbinaryv2.SensorBinaryReport.SENSOR_TYPE_MOTION).format()
    }
 
    // configure (or initial set if needed)
