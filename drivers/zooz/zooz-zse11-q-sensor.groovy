@@ -14,7 +14,7 @@
  * 
  *  Version History
  *  2021-04-16: Initial release
- *  2021-04:18: Improvements to initial configuration when DC-powered, minor fixes (serial number parsing)
+ *  2021-04-18: Improvements to initial configuration when DC-powered, minor fixes (serial number parsing)
  */
 
 import groovy.transform.Field
@@ -341,7 +341,6 @@ void updated() {
    if (device.currentValue("powerSource") == null) { // look for Z-Wave Battery command class (0x80)
       String powerSource = (device.getDataValue("inClusters")?.tokenize(",")?.contains("0x80") ||
                            device.getDataValue("secureInClusters")?.tokenize(",")?.contains("0x80")) ? "battery" : "dc"
-      log.trace "**** powerSource = $powerSource"
       sendEvent(name: "powerSource", value: powerSource, descriptionText: "${device.displayName} power source is $powerSource")
       if (txtEnable) log.info "${device.displayName} power source is $powerSource"
    }
