@@ -13,9 +13,10 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
- *  2021-04-16: Initial release
- *  2021-04-17: Improvements to initial configuration when DC-powered, minor fixes (serial number parsing)
+ *  2021-04-19: Added option for temperature and humidity value adjustment
  *  2021-04-18: Fix for parameter 13 and 172 size
+ *  2021-04-17: Improvements to initial configuration when DC-powered, minor fixes (serial number parsing)
+ *  2021-04-16: Initial release
  */
 
 import groovy.transform.Field
@@ -108,6 +109,8 @@ metadata {
       zwaveParameters.each {
          input it.value.input
       }
+      input name: "tempAdjust", type: "number", title: "Adjust temperature value by this amount", description: "Example: 0.4 or -1.5 (optional)"
+      input name: "humidAdjust", type: "number", title: "Adjust humidity value by this amount", description: "Example: 0.4 or -1.5 (optional)"
       input name: "logEnable", type: "bool", title: "Enable debug logging", defaultValue: true
       input name: "txtEnable", type: "bool", title: "Enable descriptionText logging", defaultValue: true
    }
@@ -130,7 +133,7 @@ void sendToDevice(String cmd) {
 
 List<String> commands(List<String> cmds, Long delay=300) {
    if (logEnable) log.debug "commands($cmds, $delay)"
-   return delayBetween(cmds.collect{ zwaveSecureEncap(it) }, delay)
+   return delayBetween(cmds.collect{ it.startsWith("delay ") ? it : zwaveSecureEncap(it) }, delay)
 }
 
 void setStoredConfigParamValue(Integer parameterNumber, BigInteger parameterValue) {
@@ -251,20 +254,24 @@ void zwaveEvent(hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelReport
    switch (cmd.sensorType as Short) {
          case hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelSupportedScaleReport.SENSOR_TYPE_TEMPERATURE_VERSION_1:
             String unit = cmd.scale ? "F" : "C"
-            String temp = convertTemperatureIfNeeded(cmd.scaledSensorValue, unit, cmd.precision)
+            String strTemp = convertTemperatureIfNeeded(cmd.scaledSensorValue, unit, cmd.precision)
+            BigDecimal temp = new BigDecimal(strTemp)
+            if (settings["tempAdjust"]) temp += (settings["tempAdjust"] as BigDecimal)
             String descText = "${device.displayName} temperature is ${temp} °${unit}"
-            sendEvent(name: "temperature", value: temp as BigDecimal, unit: "°${unit}", descriptionText: descText)
+            if (settings["tempAdjust"]) descText += " (adjusted per settings from: $strTemp)"
+            sendEvent(name: "temperature", value: temp, unit: "°${unit}", descriptionText: descText)
             if (txtEnable) log.info descText
             break
       case hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelSupportedScaleReport.SENSOR_TYPE_LUMINANCE_VERSION_1:
-         BigDecimal val = Math.round(cmd.scaledSensorValue)
+         Integer val = Math.round(cmd.scaledSensorValue)
          String descText = "${device.displayName} illuminance is ${val} lx"
          sendEvent(name: "illuminance", value: val, unit: "lx", descriptionText: descText)
          if (txtEnable) log.info descText
          break
       case hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelSupportedScaleReport.SENSOR_TYPE_RELATIVE_HUMIDITY_VERSION_2:
-         BigDecimal val = cmd.scaledSensorValue
+         Integer val = Math.round(cmd.scaledSensorValue + (settings["humidAdjust"] as Double ?: 0))
          String descText = "${device.displayName} humidity is ${val}%"
+            if (settings["humidAdjust"]) descText += " (adjusted per settings from: ${cmd.scaledSensorValue})"
          sendEvent(name: "humidity", value: val, unit: "%", descriptionText: descText)
          if (txtEnable) log.info descText
          break
@@ -286,9 +293,12 @@ void zwaveEvent(hubitat.zwave.commands.wakeupv2.WakeUpNotification cmd) {
    state.pendingConfigure = false
    state.initialized = true
 
-   if (cmds) sendToDevice(cmds, 800)
-   pauseExecution(900)
-   sendToDevice(zwave.wakeUpV2.wakeUpNoMoreInformation().format())
+   if (cmds) {
+      cmds << "delay 2000"
+      cmds << zwave.wakeUpV2.wakeUpNoMoreInformation().format()
+   }
+   
+   sendToDevice(cmds, 750)
 }
 
 void zwaveEvent(hubitat.zwave.Command cmd){
