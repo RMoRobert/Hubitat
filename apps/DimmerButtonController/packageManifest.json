@@ -1,29 +1,29 @@
 {
-	"packageName": "Dimmer Button Controller",
-	"minimumHEVersion": "2.1.2",
-	"author": "Robert Morris",
-	"dateReleased": "2020-10-10",
-	"licenseFile": "",
-	"releaseNotes": "Version 2.1.2: Minor bugfix for display name of press/action numbers greater than 9.\n\nNote: Version 2 is a major upgrade and is not directly upgradeable from version 1. Version 1 users should consult the Community thread for manual upgrade instructions.",
-	"apps" : [
-		{
-			"id": "34a19578-5345-4562-9e01-ebc057f394x5",
-			"name": "Dimmer Button Controller",
-			"namespace": "RMoRobert",
-			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonControllerParent.groovy",
-			"required": true,
-			"version": "2.0.0",
-			"primary": true,
-			"oauth": false
-		},
-		{
-			"id": "540001c2-58a9-4414-9c2b-c3408420ex9b",
-			"name": "Dimmer Button Controller (Child App) 2",
-			"namespace": "RMoRobert",
-			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonController2.groovy",
-			"required": true,
-			"version": "2.1.2",
-			"oauth": false
-		}
-	]
+   "packageName": "Dimmer Button Controller",
+   "minimumHEVersion": "2.1.2",
+   "author": "Robert Morris",
+   "dateReleased": "2020-04-21",
+   "licenseFile": "",
+   "releaseNotes": "Version 2.1.3: Fix for \"togggle\" option not showing with only single dimmer selected\n\nVersion 2.1.2: Minor bugfix for display name of press/action numbers greater than 9.\n\nNote: Version 2 is a major upgrade and is not directly upgradeable from version 1. Version 1 users should consult the Community thread for manual upgrade instructions.",
+   "apps" : [
+      {
+         "id": "34a19578-5345-4562-9e01-ebc057f394x5",
+         "name": "Dimmer Button Controller",
+         "namespace": "RMoRobert",
+         "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonControllerParent.groovy",
+         "required": true,
+         "version": "2.0.3",
+         "primary": true,
+         "oauth": false
+      },
+      {
+         "id": "540001c2-58a9-4414-9c2b-c3408420ex9b",
+         "name": "Dimmer Button Controller (Child App) 2",
+         "namespace": "RMoRobert",
+         "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonController2.groovy",
+         "required": true,
+         "version": "2.1.3",
+         "oauth": false
+      }
+   ]
 }

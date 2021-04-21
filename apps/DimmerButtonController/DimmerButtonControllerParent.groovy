@@ -27,67 +27,68 @@
  * 
  *  Author: Robert Morris
  *
- * == Parent version: 2.0.0 ==
- *
  * Changelog:
- * 2.0.2 (2020-10-24)  - Minor bugfix in parent app for new installs
- * 2.0    (2020-04-12) - Allows creation of DBC 2.0 child apps; prevented child apps from being created and possibly orphaned
+ * 2.0.3  (2021-04-21)  - Code formatting cleanup (no functional changes); added documentation link
+ * 2.0.2  (2020-10-24)  - Minor bugfix in parent app for new installs
+ * 2.0    (2020-04-12)  - Allows creation of DBC 2.0 child apps; prevented child apps from being created and possibly orphaned
  *                       if parent not fully installed first
- * 1.1                 - Removed mode input
- * 1.0    (2018-12-27) - Parent app first release
+ * 1.1                  - Removed mode input
+ * 1.0    (2018-12-27)  - Parent app first release
  *
  */ 
  
 definition(
-    name: 'Dimmer Button Controller',
-    namespace: 'RMoRobert',
-    author: 'Robert Morris',
-    singleInstance: true,
-    installOnOpen: true,
-    description: 'Easily configure a button device such as a Pico remote to control one or more bulbs/dimmers/switches with on/off, scene switching, and dimming',
-    category: 'Convenience',        
-    iconUrl: '',
-    iconX2Url: '',
-    iconX3Url: ''
+   name: 'Dimmer Button Controller',
+   namespace: 'RMoRobert',
+   author: 'Robert Morris',
+   singleInstance: true,
+   installOnOpen: true,
+   description: 'Easily configure a button device such as a Pico remote to control one or more bulbs/dimmers/switches with on/off, scene switching, and dimming',
+   category: 'Convenience',        
+   iconUrl: '',
+   iconX2Url: '',
+   iconX3Url: '',
+   documentationLink: "https://community.hubitat.com/t/release-dimmer-button-controller-configure-pico-to-emulate-hue-dimmer-or-any-button-device-to-easily-control-lights/7726"
 )
 
 preferences {
-    page(name: 'mainPage', title: 'Dimmer Button Controller', install: true, uninstall: true) {
-        if (app.getInstallationState() == 'INCOMPLETE') {
-            // Shouldn't happen with installOnOpen: true, but just in case...
-            section() {
-                paragraph('Please press "Done" to finish installing this app, then re-open it to add Dimmer Button Controller child instances.')
-            }
-        } else {
-            section ('About Dimmer Button Controller') {
-                paragraph title: 'Dimmer Button Controller', 'This app helps you create automations that control one or more bulbs/dimmers/switches with a button controller device (a 5-button Pico with the "fast" driver, a Hue Dimmer, or an Eria dimmer are recommended, but any button device should work).'
-            }         
-            section('Dimmer Button Controller Child Apps') {
-                app(name: 'childApps2', appName: 'Dimmer Button Controller (Child App) 2', namespace: 'RMoRobert', title: 'Add new Dimmer Button Controller automation', multiple: true)
-                // Show DBC 1.x child (and allow new creation) if any instances already exist:
-                if (app?.getChildApps()?.find { it.name == 'Dimmer Button Controller (Child App)' }) {
-                    app(name: 'childApps1', appName: 'Dimmer Button Controller (Child App)', namespace: 'RMoRobert',
-                        title: 'Add new Dimmer Button Controller 1.x automation (deprecated)', multiple: true)
-                }
-            }
-        }
-    }
+   page(name: 'mainPage', title: 'Dimmer Button Controller', install: true, uninstall: true) {
+      if (app.getInstallationState() == 'INCOMPLETE') {
+         // Shouldn't happen with installOnOpen: true, but just in case...
+         section() {
+               paragraph('Please press "Done" to finish installing this app, then re-open it to add Dimmer Button Controller child instances.')
+         }
+      }
+      else {
+         section ('About Dimmer Button Controller') {
+               paragraph title: 'Dimmer Button Controller', 'This app helps you create automations that control one or more bulbs/dimmers/switches with a button controller device (a 5-button Pico with the "fast" driver, a Hue Dimmer, or an Eria dimmer are recommended, but any button device should work).'
+         }         
+         section('Dimmer Button Controller Child Apps') {
+               app(name: 'childApps2', appName: 'Dimmer Button Controller (Child App) 2', namespace: 'RMoRobert', title: 'Add new Dimmer Button Controller automation', multiple: true)
+               // Show DBC 1.x child (and allow new creation) if any instances already exist:
+               if (app?.getChildApps()?.find { it.name == 'Dimmer Button Controller (Child App)' }) {
+                  app(name: 'childApps1', appName: 'Dimmer Button Controller (Child App)', namespace: 'RMoRobert',
+                     title: 'Add new Dimmer Button Controller 1.x automation (deprecated)', multiple: true)
+               }
+         }
+      }
+   }
 }
 
-def installed() {
-    //log.debug "Installed with settings: ${settings}"
-    initialize()
+void installed() {
+   //log.debug "Installed with settings: ${settings}"
+   initialize()
 }
 
-def updated() {
-    //log.debug "Updated with settings: ${settings}"
-    unsubscribe()
-    initialize()
+void updated() {
+   //log.debug "Updated with settings: ${settings}"
+   unsubscribe()
+   initialize()
 }
 
-def initialize() {
-    log.debug "Initializing; there are ${childApps.size()} child apps installed: ..."
-    childApps.each {child ->
-        log.debug "  child app: ${child.label}"
-    }
+void initialize() {
+   log.debug "Initializing; there are ${childApps.size()} child apps installed: ..."
+   childApps.each {child ->
+      log.debug "  child app: ${child.label}"
+   }
 }
