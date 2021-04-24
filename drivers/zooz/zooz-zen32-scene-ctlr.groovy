@@ -36,7 +36,8 @@
  *
  * 
  *  Changelog:
- *  v1.0    (2021-04-01) - Initial Release   
+ *  v1.0.1  (2021-04-23): Fix typo in BasicGet; pad firmware subversion with 0 as needed
+ *  v1.0    (2021-04-01): Initial Release   
  */
 
 import groovy.transform.Field
@@ -122,7 +123,7 @@ metadata {
 
       fingerprint mfr:"027A", prod:"7000", deviceId:"A008", inClusters:"0x5E,0x25,0x70,0x20,0x5B,0x85,0x8E,0x59,0x55,0x86,0x72,0x5A,0x73,0x87,0x9F,0x6C,0x7A" 
       fingerprint mfr:"027A", prod:"7000", model: "A008"
-      }
+   }
 
    preferences {
       zwaveParameters.each {
@@ -156,10 +157,10 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd){
 }
 
 void zwaveEvent(hubitat.zwave.commands.versionv2.VersionReport cmd) {
-	if (enableDebug) log.debug "VersionReport: ${cmd}"
-	device.updateDataValue("firmwareVersion", "${cmd.firmware0Version}.${cmd.firmware0SubVersion}")
-	device.updateDataValue("protocolVersion", "${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion}")
-	device.updateDataValue("hardwareVersion", "${cmd.hardwareVersion}")
+   if (logEnable) log.debug "VersionReport: ${cmd}"
+   device.updateDataValue("firmwareVersion", """${cmd.firmware0Version}.${String.format("%02d", cmd.firmware0SubVersion)}""")
+   device.updateDataValue("protocolVersion", "${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion}")
+   device.updateDataValue("hardwareVersion", "${cmd.hardwareVersion}")
 }
 
 void zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.DeviceSpecificReport cmd) {
@@ -234,7 +235,7 @@ void zwaveEvent(hubitat.zwave.Command cmd){
 List<String> refresh() {
    if (enableDebug) log.debug "refresh"
    return delayBetween([
-      zwaveSecureEncap(zwave.basicv1.basicGet()),
+      zwaveSecureEncap(zwave.basicV1.basicGet()),
       zwaveSecureEncap(zwave.configurationV1.configurationGet()),
       zwaveSecureEncap(zwave.versionV2.versionGet())
    ], 100)
