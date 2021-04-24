@@ -1,7 +1,7 @@
 /**
  *  iBlinds v3 (manufactured by HAB Home Intel) community driver for Hubitat
  * 
- *  Copyright 2020 Robert Morris
+ *  Copyright 2021 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
+ *  2021-04-24: Added daily battery refresh option in case device does not send on own; Supervision improvements for S2 devices
  *  2020-11-22: Initial release for iBlinds v3 (portions based on v2 driver)
  *  2020-11-24: Added missing "position" events, Z-Wave parameter 1 option and paramter 3 auto-setting (for reporting to hub);
  *              Added option for default digital "on"/"open" position; battery reports now always generate event (state change)
@@ -22,10 +23,22 @@
 
 import groovy.transform.Field
 
-@Field static Map commandClassVersions = [
-    0x20: 1,    // Basic
-    0x26: 2,    // Switch Multilevel
-    0x70: 1,    // Configuration
+@Field static final Map commandClassVersions = [
+   0x20: 1,   // Basic
+   0x26: 2,   // Switch Multilevel
+   0x55: 1,   // Transport Service
+   //0x59: 1, // AssociationGrpInfo
+   0x5A: 1,   // DeviceResetLocally
+   0x5E: 2,   // ZwavePlusInfo
+   0x6C: 1,   // Supervision
+   0x70: 1,   // Configuration
+   0x72: 1,   // ManufacturerSpecific
+   //0x7A: 2, // Firmware Update Md (v5)
+   0x80: 1,   // Battery
+   //0x85: 2, // Association
+   0x86: 1,   // Version (v2)
+   0x8E: 2,   // MultiChannelAssociation (v3)
+   0x9F: 1    // Security S2
 ]
 
 @Field static final Map zwaveParameters = [
@@ -43,15 +56,19 @@ import groovy.transform.Field
            range: 1..99], size: 1]
 ]
 
+@Field static Map<Long, Map<Short, String>> supervisedPackets = [:]
+@Field static Map<Long, Short> sessionIDs = [:]
+
 metadata {
    definition (name: "iBlinds v3 (Community Driver)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/iBlinds-v3.groovy") {
       capability "Actuator"
-      capability "WindowShade" 
-      capability "SwitchLevel"
-      capability "Switch"  
+      capability "Initialize"
+      capability "Configuration"
       capability "Refresh"
       capability "Battery"
-      capability "Configuration"
+      capability "Switch"
+      capability "SwitchLevel"
+      capability "WindowShade"
 
       fingerprint  mfr: "0287", prod: "0004", deviceId: "0071", inClusters: "0x5E,0x55,0x98,0x9F,0x6C"
    }
@@ -61,6 +78,9 @@ metadata {
          input it.value.input
       }
       input name: "openPosition", type: "number", description: "", title: "\"Open\" command opens to... (default = 50):", defaultValue: 50, range: 1..99
+      input name: "refreshTime", type: "enum", description: "", title: "Schedule daily battery level refresh during this hour",
+      options: [[0:"12 Midnight"],[1:"1 AM"],[4:"4 AM"],[5:"5 AM"],[6:"6 AM"],[9:"9 AM"],[10:"10 AM"],[11:"11 AM"],[13:"1 PM"],[15:"3 PM"],
+                  [17:"5 PM"],[22: "10 PM"],[23:"11 PM"],[1000: "Disabled"],[2000: "Random"]]
       input name: "enableDebug", type: "bool", title: "Enable debug logging", defaultValue: true
       input name: "enableDesc", type: "bool", title: "Enable descriptionText logging", defaultValue: true
    }
@@ -77,9 +97,10 @@ List<String> updated() {
    initialize()
 }
 
-List<String> initialize() {    
+List<String> initialize() {
    logDebug("Initializing")
    unschedule()
+   scheduleBatteryRefresh()
    Integer disableTime = 1800
    if (enableDebug) {
       log.debug "Debug logging will be automatically disabled in ${disableTime} seconds"
@@ -89,7 +110,7 @@ List<String> initialize() {
 }
 
 List<String> configure() {
-   log.warn "configure()"   
+   log.warn "configure()"
    List<String> cmds = []
    zwaveParameters.each { param, data ->
       if (settings[data.input.name] != null && settings[data.input.name] != data.ignoreValue) {
@@ -111,6 +132,33 @@ void debugOff() {
    device.updateSetting("enableDebug", [value:"false", type:"bool"])
 }
 
+void scheduleBatteryRefresh() {
+   if (refreshTime != null && refreshTime != 1000) {
+      String cronStr
+      Integer s = Math.round(Math.random() * 60)
+      Integer m = Math.round(Math.random() * 60)
+      if (s >= 60) s = 59
+      if (m >= 60) m = 59
+      Integer hour = refreshTime as Integer
+      if (hour == 2000) { // if set to random time
+         Integer h = Math.round(Math.random() * 23)
+         if (h == 2) h = 3 // avoid default maintenance window
+         cronStr = "${s} ${m} ${h} ? * * *"
+      } else if (hour >= 0 && hour <= 23) {
+         cronStr = "${s} ${m} ${hour} ? * * *"
+      }
+      else {
+         log.debug "invalid battery refresh time configuration: hour = $hour"
+      }
+      logDebug "battery schedule = \"${cronStr}\""
+      if (cronStr) schedule(cronStr, "getBattery")
+   }
+   else {
+      logDebug "Battery refresh not configured; unscheduling if scheduled"
+      unschedule("getBattery")
+   }
+}
+
 void parse(String description) {
    logDebug("parse: $description")
    if (description != "updated") {
@@ -119,6 +167,63 @@ void parse(String description) {
          zwaveEvent(cmd)
       }
    }
+}
+
+void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
+   hubitat.zwave.Command encapCmd = cmd.encapsulatedCommand(commandClassVersions)
+   if (encapCmd) {
+      zwaveEvent(encapCmd)
+   }
+   sendHubCommand(new hubitat.device.HubAction(
+      zwaveSecureEncap(zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID,
+         reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0)),
+         hubitat.device.Protocol.ZWAVE)
+   )
+}
+
+void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionReport cmd) {
+   logDebug "supervision report for session: ${cmd.sessionID}"
+   if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
+   if (supervisedPackets[device.id][cmd.sessionID] != null) { supervisedPackets[device.id].remove(cmd.sessionID) }
+   unschedule(supervisionCheck)
+}
+
+void supervisionCheck() {
+   // re-attempt once
+   if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
+   supervisedPackets[device.id].each { k, v ->
+      logDebug "re-sending supervised session: ${k}"
+      sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(v), hubitat.device.Protocol.ZWAVE))
+      supervisedPackets[device.id].remove(k)
+   }
+}
+
+Short getSessionId() {
+    Short sessId = 1
+    if (!sessionIDs[device.id]) {
+        sessionIDs[device.id] = sessId
+        return sessId
+    } else {
+        sessId = sessId + sessionIDs[device.id]
+        if (sessId > 63) sessId = 1
+        sessionIDs[device.id] = sessId
+        return sessId
+    }
+}
+
+hubitat.zwave.Command supervisedEncap(hubitat.zwave.Command cmd) {
+    if (getDataValue("S2")?.toInteger() != null) {
+        hubitat.zwave.commands.supervisionv1.SupervisionGet supervised = new hubitat.zwave.commands.supervisionv1.SupervisionGet()
+        supervised.sessionID = getSessionId()
+        logDebug "new supervised packet for session: ${supervised.sessionID}"
+        supervised.encapsulate(cmd)
+        if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
+        supervisedPackets[device.id][supervised.sessionID] = supervised.format()
+        runIn(5, supervisionCheck)
+        return supervised
+    } else {
+        return cmd
+    }
 }
 
 void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd) {
@@ -256,23 +361,41 @@ List<String> setPosition(value) {
 List<String> setLevel(value) {
    logDebug("setLevel($value)")
    Integer level = Math.max(Math.min(value as Integer, 99), 0)
-   return [zwaveSecureEncap(zwave.switchMultilevelV2.switchMultilevelSet(value: level))]
+   hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: level)
+   return [zwaveSecureEncap(supervisedEncap(cmd))]
 }
 
 List<String> setLevel(value, duration) {
    logDebug("setLevel($value, $duration)")
+   // First, if a battery refresh hasn't happened in the last day and is scheduled to,
+   // attempt to recover this schedule by re-scheduling:
+   if (refreshTime != "1000" && (now() - (state.lastBattAttemptAt ?: 0) > 86400000)) {
+      scheduleBatteryRefresh()
+   }
+   // Now, set level:
    Integer level = Math.max(Math.min(value as Integer, 99), 0)
    Integer dimmingDuration = duration < 128 ? duration : 128 + Math.round(duration / 60)
-   return [zwaveSecureEncap(zwave.switchMultilevelV2.switchMultilevelSet(value: level, dimmingDuration: dimmingDuration))]
+   hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: level, dimmingDuration: dimmingDuration)
+   return [zwaveSecureEncap(supervisedEncap(cmd))]
 }
 
 List<String> refresh() {
    logDebug("refresh()")
+   state.lastBattAttemptAt = now()
    delayBetween([
       //zwaveSecureEncap(zwave.switchBinaryV1.switchBinaryGet()),
       zwaveSecureEncap(zwave.switchMultilevelV2.switchMultilevelGet()),
       zwaveSecureEncap(zwave.batteryV1.batteryGet()),
    ], 200)
+}
+
+void getBattery() {
+   logDebug("getBattery()")
+   state.lastBattAttemptAt = now()
+   sendHubCommand(
+      new hubitat.device.HubAction(zwave.batteryV1.batteryGet().format(),
+                                    hubitat.device.Protocol.ZWAVE)
+   )
 }
 
 void logDebug(str) {
