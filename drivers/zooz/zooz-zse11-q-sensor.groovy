@@ -165,6 +165,14 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
    else {
       if (logEnable) log.debug "Unable to de-encapsulate command from $cmd"
    }
+   // Is this necessary (or effective) on sleep devices?
+   /*
+   sendHubCommand(new hubitat.device.HubAction(
+      zwaveSecureEncap(zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID,
+         reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0)),
+         hubitat.device.Protocol.ZWAVE)
+   )
+   */
 }
 
 void zwaveEvent(hubitat.zwave.commands.versionv2.VersionReport cmd) {
@@ -258,9 +266,9 @@ void zwaveEvent(hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelReport
             String strTemp = convertTemperatureIfNeeded(cmd.scaledSensorValue, unit, cmd.precision)
             BigDecimal temp = new BigDecimal(strTemp)
             if (settings["tempAdjust"]) temp += (settings["tempAdjust"] as BigDecimal)
-            String descText = "${device.displayName} temperature is ${temp} °${unit}"
+            String descText = "${device.displayName} temperature is ${temp} °${location.temperatureScale}"
             if (settings["tempAdjust"]) descText += " (adjusted per settings from: $strTemp)"
-            sendEvent(name: "temperature", value: temp, unit: "°${unit}", descriptionText: descText)
+            sendEvent(name: "temperature", value: temp, unit: "°${location.temperatureScale}", descriptionText: descText)
             if (txtEnable) log.info descText
             break
       case hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelSupportedScaleReport.SENSOR_TYPE_LUMINANCE_VERSION_1:
