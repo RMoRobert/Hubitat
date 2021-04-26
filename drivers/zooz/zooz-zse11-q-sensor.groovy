@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
+ *  2021-04-25: Fix displayed temperature units to be correct if hub units different from sensor units
  *  2021-04-23: Pad firmware subversion with 0 as needed
  *  2021-04-19: Added option for temperature and humidity value adjustment
  *  2021-04-18: Fix for parameter 13 and 172 size
