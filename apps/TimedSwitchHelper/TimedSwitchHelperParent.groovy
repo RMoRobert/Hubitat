@@ -10,7 +10,7 @@
  *  Add code for parent app (this) and then and child app. Install/create new instance of parent
  *  app and begin using.
  *
- *  Copyright 2019 Robert Morris
+ *  Copyright 2021 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -22,49 +22,52 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2019-06-19 
+ *  Last modified: 2021-04-26
  * 
  *  Changelog:
- * 
+ *
+ *  2.0 - Minor code cleanup; removed mode selector from parent app
  *  1.0 - Initial release
  *
  */ 
  
 definition(
-    name: "Timed Switch Helper",
-    namespace: "RMoRobert",
-    author: "Robert Morris",
-    singleInstance: true,
-    description: "Listens for one (usually virtual) switch to be turned on, then turns on other (usually phyiscal) switch for the configured time before turning both off.",
-    category: "Convenience",        
-    iconUrl: "",
-    iconX2Url: "",
-    iconX3Url: "",
+   name: "Timed Switch Helper",
+   namespace: "RMoRobert",
+   author: "Robert Morris",
+   singleInstance: true,
+   installOnOpen: true,
+   description: "Listens for one (usually virtual) switch to be turned on, then turns on other (usually phyiscal) switch for the configured time before turning both off.",
+   category: "Convenience",
+   iconUrl: "",
+   iconX2Url: "",
+   iconX3Url: "",
 )   
 
 preferences {
-  section ("") {
-    paragraph title: "Timed Switch Helper", "Listens for one (usually virtual) switch to be turned on, then turns on other (usually phyiscal) switch for the configured time before turning both off."
-  }
-  section {
-    app(name: "childApps", appName: "Timed Switch Helper (Child App)", namespace: "RMoRobert", title: "Add New Timed Switch Helper", multiple: true)
-  }
+   page(name: 'mainPage', title: 'Timed Switch Helper - App', install: true, uninstall: true) {
+      section ("Timed Switch Helper") {
+         paragraph "Listens for one (usually virtual) switch to be turned on, then turns on other (usually phyiscal) switch for the configured time before turning both off."
+      }
+      section {
+         app(name: "childApps", appName: "Timed Switch Helper (Child App)", namespace: "RMoRobert", title: "Add New Timed Switch Helper", multiple: true)
+      }
+   }
 }
 
-def installed() {
-    log.debug "Installed with settings: ${settings}"
-    initialize()
+void installed() {
+   log.debug "installed()"
+   initialize()
 }
 
-def updated() {
-    log.debug "Updated with settings: ${settings}"
-    unsubscribe()
-    initialize()
+void updated() {
+   log.debug "Updated with settings: ${settings}"
+   initialize()
 }
 
-def initialize() {
-    log.debug "Initializing; there are ${childApps.size()} child apps installed"
-    childApps.each {child ->
-        log.debug "  child app: ${child.label}"
-    }
+void initialize() {
+   log.debug "initialize()"
+   childApps.each {child ->
+      log.debug "  child app: ${child.label}"
+   }
 }
