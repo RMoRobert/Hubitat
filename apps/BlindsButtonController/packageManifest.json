@@ -1,0 +1,28 @@
+{
+	"packageName": "Blinds Button Controller",
+	"minimumHEVersion": "2.2.6",
+	"author": "Robert Morris",
+	"dateReleased": "2021-05-10",
+	"licenseFile": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+	"releaseNotes": "Initial release. See Community forum for more details.",
+	"apps" : [
+		{
+			"id": "b4e50b24-f8c8-42f4-a209-09113fce381f",
+			"name": "Blinds Button Controller",
+			"namespace": "RMoRobert",
+			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/BlindsButtonController/BlindsButtonControllerParent.groovy",
+			"required": true,
+			"version": "1.0.0",
+			"oauth": false
+		},
+		{
+			"id": "1d9fb80d-316c-4650-81ff-429e80bd8d71",
+			"name": "Blinds Button Controller (Child App) 1",
+			"namespace": "RMoRobert",
+			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/BlindsButtonController/BlindsButtonController1.groovy",
+			"required": true,
+			"version": "1.0.0",
+			"oauth": false
+		}
+	]
+}
