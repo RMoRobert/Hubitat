@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 1.4.2 (2021-05-28) - Fix for device refresh; minor code cleanup
  * 1.4.1 (2021-04-06) - Fixed error when running report notification
  * 1.4   (2021-04-05) - Added more refresh options; added link to device pages on "manual" report page
  * 1.3   (2020-12-18) - Added ability to refresh selected devices before report, ability to select multiple notification
@@ -30,9 +31,9 @@
 
 import groovy.transform.Field
 
-@Field static List dateFormatOptions = ['MMM d, yyyy, h:mm a', 'E, MMM d, yyyy, h:mm a', 'E dd MMM yyyy, h:mm a', 'dd MMM yyyy, h:mm a',
+@Field static final List dateFormatOptions = ['MMM d, yyyy, h:mm a', 'E, MMM d, yyyy, h:mm a', 'E dd MMM yyyy, h:mm a', 'dd MMM yyyy, h:mm a',
                                         'dd MMM yyyy HH:mm', 'E MMM dd HH:mm', 'yyyy-MM-dd HH:mm z']
-@Field static Integer formatListIfMoreItemsThan = 4
+@Field static final Integer formatListIfMoreItemsThan = 4
 
 definition(
    name: "Device Activity Check",
@@ -47,72 +48,72 @@ definition(
 )
 
 preferences {
-	page(name: "pageMain")
-	page(name: "pageDeviceGroup")
-	page(name: "pageRemoveGroup")
-	page(name: "pageViewReport")
+   page name: "pageMain"
+   page name: "pageDeviceGroup"
+   page name: "pageRemoveGroup"
+   page name: "pageViewReport"
 }
 
 def pageMain() {
-    dynamicPage(name: "pageMain", title: "Device Activity Check", uninstall: true, install: true) {
-		if (!(state.groups)) state.groups = [1]
-		List groups = state.groups ?: [1]
-		if (state.removeSettingsForGroupNumber) { 
-			Integer groupNum = state.removeSettingsForGroupNumber
-			state.remove("removeSettingsForGroupNumber")
-			removeSettingsForGroupNumber(groupNum)
-			state.groups?.removeElement(groupNum)
-		}
-		state.remove("cancelDelete")
-		state.remove("currGroupNum")
+   dynamicPage(name: "pageMain", title: "Device Activity Check", uninstall: true, install: true) {
+      if (!(state.groups)) state.groups = [1]
+      List groups = state.groups ?: [1]
+      if (state.removeSettingsForGroupNumber) { 
+         Integer groupNum = state.removeSettingsForGroupNumber
+         state.remove("removeSettingsForGroupNumber")
+         removeSettingsForGroupNumber(groupNum)
+         state.groups?.removeElement(groupNum)
+      }
+      state.remove("cancelDelete")
+      state.remove("currGroupNum")
       state.remove("currGroupDispNum")
       app.removeSetting("debugLogging") // from 1.1.0 and earlier; can probably remove in future
-		
-		String strSectionTitle = (state.groups.size() > 1) ? "Device Groups" : "Devices"
-		section(styleSection(strSectionTitle)) {
-			groups.eachWithIndex { realGroupNum, groupIndex ->
-				String timeout = getDeviceGroupInactivityThresholdString(realGroupNum)
-				String strTitle = (state.groups.size() > 1) ? "Group ${groupIndex+1} Devices (inactivity threshold: $timeout):" : "Devices (inactivity threshold: $timeout):"
-				href(name: "pageDeviceGroup${realGroupNum}Href",
-				     page: "pageDeviceGroup",
-					 params: [groupNumber: realGroupNum, groupDispNumber: groupIndex+1],
-					 title: strTitle,
-					 description: getDeviceGroupDescription(realGroupNum) ?: "Click/tap to choose devices and inactivity threshold...",
-					 state: getDeviceGroupDescription(realGroupNum) ? "complete" : null)
-				}
-			paragraph("To monitor another set of devices with a different inactiviy threshold or method, add a new group:")
-			input name: "btnNewGroup", type: "button", title: "Add new group"
-		}
+      
+      String strSectionTitle = (state.groups.size() > 1) ? "Device Groups" : "Devices"
+      section(styleSection(strSectionTitle)) {
+         groups.eachWithIndex { realGroupNum, groupIndex ->
+            String timeout = getDeviceGroupInactivityThresholdString(realGroupNum)
+            String strTitle = (state.groups.size() > 1) ? "Group ${groupIndex+1} Devices (inactivity threshold: $timeout):" : "Devices (inactivity threshold: $timeout):"
+            href(name: "pageDeviceGroup${realGroupNum}Href",
+                  page: "pageDeviceGroup",
+                  params: [groupNumber: realGroupNum, groupDispNumber: groupIndex+1],
+                  title: strTitle,
+                  description: getDeviceGroupDescription(realGroupNum) ?: "Click/tap to choose devices and inactivity threshold...",
+                  state: getDeviceGroupDescription(realGroupNum) ? "complete" : null)
+            }
+         paragraph("To monitor another set of devices with a different inactiviy threshold or method, add a new group:")
+         input name: "btnNewGroup", type: "button", title: "Add new group"
+      }
 
-		section(styleSection("Notification Options")) {
-			input name: "notificationDevice", type: "capability.notification", title: "Send notification with list of inactive devices to this device:", multiple: true
-			input name: "notificationTime", type: "time", title: "Daily at this time:"
-			paragraph "Or any time this switch is turned on:"
-			input name: "notificationSwitch", type: "capability.switch", title: "Switch", description: "Optional - Click to set"
-			input name: "includeTime", type: "bool", title: "Include last acitivty time in notifications ", defaultValue: true, submitOnChange: true
+      section(styleSection("Notification Options")) {
+         input name: "notificationDevice", type: "capability.notification", title: "Send notification with list of inactive devices to this device:", multiple: true
+         input name: "notificationTime", type: "time", title: "Daily at this time:"
+         paragraph "Or any time this switch is turned on:"
+         input name: "notificationSwitch", type: "capability.switch", title: "Switch", description: "Optional - Click to set"
+         input name: "includeTime", type: "bool", title: "Include last acitivty time in notifications ", defaultValue: true, submitOnChange: true
          // Would be nice to consider for future:
          //if (includeTime) input name: "inclueNotPresentTime", type: "bool", title: "Use date of last \"not present\" event if device(s) configured for presence monitoring", defaultValue: true, submitOnChange: true
-			if (!settings["includeTime"] == false) {
-				List<Map<String,String>> timeFormatOptions = []
-				Date currDate = new Date()
-				dateFormatOptions.each { 
-					timeFormatOptions << ["$it": "${currDate.format(it, location.timeZone)}"]
-				}
-				input name: "timeFormat", type: "enum", options: timeFormatOptions, title: "Date/time format for notifications:",
-					defaultValue: timeFormatOptions[0]?.keySet()[0], required: (!settings["includeTime"] == false), submitOnChange: true
-			}
-		}
+         if (!settings["includeTime"] == false) {
+            List<Map<String,String>> timeFormatOptions = []
+            Date currDate = new Date()
+            dateFormatOptions.each { 
+               timeFormatOptions << ["$it": "${currDate.format(it, location.timeZone)}"]
+            }
+            input name: "timeFormat", type: "enum", options: timeFormatOptions, title: "Date/time format for notifications:",
+               defaultValue: timeFormatOptions[0]?.keySet()[0], required: (!settings["includeTime"] == false), submitOnChange: true
+         }
+      }
 
-		section(styleSection("View/Test Report")) {
-			href(name: "pageViewReportHref",
-              page: "pageViewReport",
-              title: "View current report",
-              description: "Evaluate all devices now according to the criteria above, and display a report of \"inactive\" devices.")
-			paragraph "The \"Test Notification Now\" button will send a notification to your selected device(s) if there is inactivity to report. This a manual method to trigger the same report the above options would also create:"
-			input name: "btnTestNotification", type: "button", title: "Test Notification Now"
-		}
-		
-		section("Advanced Options", hideable: true, hidden: true) {
+      section(styleSection("View/Test Report")) {
+         href(name: "pageViewReportHref",
+               page: "pageViewReport",
+               title: "View current report",
+               description: "Evaluate all devices now according to the criteria above, and display a report of \"inactive\" devices.")
+         paragraph "The \"Test Notification Now\" button will send a notification to your selected device(s) if there is inactivity to report. This a manual method to trigger the same report the above options would also create:"
+         input name: "btnTestNotification", type: "button", title: "Test Notification Now"
+      }
+      
+      section("Advanced Options", hideable: true, hidden: true) {
          label title: "Customize installed app name:", required: true
          input name: "includeHubName", type: "bool", title: "Include hub name in reports (${location.name})"
          input name: "useNotificationTimeFormatForReport", type: "bool", title: 'Use "Date/time format for notifications" for "View current report" dates/times (default is YYYY-MM-dd hh:mm a z)'
@@ -121,12 +122,12 @@ def pageMain() {
          input name: "boolIncludeDisabled", type: "bool", title: "Include disabled devices in report"
          input name: "debugLevel", type: "enum", title: "Debug logging level:", options: [[0: "Logs off"], [1: "Debug logging"], [2: "Verbose logging"]],
             defaultValue: 0
-		}
-	}
+      }
+   }
 }
 
 def pageDeviceGroup(params) {
-	Integer groupNum
+   Integer groupNum
    Integer groupDispNum
    String strTitle
    if (params?.groupNumber) {
@@ -143,8 +144,8 @@ def pageDeviceGroup(params) {
    else {
       groupNum = state.currGroupDispNum
    }
-	strTitle = (state.groups?.size() > 1) ? "Device Group ${groupDispNum}:" : "Devices"   
-	state.remove("cancelDelete")
+   strTitle = (state.groups?.size() > 1) ? "Device Group ${groupDispNum}:" : "Devices"   
+   state.remove("cancelDelete")
 
    dynamicPage(name: "pageDeviceGroup", title: strTitle, uninstall: false, install: false, nextPage: "pageMain") {
       section(styleSection("Choose Devices")) {
@@ -220,7 +221,7 @@ def pageRemoveGroup(params) {
             paragraph("Press \"Next\" to complete the deletion of this group.")
             input name: "btnCancelGroupDelete", type: "button", title: "Cancel"
          }
-         else {				
+         else {
             paragraph("Deletion cancelled. Press \"Next\" to continue.")
          }
       }
@@ -229,46 +230,46 @@ def pageRemoveGroup(params) {
 
 def pageViewReport() {
    logDebug "Loading \"View current report\" page... (if you have device refresh enabled, this may take several seconds)"
-	dynamicPage(name: "pageViewReport", title: "Device Activity Check", uninstall: false, install: false, nextPage: "pageMain") {
+   dynamicPage(name: "pageViewReport", title: "Device Activity Check", uninstall: false, install: false, nextPage: "pageMain") {
       if (refreshBeforeViewReport) {
          performRefreshes()
       }
-		section(styleSection("Inactive Device Report")) {
-			List<com.hubitat.app.DeviceWrapper> inactiveDevices = getInactiveDevices(true)
-			if (inactiveDevices) {
-				paragraph "<strong>Device</strong>", width: 6
-				paragraph "<strong>Last Activity</strong>", width: 6
-				Boolean doFormatting = inactiveDevices.size() > formatListIfMoreItemsThan
-				inactiveDevices.eachWithIndex { dev, index ->
-					String lastActivity
-					if (settings["useNotificationTimeFormatForReport"]) {
-						lastActivity = dev.getLastActivity()?.format(settings["timeFormat"] ?: "MMM dd, yyyy h:mm a", location.timeZone)
-					}
-               else {                  
-						lastActivity = dev.getLastActivity()?.format("yyyy-MM-dd hh:mm a z", location.timeZone)
+      section(styleSection("Inactive Device Report")) {
+         List<com.hubitat.app.DeviceWrapper> inactiveDevices = getInactiveDevices(true)
+         if (inactiveDevices) {
+            paragraph "<strong>Device</strong>", width: 6
+            paragraph "<strong>Last Activity</strong>", width: 6
+            Boolean doFormatting = inactiveDevices.size() > formatListIfMoreItemsThan
+            inactiveDevices.eachWithIndex { dev, index ->
+               String lastActivity
+               if (settings["useNotificationTimeFormatForReport"]) {
+                  lastActivity = dev.getLastActivity()?.format(settings["timeFormat"] ?: "MMM dd, yyyy h:mm a", location.timeZone)
                }
-					if (!lastActivity) lastActivity = "No reported activity"
-					paragraph(doFormatting ? """<a href="/device/edit/${dev.id}">${styleListItem(dev.displayName, index)}</a>""" : """<a href="/device/edit/${dev.id}">${dev.displayName}</a>""", width: 6)
-					//paragraph(doFormatting ? "${styleListItem(dev.displayName, index)}" : "${dev.displayName}", width: 6)
-					paragraph(doFormatting ? "${styleListItem(lastActivity, index)}" : lastActivity, width: 6)
-				}
-			}
-			else {
-				paragraph "No inactive devices to report"
-			}
-		}
-	}
+               else {
+                  lastActivity = dev.getLastActivity()?.format("yyyy-MM-dd hh:mm a z", location.timeZone)
+               }
+               if (!lastActivity) lastActivity = "No reported activity"
+               paragraph(doFormatting ? """<a href="/device/edit/${dev.id}">${styleListItem(dev.displayName, index)}</a>""" : """<a href="/device/edit/${dev.id}">${dev.displayName}</a>""", width: 6)
+               //paragraph(doFormatting ? "${styleListItem(dev.displayName, index)}" : "${dev.displayName}", width: 6)
+               paragraph(doFormatting ? "${styleListItem(lastActivity, index)}" : lastActivity, width: 6)
+            }
+         }
+         else {
+            paragraph "No inactive devices to report"
+         }
+      }
+   }
 }
 
 List<com.hubitat.app.DeviceWrapper> getInactiveDevices(Boolean sortByName=true) {
    logDebug "getInactiveDevices()...", "trace"
-	List<Integer> groups = state.groups ?: [1]
-	List<com.hubitat.app.DeviceWrapper> inactiveDevices = []
-	Long currEpochTime = now()
+   List<Integer> groups = state.groups ?: [1]
+   List<com.hubitat.app.DeviceWrapper> inactiveDevices = []
+   Long currEpochTime = now()
    Closure inactivityDetectionClosure
    Closure disabledCheckClosure = { com.hubitat.app.DeviceWrapper dev -> !(dev.isDisabled()) || !(settings["boolIncludeDisabled"]) }
-	groups.each { groupNum ->
-		List allDevices = settings["group${groupNum}.devices"] ?: []
+   groups.each { groupNum ->
+      List allDevices = settings["group${groupNum}.devices"] ?: []
       // For "Last Activity at" devices:
       if (settings["group${groupNum}.inactivityMethod"] == "activity" || settings["group${groupNum}.inactivityMethod"] == null) {
          Integer inactiveMinutes = daysHoursMinutesToMinutes(settings["group${groupNum}.intervalD"],
@@ -293,24 +294,24 @@ List<com.hubitat.app.DeviceWrapper> getInactiveDevices(Boolean sortByName=true) 
       }
       // Finally, add inactive devices to list:
       inactiveDevices.addAll(allDevices?.findAll(inactivityDetectionClosure))
-	}
-	if (sortByName) inactiveDevices = inactiveDevices.sort { it.displayName }
+   }
+   if (sortByName) inactiveDevices = inactiveDevices.sort { it.displayName }
    inactivityDetectionClosure = null
    disabledCheckClosure = null
    logDebug "getInactiveDevices() returning: $inactiveDevices", "trace"
-	return inactiveDevices
+   return inactiveDevices
 }
 
 void performRefreshes() {
    logDebug "performRefreshes()...", "trace"
-	List<Integer> groups = state.groups ?: [1]
-	List<com.hubitat.app.DeviceWrapper> inactiveDevices = []
-	List<com.hubitat.app.DeviceWrapper> toRefreshDevices = []
-	Long currEpochTime = now()
+   List<Integer> groups = state.groups ?: [1]
+   List<com.hubitat.app.DeviceWrapper> inactiveDevices = []
+   List<com.hubitat.app.DeviceWrapper> toRefreshDevices = []
+   Long currEpochTime = now()
    Closure inactivityDetectionClosure
    Closure disabledCheckClosure = { com.hubitat.app.DeviceWrapper dev -> !(dev.isDisabled()) || !(settings["boolIncludeDisabled"]) }
-	groups.each { groupNum ->
-		List allDevices = settings["group${groupNum}.devices"] ?: []
+   groups.each { groupNum ->
+      List allDevices = settings["group${groupNum}.devices"] ?: []
       // For "Last Activity at" devices:
       if (settings["group${groupNum}.inactivityMethod"] == "activity" || settings["group${groupNum}.inactivityMethod"] == null) {
          Integer inactiveMinutes = daysHoursMinutesToMinutes(settings["group${groupNum}.intervalD"],
@@ -327,8 +328,8 @@ void performRefreshes() {
       }
       // Finally, add inactive devices to list:
       inactiveDevices.addAll(allDevices?.findAll(inactivityDetectionClosure))
-	}
-   if (refreshSelectedDevices && toRefreshDevices) {
+   }
+   if (toRefreshDevices) {
       List<com.hubitat.app.DeviceWrapper> toActuallyRefresh = toRefreshDevices.intersect(inactiveDevices) ?: []
       logDebug "Devices to refresh: $toActuallyRefresh"
       toActuallyRefresh.each {
@@ -346,17 +347,16 @@ void performRefreshes() {
    disabledCheckClosure = null
 }
 
-
 // Lists all devices in group, one per line
 String getDeviceGroupDescription(groupNum) {
    logDebug "getDeviceGroupDescription($groupNum)...", "trace"
-	String desc = ""
-	if (settings["group${groupNum}.devices"]) {
-		settings["group${groupNum}.devices"].each { dev ->
-			desc += "${dev.displayName}\n"
-		}
-	}
-	return desc
+   String desc = ""
+   if (settings["group${groupNum}.devices"]) {
+      settings["group${groupNum}.devices"].each { dev ->
+         desc += "${dev.displayName}\n"
+      }
+   }
+   return desc
 }
 
 // Human-friendly string for inactivity period (e.g., "1 hour, 15 minutes")
@@ -365,9 +365,9 @@ String getDeviceGroupInactivityThresholdString(groupNum) {
    String thresholdString = ""   
    if (settings["group${groupNum}.inactivityMethod"] == "activity" || !settings["group${groupNum}.inactivityMethod"]) {
       thresholdString = daysHoursMinutesToString(settings["group${groupNum}.intervalD"],
-		   settings["group${groupNum}.intervalH"], settings["group${groupNum}.intervalM"])
+         settings["group${groupNum}.intervalH"], settings["group${groupNum}.intervalM"])
    }
-	else if (settings["group${groupNum}.inactivityMethod"] == "presence") {
+   else if (settings["group${groupNum}.inactivityMethod"] == "presence") {
       thresholdString = "if not present"
    }
    else {
@@ -377,129 +377,126 @@ String getDeviceGroupInactivityThresholdString(groupNum) {
 }
 
 void removeSettingsForGroupNumber(Integer groupNumber) {
-	logDebug "Removing settings for group $groupNumber..."
-	def settingNamesToRemove = settings?.keySet()?.findAll{ it.startsWith("group${groupNumber}.") }
-	logDebug "  Settings to remove: $settingNamesToRemove"
-	settingNamesToRemove.each { settingName ->
-		app.removeSetting(settingName)
-	}
+   logDebug "Removing settings for group $groupNumber..."
+   def settingNamesToRemove = settings?.keySet()?.findAll{ it.startsWith("group${groupNumber}.") }
+   logDebug "  Settings to remove: $settingNamesToRemove"
+   settingNamesToRemove.each { settingName ->
+      app.removeSetting(settingName)
+   }
 }
 
-Integer daysHoursMinutesToMinutes(days, hours, minutes) {
-	Integer totalMin = (minutes ? minutes : 0) + (hours ? hours * 60 : 0) + (days ? days * 1440 : 0)
-	return totalMin
+Long daysHoursMinutesToMinutes(Long days, Long hours, Long minutes) {
+   Long totalMin = (minutes ? minutes : 0) + (hours ? hours * 60 : 0) + (days ? days * 1440 : 0)
+   return totalMin
 }
 
-String daysHoursMinutesToString(days, hours, minutes) {
-	Integer totalMin = daysHoursMinutesToMinutes(days, hours, minutes)
-	Integer d = totalMin / 1440 as Integer
-	Integer h = totalMin % 1440 / 60 as Integer
-	Integer m = totalMin % 60
-	String strD = "$d day${d != 1 ? 's' : ''}"
-	String strH = "$h hour${h != 1 ? 's' : ''}"
-	String strM = "$m minute${m != 1 ? 's' : ''}"
-	return "${d ? strD : ''}${d && (h || m) ? ', ' : ''}${h ? strH : ''}${(h && m) ? ', ' : ''}${m || !(h || d) ? strM : ''}"
+String daysHoursMinutesToString(Long days, Long hours, Long minutes) {
+   Long totalMin = daysHoursMinutesToMinutes(days, hours, minutes)
+   Long d = totalMin / 1440
+   Long h = totalMin % 1440
+   Long m = totalMin % 60
+   String strD = "$d day${d != 1 ? 's' : ''}"
+   String strH = "$h hour${h != 1 ? 's' : ''}"
+   String strM = "$m minute${m != 1 ? 's' : ''}"
+   return "${d ? strD : ''}${d && (h || m) ? ', ' : ''}${h ? strH : ''}${(h && m) ? ', ' : ''}${m || !(h || d) ? strM : ''}"
 }
 
 String styleSection(String sectionHeadingText) {
-	return """<div style="font-weight:bold; font-size: 120%">$sectionHeadingText</div>"""
+   return """<div style="font-weight:bold; font-size: 120%">$sectionHeadingText</div>"""
 }
 
 void switchHandler(evt) {
-	if (evt.value == "on") {
-		logDebug("Switch turned on; running report")
-		sendInactiveNotification()
-	}
+   if (evt.value == "on") {
+      logDebug("Switch turned on; running report")
+      sendInactiveNotification()
+   }
 }
 
 // Sends notification with list of inactive devices to selected notification device(s)
 void sendInactiveNotification(Boolean includeLastActivityTime=(settings["includeTime"] != false)) {
-	logDebug "sendInactiveNotification($includeLastActivityTime) called..."
-   if (doRefresh) {
-      performRefreshes()
-      pauseExecution(500)
-   }
+   logDebug "sendInactiveNotification($includeLastActivityTime) called..."
+   performRefreshes() // no need to check if need to first; this method does that
+   pauseExecution(100) // probably not necessary, but just in case (give a bit more time)
    logDebug "Preparing list of inactive devices..."
-	List<com.hubitat.app.DeviceWrapper> inactiveDevices = getInactiveDevices(true) 
-	String notificationText = ""
-	if (inactiveDevices && isModeOK()) {
-		notificationText += (settings["includeHubName"] ? "${app.label} - ${location.name}:" : "${app.label}:")		
-		inactiveDevices.each { dev ->
-			notificationText += "\n${dev.displayName}"
-			if (includeLastActivityTime) {
-				String dateString = dev.getLastActivity()?.format(settings["timeFormat"] ?: 'MMM dd, yyyy h:mm a', location.timeZone) ?: 'No activity reported'
-				notificationText += " - $dateString"
-			}
-		}		
-		logDebug "Sending notification for inactive devices: \"$notificationText\""
-		notificationDevice?.each {
+   List<com.hubitat.app.DeviceWrapper> inactiveDevices = getInactiveDevices(true) 
+   String notificationText = ""
+   if (inactiveDevices && isModeOK()) {
+      notificationText += (settings["includeHubName"] ? "${app.label} - ${location.name}:" : "${app.label}:")		
+      inactiveDevices.each { dev ->
+         notificationText += "\n${dev.displayName}"
+         if (includeLastActivityTime) {
+            String dateString = dev.getLastActivity()?.format(settings["timeFormat"] ?: 'MMM dd, yyyy h:mm a', location.timeZone) ?: 'No activity reported'
+            notificationText += " - $dateString"
+         }
+      }		
+      logDebug "Sending notification for inactive devices: \"$notificationText\""
+      notificationDevice?.each {
          it.deviceNotification(notificationText)
       }
-	}
-	else {
-		String reason = "Notification skipped: "
-		if (inactiveDevices) reason += "No inactive devices. "
-		if (!isModeOK()) reason += "Outside of specified mode(s)."
-		logDebug reason
-	}
+   }
+   else {
+      String reason = "Notification skipped: "
+      if (inactiveDevices) reason += "No inactive devices. "
+      if (!isModeOK()) reason += "Outside of specified mode(s)."
+      logDebug reason
+   }
 }
 
 // For list items in report page
 String styleListItem(String text, index=0) {
-	return """<div style="color: ${index %2 == 0 ? "darkslategray" : "black"}; background-color: ${index %2 == 0 ? 'white' : 'ghostwhite'}">$text</div>"""
+   return """<div style="color: ${index %2 == 0 ? "darkslategray" : "black"}; background-color: ${index %2 == 0 ? 'white' : 'ghostwhite'}">$text</div>"""
 }
 
 void scheduleHandler() {
-	logDebug("At scheduled; running report")
-	sendInactiveNotification()
+   logDebug("At scheduled; running report")
+   sendInactiveNotification()
 }
 
 //=========================================================================
 // App Methods
 //=========================================================================
 
-def installed() {
-    log.trace "Installed"
-    initialize()
+void installed() {
+   log.debug "installed()"
+   initialize()
 }
 
-def updated() {
-    log.trace "Updated"
-    unschedule()
-    initialize()
+void updated() {
+   log.debug "updated()"
+   unschedule()
+   initialize()
 }
 
-def initialize() {
-	log.trace "Initialized"
-	if (settings["debugLevel"] && settings["debugLevel"] as Integer != 0) {
-		log.debug "Debug logging is enabled for ${app.label}. It will remain enabled until manually disabled."
-	}
-
-	unsubscribe()
-	if (settings["notificationTime"]) schedule(settings["notificationTime"], scheduleHandler)	
-	if (settings["notificationSwitch"]) subscribe(settings["notificationSwitch"], "switch", switchHandler)
+void initialize() {
+   log.debug "initialize()"
+   if (settings["debugLevel"] && settings["debugLevel"].toInteger() != 0) {
+      log.debug "Debug logging is enabled for ${app.label}. It will remain enabled until manually disabled."
+   }
+   unsubscribe()
+   if (settings["notificationTime"]) schedule(settings["notificationTime"], scheduleHandler)	
+   if (settings["notificationSwitch"]) subscribe(settings["notificationSwitch"], "switch", switchHandler)
 }
 
 Boolean isModeOK() {
-    Boolean isOK = !settings["modes"] || settings["modes"].contains(location.mode)
-    logDebug "Checking if mode is OK; reutrning: ${isOK}", "trace"
-    return isOK
+   Boolean isOK = !settings["modes"] || settings["modes"].contains(location.mode)
+   logDebug "Checking if mode is OK; reutrning: ${isOK}", "trace"
+   return isOK
 }
 
 def appButtonHandler(btn) {
-	switch (btn) {
-		case "btnNewGroup":
-			Integer newMaxGroup = (state.groups[-1]) ? ((state.groups[-1] as Integer) + 1) : 2
-			state.groups << newMaxGroup
-			break
-		case "btnCancelGroupDelete":
-			state.cancelDelete = true
-			state.remove("removeSettingsForGroupNumber")
-			break
-		case "btnTestNotification":
-			sendInactiveNotification()
-			break
-	}
+   switch (btn) {
+      case "btnNewGroup":
+         Integer newMaxGroup = (state.groups[-1]) ? ((state.groups[-1] as Integer) + 1) : 2
+         state.groups << newMaxGroup
+         break
+      case "btnCancelGroupDelete":
+         state.cancelDelete = true
+         state.remove("removeSettingsForGroupNumber")
+         break
+      case "btnTestNotification":
+         sendInactiveNotification()
+         break
+   }
 }
 
 /** Writes to log.debug by default if debug logging setting enabled; can specify
@@ -508,9 +505,9 @@ def appButtonHandler(btn) {
 void logDebug(string, level="debug") {
    switch(level) {
       case "trace": 
-         if (settings["debugLevel"] as Integer != null && (settings["debugLevel"] as Integer) == 2) log.trace(string)
+         if (settings["debugLevel"] != null && (settings["debugLevel"].toInteger()) == 2) log.trace(string)
          break
-      default:         
-        if (settings["debugLevel"] as Integer != null && (settings["debugLevel"] as Integer) >= 1) log."$level"(string)
+      default:
+        if (settings["debugLevel"] != null && (settings["debugLevel"].toInteger()) >= 1) log."$level"(string)
    }
 }
