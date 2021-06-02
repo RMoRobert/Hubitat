@@ -20,11 +20,9 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  * =======================================================================================
- *
- *  Last modified: 2020-10-11
- * 
+  * 
  *  Changelog:
- * 
+ *  v2.1 (2021-04-19) - Minor code cleanup, removed unused attributes
  *  v2.0 (2020-10-11) - Adjusted capability whitespace to match Hubitat docs;
  *                      Removed stored notifications as mobile app now can
  *  v1.0 (2019-06-19) - Initial Release
@@ -33,66 +31,54 @@
 
 
 metadata {
-	definition (name: "Notification Proxy Device", namespace: "RMoRobert", author: "Robert Morirs") {
-		capability "Notification"
+   definition (name: "Notification Proxy Device", namespace: "RMoRobert", author: "Robert Morirs") {
+      capability "Notification"
+
+      // Can comment out the below three lines if not using presence, but useful to trick apps that are looking for
+      // a presence device such as a Mobile App Device to be able to use this device too:
       capability "PresenceSensor"
-		attribute "lastNotification", "string"
-		attribute "secondToLastNotification", "string"
-		
-		// Can comment out the below three lines if not using presence, but useful to trick apps that are looking for
-		// a presence device such as a Mobile App Device to be able to use this device too:
-
-		command "arrived"
+      command "arrived"
       command "departed"
-	}
+   }
 	
-	preferences() {
-    	section("") {
-        	input "debugMode", "bool", title: "Enable debug logging"
-		}
-	}   
+   preferences() {
+      section("") {
+         input "debugMode", "bool", title: "Enable debug logging"
+      }
+   }
 }
 
-def installed(){
-    initialize()
+void installed(){
+   initialize()
 }
 
-def updated(){
-    initialize()
+void updated(){
+   initialize()
 }
 
-def initialize() {
+void initialize() {
    log.debug "Inititalizing..."
 }
 
-// Probably won't happen in a virtual driver but...
-def parse(String description) {
-	logDebug("Parsing '${description}'")
-}
-
-def deviceNotification(text) {
-	logDebug("Received notification, sending to devices: ${text}")
-    sendEvent(name: "deviceNotification", value: text, isStateChange: true)
+void deviceNotification(text) {
+   logDebug("Received notification, creating event. Text: ${text}")
+   sendEvent(name: "deviceNotification", value: text, isStateChange: true)
 }
 
 // Custom command for manipulating presence. Can remove/comment out if not wanted
 // but doesn't hurt to leave.
-def arrived() {
-    logDebug  "Setting sensor to presnent because 'arrived' command run"
-    sendEvent(name: "presence", value: "present")
+void arrived() {
+   logDebug  "Setting sensor to present because 'arrived' command run"
+   sendEvent(name: "presence", value: "present")
 }
 
 // Custom command for manipulating presence. Can remove/comment out if not wanted
 // but doesn't hurt to leave.
-def departed() {
-    logDebug "Setting sensor to not present because 'departed' command run"
-    sendEvent(name: "presence", value: "not present")
+void departed() {
+   logDebug "Setting sensor to not present because 'departed' command run"
+   sendEvent(name: "presence", value: "not present")
 }
 
 def logDebug(str) {
-    try {
-    	if (settings.debugMode) log.debug(str)
-    } catch(ex) {
-		log.error("Error in logDebug: ${ex}")
-    }
+   if (settings.debugMode != false) log.debug(str)
 }
