@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 1.4.3 (2021-06-06) - Fix for possible NPE when checking "presence"-based devices
  * 1.4.2 (2021-05-28) - Fix for device refresh; minor code cleanup
  * 1.4.1 (2021-04-06) - Fixed error when running report notification
  * 1.4   (2021-04-05) - Added more refresh options; added link to device pages on "manual" report page
@@ -325,9 +326,10 @@ void performRefreshes() {
          if (settings["group${groupNum}.refreshDevs"] && (settings["group${groupNum}.inactivityMethod"] == "activity" || settings["group${groupNum}.inactivityMethod"] == null)) {
             toRefreshDevices += settings["group${groupNum}.devices"]?.findAll { settings["group${groupNum}.refreshDevs"].contains (it.getId()) }
          }
-      }
       // Finally, add inactive devices to list:
       inactiveDevices.addAll(allDevices?.findAll(inactivityDetectionClosure))
+      }
+      // Note: option not currently available for "presence" devices
    }
    if (toRefreshDevices) {
       List<com.hubitat.app.DeviceWrapper> toActuallyRefresh = toRefreshDevices.intersect(inactiveDevices) ?: []
