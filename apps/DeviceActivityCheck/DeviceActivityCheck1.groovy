@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 1.4.4 (2021-06-07) - Fix for hours/minutes display when calculating total time for threshold (cosmetic issue only)
  * 1.4.3 (2021-06-06) - Fix for possible NPE when checking "presence"-based devices
  * 1.4.2 (2021-05-28) - Fix for device refresh; minor code cleanup
  * 1.4.1 (2021-04-06) - Fixed error when running report notification
@@ -364,7 +365,7 @@ String getDeviceGroupDescription(groupNum) {
 // Human-friendly string for inactivity period (e.g., "1 hour, 15 minutes")
 String getDeviceGroupInactivityThresholdString(groupNum) {
    logDebug "getDeviceGroupInactivityThresholdString($groupNum)...", "trace"
-   String thresholdString = ""   
+   String thresholdString = ""
    if (settings["group${groupNum}.inactivityMethod"] == "activity" || !settings["group${groupNum}.inactivityMethod"]) {
       thresholdString = daysHoursMinutesToString(settings["group${groupNum}.intervalD"],
          settings["group${groupNum}.intervalH"], settings["group${groupNum}.intervalM"])
@@ -388,14 +389,14 @@ void removeSettingsForGroupNumber(Integer groupNumber) {
 }
 
 Long daysHoursMinutesToMinutes(Long days, Long hours, Long minutes) {
-   Long totalMin = (minutes ? minutes : 0) + (hours ? hours * 60 : 0) + (days ? days * 1440 : 0)
+   Long totalMin = (minutes ?: 0) + (hours ? hours * 60 : 0) + (days ? days * 1440 : 0)
    return totalMin
 }
 
 String daysHoursMinutesToString(Long days, Long hours, Long minutes) {
    Long totalMin = daysHoursMinutesToMinutes(days, hours, minutes)
    Long d = totalMin / 1440
-   Long h = totalMin % 1440
+   Long h = (totalMin - d * 1440) / 60
    Long m = totalMin % 60
    String strD = "$d day${d != 1 ? 's' : ''}"
    String strH = "$h hour${h != 1 ? 's' : ''}"
