@@ -4,7 +4,7 @@
  *  Add code for parent app first and then and child app (this). To use, install/create new
  *  instance of parent app.
  *
- *  Copyright 2018-2020 Robert Morris
+ *  Copyright 2018-2021 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2021-01-24
+ *  Last modified: 2021-06-20
  *
  *  Changelog:
  *
+ * 5.4   - Added option to use new (three-parameter) "Set Color Temperature" command (disabled by default, as many devices do not yet support this)
  * 5.3   - Added option to run Rule actions when lights turn off or dim; fixed incorrect inactivity delay calculation
  * 5.2.4 - "Keep on" sensors now also trigger "on" action during grace period (previously only "turn on" sensors did)
  * 5.2.3 - Fixed error that would appear in UI when no "kill switches" selected
@@ -211,7 +212,9 @@ def pageMain() {
          input name: "dimRule", type: "enum", title: "Run these Rule actions after lights dim", options: ruleList, multiple: true
          input name: "offRule", type: "enum", title: "Run these Rule actions after lights turn off", options: ruleList, multiple: true
          input name: "noRestoreScene", type: "bool", title: 'Re-activate "Turn on and set scene" or "Turn on and set color..." settings instead of restoring saved state when motion detected during dim'
-         input name: "doOn", type: "bool", title: "Send \"On\" command after \"Set Level\" or \"Set Color\" when restoring states (enable if devices use prestaging)"
+         input name: "boolLegacyCT", type: "bool", title: "Use legacy (one-parameter) setColorTemperature() command (default: yes)", defaultValue: true
+         input name: "doOn", type: "bool", title: "Send \"On\" command after \"Set Level\" or \"Set Color\" when restoring states (enable if devices use \"legacy\" prestaging preference)"
+         //input name: "btnPrintModeIDs", type: "button", title: "Print mode IDs"
          input name: "btnClearCaptured", type: "button", title: "Clear all captured states"
       }
    }
@@ -478,8 +481,20 @@ void performActiveAction() {
             logDebug "        -> now performing setting activations...", 2, "debug"
             if (settings["onColor.CT${suffix}"]) {
                logDebug '  action is "ct"', 2, "debug"
-               getDevicesToTurnOn().each { it.setColorTemperature(settings["onColor.CT${suffix}"]) }
-               if (settings["onColor.L${suffix}"]) getDevicesToTurnOn().each { it.setLevel(settings["onColor.L${suffix}"]) }
+               getDevicesToTurnOn().each {
+                  if (settings["onColor.L${suffix}"]) {
+                     if (boolLegacyCT != false) {
+                        it.setColorTemperature(settings["onColor.CT${suffix}"])
+                        it.setLevel(settings["onColor.L${suffix}"]) 
+                     }
+                     else {
+                        it.setColorTemperature(settings["onColor.CT${suffix}"], settings["onColor.L${suffix}"])
+                     }
+                  }
+                  else {
+                     it.setColorTemperature(settings["onColor.CT${suffix}"])
+                  }
+               }
             }
             else {
                if (settings["onColor.H${suffix}"] != null &&
@@ -691,8 +706,20 @@ def modeChangeHandler(evt) {
                break
             case "onColor":
                if (settings["onColor.CT${suffix}"]) {
-                  getDevicesToTurnOn().each { it.setColorTemperature(settings["onColor.CT${suffix}"]) }
-                  if (settings["onColor.L${suffix}"]) getDevicesToTurnOn().each { it.setLevel(settings["onColor.L${suffix}"]) }
+                  getDevicesToTurnOn().each {
+                     if (settings["onColor.L${suffix}"]) {
+                        if (boolLegacyCT != false) {
+                           it.setColorTemperature(settings["onColor.CT${suffix}"])
+                           it.setLevel(settings["onColor.L${suffix}"]) 
+                        }
+                        else {
+                           it.setColorTemperature(settings["onColor.CT${suffix}"], settings["onColor.L${suffix}"])
+                        }
+                     }
+                     else {
+                        it.setColorTemperature(settings["onColor.CT${suffix}"])
+                     }
+                  }
                }
                else {
                   if (settings["onColor.H${suffix}"] != null &&
@@ -794,8 +821,13 @@ void restoreStates() {
             }
             else {
                if (state."$stateKey"[it.id]?.colorMode == "CT") {
-                  it.setLevel(state."$stateKey"[it.id]?.level ?: 100)
-                  it.setColorTemperature(state."$stateKey"[it.id]?.CT ?: 2700)
+                  if (boolLegacyCT != false) {
+                     it.setLevel(state."$stateKey"[it.id]?.level ?: 100)
+                     it.setColorTemperature(state."$stateKey"[it.id]?.CT ?: 2700)
+                  }
+                  else {
+                     it.setColorTemperature(state."$stateKey"[it.id]?.CT ?: 2700, state."$stateKey"[it.id]?.level ?: 100)
+                  }
                   if (settings["doOn"]) it.on()
                }
                else {
@@ -857,6 +889,9 @@ void appButtonHandler(String btn) {
       case 'btnRemovePerMode':
          removePerModeSettings()
          break
+      case 'btnPrintModeIDs':
+         location.getModes().each { log.debug "${it.id} = ${it.name}" }
+         break
       case 'btnClearCaptured':
          removeCapturedStates()
          break
@@ -879,7 +914,7 @@ void updated() {
    initialize()
 }
 
-void initialize() {   
+void initialize() {
    log.trace "${app.label} initializing..."
    unschedule()   
    unsubscribe()
