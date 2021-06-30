@@ -22,7 +22,7 @@
 
 
 metadata {
-   definition (name: "Virtual Switch (Community)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/virtual/virtual-switch-with-auto-off.groovy") {
+   definition (name: "Virtual Switch (Community)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/virtual/virtaul-switch-with-auto-off.groovy") {
       capability "Actuator"
       capability "Switch"
    }
