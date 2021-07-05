@@ -1,10 +1,10 @@
 {
    "packageName": "Dimmer Button Controller",
-   "minimumHEVersion": "2.1.2",
+   "minimumHEVersion": "2.2.6",
    "author": "Robert Morris",
-   "dateReleased": "2020-04-21",
+   "dateReleased": "2020-07-05",
    "licenseFile": "",
-   "releaseNotes": "Version 2.1.3: Fix for \"togggle\" option not showing with only single dimmer selected\n\nVersion 2.1.2: Minor bugfix for display name of press/action numbers greater than 9.\n\nNote: Version 2 is a major upgrade and is not directly upgradeable from version 1. Version 1 users should consult the Community thread for manual upgrade instructions.",
+   "releaseNotes": "Version 3.0: New child app version 3. See forum for more details. Abilit to mix different actions for same button event.\n\nVersion 2.1.3: Fix for \"togggle\" option not showing with only single dimmer selected\n\nVersion 2.1.2: Minor bugfix for display name of press/action numbers greater than 9.\n\nNote: Version 2 is a major upgrade and is not directly upgradeable from version 1. Version 1 users should consult the Community thread for manual upgrade instructions.",
    "apps" : [
       {
          "id": "34a19578-5345-4562-9e01-ebc057f394x5",
@@ -17,11 +17,20 @@
          "oauth": false
       },
       {
+         "id": "da72690d-08dc-428d-ba42-283ca4d7ea53",
+         "name": "Dimmer Button Controller (Child App) 3",
+         "namespace": "RMoRobert",
+         "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonController3.groovy",
+         "required": true,
+         "version": "3.0.0",
+         "oauth": false
+      },
+      {
          "id": "540001c2-58a9-4414-9c2b-c3408420ex9b",
          "name": "Dimmer Button Controller (Child App) 2",
          "namespace": "RMoRobert",
-         "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonController2.groovy",
-         "required": true,
+         "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/deprecated/DimmerButtonController/DimmerButtonController2.groovy",
+         "required": false,
          "version": "2.1.3",
          "oauth": false
       }
