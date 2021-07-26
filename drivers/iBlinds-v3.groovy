@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
+ *  2021-07-26: Added additional fingerprint
  *  2021-04-24: Added daily battery refresh option in case device does not send on own; Supervision improvements for S2 devices
  *  2020-11-22: Initial release for iBlinds v3 (portions based on v2 driver)
  *  2020-11-24: Added missing "position" events, Z-Wave parameter 1 option and paramter 3 auto-setting (for reporting to hub);
@@ -70,7 +71,8 @@ metadata {
       capability "SwitchLevel"
       capability "WindowShade"
 
-      fingerprint  mfr: "0287", prod: "0004", deviceId: "0071", inClusters: "0x5E,0x55,0x98,0x9F,0x6C"
+      fingerprint mfr: "0287", prod: "0004", deviceId: "0071", inClusters: "0x5E,0x55,0x98,0x9F,0x6C"
+      fingerprint mfr: "0287", prod: "0004", deviceId: "0072", inClusters: "0x5E,0x55,0x98,0x9F,0x6C"  // v3.1
    }
    
    preferences {
@@ -199,31 +201,31 @@ void supervisionCheck() {
 }
 
 Short getSessionId() {
-    Short sessId = 1
-    if (!sessionIDs[device.id]) {
-        sessionIDs[device.id] = sessId
-        return sessId
-    } else {
-        sessId = sessId + sessionIDs[device.id]
-        if (sessId > 63) sessId = 1
-        sessionIDs[device.id] = sessId
-        return sessId
-    }
+   Short sessId = 1
+   if (!sessionIDs[device.id]) {
+      sessionIDs[device.id] = sessId
+      return sessId
+   } else {
+      sessId = sessId + sessionIDs[device.id]
+      if (sessId > 63) sessId = 1
+      sessionIDs[device.id] = sessId
+      return sessId
+   }
 }
 
 hubitat.zwave.Command supervisedEncap(hubitat.zwave.Command cmd) {
-    if (getDataValue("S2")?.toInteger() != null) {
-        hubitat.zwave.commands.supervisionv1.SupervisionGet supervised = new hubitat.zwave.commands.supervisionv1.SupervisionGet()
-        supervised.sessionID = getSessionId()
-        logDebug "new supervised packet for session: ${supervised.sessionID}"
-        supervised.encapsulate(cmd)
-        if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
-        supervisedPackets[device.id][supervised.sessionID] = supervised.format()
-        runIn(5, supervisionCheck)
-        return supervised
-    } else {
-        return cmd
-    }
+   if (getDataValue("S2")?.toInteger() != null) {
+      hubitat.zwave.commands.supervisionv1.SupervisionGet supervised = new hubitat.zwave.commands.supervisionv1.SupervisionGet()
+      supervised.sessionID = getSessionId()
+      logDebug "new supervised packet for session: ${supervised.sessionID}"
+      supervised.encapsulate(cmd)
+      if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
+      supervisedPackets[device.id][supervised.sessionID] = supervised.format()
+      runIn(5, supervisionCheck)
+      return supervised
+   } else {
+      return cmd
+   }
 }
 
 void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd) {
