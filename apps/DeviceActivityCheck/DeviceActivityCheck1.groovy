@@ -274,7 +274,7 @@ List<com.hubitat.app.DeviceWrapper> getInactiveDevices(Boolean sortByName=true) 
       List allDevices = settings["group${groupNum}.devices"] ?: []
       // For "Last Activity at" devices:
       if (settings["group${groupNum}.inactivityMethod"] == "activity" || settings["group${groupNum}.inactivityMethod"] == null) {
-         Integer inactiveMinutes = daysHoursMinutesToMinutes(settings["group${groupNum}.intervalD"],
+         Long inactiveMinutes = daysHoursMinutesToMinutes(settings["group${groupNum}.intervalD"],
             settings["group${groupNum}.intervalH"], settings["group${groupNum}.intervalM"])
          Long cutoffEpochTime = currEpochTime - (inactiveMinutes * 60000)
          inactivityDetectionClosure = { Long cutoffTime, com.hubitat.app.DeviceWrapper dev ->
@@ -316,7 +316,7 @@ void performRefreshes() {
       List allDevices = settings["group${groupNum}.devices"] ?: []
       // For "Last Activity at" devices:
       if (settings["group${groupNum}.inactivityMethod"] == "activity" || settings["group${groupNum}.inactivityMethod"] == null) {
-         Integer inactiveMinutes = daysHoursMinutesToMinutes(settings["group${groupNum}.intervalD"],
+         Long inactiveMinutes = daysHoursMinutesToMinutes(settings["group${groupNum}.intervalD"],
             settings["group${groupNum}.intervalH"], settings["group${groupNum}.intervalM"])
          Long cutoffEpochTime = currEpochTime - (inactiveMinutes * 60000)
          inactivityDetectionClosure = { Long cutoffTime, com.hubitat.app.DeviceWrapper dev ->
