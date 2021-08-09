@@ -54,9 +54,10 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2021-03-23
+ *  Last modified: 2021-08-08
  *
  *  Changelog:
+ *  v2.1.1  - Added indoorTemperature attribute
  *  v2.1    - Additional attribute name matches
  *  v2.0    - Updated to handle local Ambient Weather "custom servers" (AMBWeather, Ecowitt, or WU format; AMBWeather or Ecowitt recommended)
  *          - Added separate handling for local vs. cloud connections and new local options for Ambient Weather
@@ -77,6 +78,7 @@ metadata {
       capability "UltravioletIndex"
       capability "Refresh"
 
+      attribute "indoorTemperature", "NUMBER"
       attribute "feelsLike", "NUMBER"
       attribute "windSpeed", "NUMBER"
       attribute "windDirection", "STRING"
@@ -260,8 +262,12 @@ void parseWeather(Map wxData) {
    wxData.each { key, val ->
       switch (key) {
          case "tempf":
-         case "tempinf":
             eventName = "temperature"
+            eventValue = convertTemperatureIfNeeded(val as BigDecimal,"f",1)
+            doSendEvent(eventName, eventValue, "°${location.temperatureScale}")
+            break
+         case "tempinf":
+            eventName = "indoorTemperature"
             eventValue = convertTemperatureIfNeeded(val as BigDecimal,"f",1)
             doSendEvent(eventName, eventValue, "°${location.temperatureScale}")
             break
