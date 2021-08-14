@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 1.4.5 (2021-08-13) - Improvements to refresh behavior (runIn instead of pauseExecution); fix for inactivity thresholds >24 days
  * 1.4.4 (2021-06-07) - Fix for hours/minutes display when calculating total time for threshold (cosmetic issue only)
  * 1.4.3 (2021-06-06) - Fix for possible NPE when checking "presence"-based devices
  * 1.4.2 (2021-05-28) - Fix for device refresh; minor code cleanup
@@ -196,7 +197,7 @@ def pageDeviceGroup(params) {
             paragraph "Use the option below only if you have devices that do not regularly \"check in\" and respond to a refresh. (You must know your specific device behavior, but generally all powered devices and battery-powered Zigbee devices will respond, while non-FLiRS Z-Wave battery devices will not.) Device Activity Check will send a \"Refresh\" command to the device before running a report, which may give a better indication of whether the device is still responsive. Be careful not to choose too many devices or devices that do not respond on-demand to refresh commands."
             input name: "group${groupNum}.refreshDevs", title: "Refresh before running report:", type: "enum", options: rdevList, multiple: true, submitOnChange: true
             if (settings["group${groupNum}.refreshDevs"]) {
-               paragraph "<strong>Note:</strong> If any devices need to be refreshed, reports will be delayed for one-half second per device plus an additional five seconds in order to give devices time to respond (so the \"Test\" on the previous page may not be instant)."
+               paragraph "<strong>Note:</strong> If any devices need to be refreshed (only devices deemed inactive will be), reports will be delayed for one-half second per device plus an additional five seconds in order to give devices time to respond (so the \"Test\" on the previous page may not be instant)."
             }
          }
       }
@@ -231,7 +232,7 @@ def pageRemoveGroup(params) {
 }
 
 def pageViewReport() {
-   logDebug "Loading \"View current report\" page... (if you have device refresh enabled, this may take several seconds)"
+   logDebug "Loading \"View current report\" page..."
    dynamicPage(name: "pageViewReport", title: "Device Activity Check", uninstall: false, install: false, nextPage: "pageMain") {
       if (refreshBeforeViewReport) {
          performRefreshes()
@@ -239,32 +240,59 @@ def pageViewReport() {
       section(styleSection("Inactive Device Report")) {
          List<com.hubitat.app.DeviceWrapper> inactiveDevices = getInactiveDevices(true)
          if (inactiveDevices) {
-            paragraph "<strong>Device</strong>", width: 6
-            paragraph "<strong>Last Activity</strong>", width: 6
-            Boolean doFormatting = inactiveDevices.size() > formatListIfMoreItemsThan
-            inactiveDevices.eachWithIndex { dev, index ->
-               String lastActivity
-               if (settings["useNotificationTimeFormatForReport"]) {
-                  lastActivity = dev.getLastActivity()?.format(settings["timeFormat"] ?: "MMM dd, yyyy h:mm a", location.timeZone)
+            section(styleSection("Inactive Device Report")) {
+               paragraph "<strong>Device</strong>", width: 6
+               paragraph "<strong>Last Activity</strong>", width: 6
+               Boolean doFormatting = inactiveDevices.size() > formatListIfMoreItemsThan
+               inactiveDevices.eachWithIndex { dev, index ->
+                  String lastActivity
+                  if (settings["useNotificationTimeFormatForReport"]) {
+                     lastActivity = dev.getLastActivity()?.format(settings["timeFormat"] ?: "MMM dd, yyyy h:mm a", location.timeZone)
+                  }
+                  else {
+                     lastActivity = dev.getLastActivity()?.format("yyyy-MM-dd hh:mm a z", location.timeZone)
+                  }
+                  if (!lastActivity) lastActivity = "No reported activity"
+                  paragraph(doFormatting ? """<a href="/device/edit/${dev.id}">${styleListItem(dev.displayName, index)}</a>""" : """<a href="/device/edit/${dev.id}">${dev.displayName}</a>""", width: 6)
+                  paragraph(doFormatting ? "${styleListItem(lastActivity, index)}" : lastActivity, width: 6)
                }
-               else {
-                  lastActivity = dev.getLastActivity()?.format("yyyy-MM-dd hh:mm a z", location.timeZone)
+            }
+            List<com.hubitat.app.DeviceWrapper> toRefreshDevices = getInactiveDevices(false,true) // catches devices that are inactive AND configured to be refreshed
+            if (toRefreshDevices) {
+               section(styleSection("Refresh")) {
+                  Integer waitSeconds = performRefreshes(true) // gets estimated refresh time only; does NOT refresh
+                  String waitTime
+                  if (waitSeconds < 60) waitTime = "about ${waitSeconds} seconds"
+                  else if (waitSeconds < 75) waitTime = "about 1 minute"
+                  else if (waitSeconds < 145) waitTime = "about 2 minutes"
+                  else waitTime = "several minutes"
+                  paragraph "You have configured some inactive devices to be refreshed if inactive when a report is run (this happens automatically only for notifications, not when viewing this page). To perform this refresh now, press the \"Perform Refreshes\" button below, then reload this page in ${waitTime}."
+                  input type: "button", name: "btnPerformRefreshes", title: "Perform Refreshes", submitOnChange: false
+                  StringBuilder refreshSummarySB = new StringBuilder()
+                  refreshSummarySB << "<details><summary style=\"cursor: pointer\">Devices to be refreshed</summary>"
+                  toRefreshDevices.each { com.hubitat.app.DeviceWrapper dev ->
+                     refreshSummarySB <<  "<p>${dev.displayName}</p>"
+                  }
+                  refreshSummarySB <<  "</details>"
+                  paragraph refreshSummarySB.toString()
                }
-               if (!lastActivity) lastActivity = "No reported activity"
-               paragraph(doFormatting ? """<a href="/device/edit/${dev.id}">${styleListItem(dev.displayName, index)}</a>""" : """<a href="/device/edit/${dev.id}">${dev.displayName}</a>""", width: 6)
-               //paragraph(doFormatting ? "${styleListItem(dev.displayName, index)}" : "${dev.displayName}", width: 6)
-               paragraph(doFormatting ? "${styleListItem(lastActivity, index)}" : lastActivity, width: 6)
             }
          }
          else {
-            paragraph "No inactive devices to report"
+            section(styleSection("Inactive Device Report")) {
+               aragraph "No inactive devices to report"
+            }
          }
       }
    }
 }
 
-List<com.hubitat.app.DeviceWrapper> getInactiveDevices(Boolean sortByName=true) {
-   logDebug "getInactiveDevices()...", "trace"
+// Gets list of "inactive" devices (iterates through each group, determines detection method, adds devices to list)
+// sortByName: sorts returned list by display name
+// onlyDevicesToBeRefreshed: returns only the list of inactive devices where user has selected that they should be refreshed
+//                           (ignores devices where this option is not seleceted or that are not "inactive")
+List<com.hubitat.app.DeviceWrapper> getInactiveDevices(Boolean sortByName=true, Boolean onlyDevicesToBeRefreshed=false) {
+   logDebug "getInactiveDevices($sortByName, $onlyDevicesToBeRefreshed)...", "trace"
    List<Integer> groups = state.groups ?: [1]
    List<com.hubitat.app.DeviceWrapper> inactiveDevices = []
    Long currEpochTime = now()
@@ -274,7 +302,7 @@ List<com.hubitat.app.DeviceWrapper> getInactiveDevices(Boolean sortByName=true) 
       List allDevices = settings["group${groupNum}.devices"] ?: []
       // For "Last Activity at" devices:
       if (settings["group${groupNum}.inactivityMethod"] == "activity" || settings["group${groupNum}.inactivityMethod"] == null) {
-         Integer inactiveMinutes = daysHoursMinutesToMinutes(settings["group${groupNum}.intervalD"],
+         Long inactiveMinutes = daysHoursMinutesToMinutes(settings["group${groupNum}.intervalD"],
             settings["group${groupNum}.intervalH"], settings["group${groupNum}.intervalM"])
          Long cutoffEpochTime = currEpochTime - (inactiveMinutes * 60000)
          inactivityDetectionClosure = { Long cutoffTime, com.hubitat.app.DeviceWrapper dev ->
@@ -284,7 +312,7 @@ List<com.hubitat.app.DeviceWrapper> getInactiveDevices(Boolean sortByName=true) 
          inactivityDetectionClosure = inactivityDetectionClosure.curry(cutoffEpochTime)
       }
       // For presence-based devices:
-      else if (settings["group${groupNum}.inactivityMethod"] == "presence") {
+      else if (settings["group${groupNum}.inactivityMethod"] == "presence" && !onlyDevicesToBeRefreshed /* presence not supported for refresh */) {
          inactivityDetectionClosure = { com.hubitat.app.DeviceWrapper dev ->
             dev.currentValue("presence") != "present" &&
             disabledCheckClosure(dev)
@@ -295,7 +323,15 @@ List<com.hubitat.app.DeviceWrapper> getInactiveDevices(Boolean sortByName=true) 
          log.warn "Unsupported inactivity detection method for group ${groupNum}; skipping"
       }
       // Finally, add inactive devices to list:
-      inactiveDevices.addAll(allDevices?.findAll(inactivityDetectionClosure))
+      if (onlyDevicesToBeRefreshed == true) {
+         if (settings["group${groupNum}.refreshDevs"]) {
+            //inactiveDevices.addAll(settings["group${groupNum}.refreshDevs"].findAll({ it in allDevices.findAll({ inactivityDetectionClosure })}))
+            inactiveDevices.addAll(allDevices.findAll(inactivityDetectionClosure).findAll({it.id in settings["group${groupNum}.refreshDevs"]}))
+         }
+      }
+      else {
+         inactiveDevices.addAll(allDevices?.findAll(inactivityDetectionClosure))
+      }
    }
    if (sortByName) inactiveDevices = inactiveDevices.sort { it.displayName }
    inactivityDetectionClosure = null
@@ -304,50 +340,40 @@ List<com.hubitat.app.DeviceWrapper> getInactiveDevices(Boolean sortByName=true) 
    return inactiveDevices
 }
 
-void performRefreshes() {
-   logDebug "performRefreshes()...", "trace"
-   List<Integer> groups = state.groups ?: [1]
-   List<com.hubitat.app.DeviceWrapper> inactiveDevices = []
-   List<com.hubitat.app.DeviceWrapper> toRefreshDevices = []
-   Long currEpochTime = now()
-   Closure inactivityDetectionClosure
-   Closure disabledCheckClosure = { com.hubitat.app.DeviceWrapper dev -> !(dev.isDisabled()) || !(settings["boolIncludeDisabled"]) }
+
+// TODO: Split "get inactive devices" out into separate calls for each group and can detect if any need refresh there too?
+
+Boolean isAnyRefreshConfigured() {
    groups.each { groupNum ->
-      List allDevices = settings["group${groupNum}.devices"] ?: []
-      // For "Last Activity at" devices:
-      if (settings["group${groupNum}.inactivityMethod"] == "activity" || settings["group${groupNum}.inactivityMethod"] == null) {
-         Integer inactiveMinutes = daysHoursMinutesToMinutes(settings["group${groupNum}.intervalD"],
-            settings["group${groupNum}.intervalH"], settings["group${groupNum}.intervalM"])
-         Long cutoffEpochTime = currEpochTime - (inactiveMinutes * 60000)
-         inactivityDetectionClosure = { Long cutoffTime, com.hubitat.app.DeviceWrapper dev ->
-            dev.getLastActivity()?.getTime() <= cutoffTime &&
-            disabledCheckClosure(dev)
-         }
-         inactivityDetectionClosure = inactivityDetectionClosure.curry(cutoffEpochTime)
-         if (settings["group${groupNum}.refreshDevs"] && (settings["group${groupNum}.inactivityMethod"] == "activity" || settings["group${groupNum}.inactivityMethod"] == null)) {
-            toRefreshDevices += settings["group${groupNum}.devices"]?.findAll { settings["group${groupNum}.refreshDevs"].contains (it.getId()) }
-         }
-      // Finally, add inactive devices to list:
-      inactiveDevices.addAll(allDevices?.findAll(inactivityDetectionClosure))
+      if (settings["group${groupNum}.devices"] && settings["group${groupNum}.refreshDevs"]) {
+         return true
       }
-      // Note: option not currently available for "presence" devices
    }
+   return false
+}
+
+// Calls refresh() on each device if needed (only if inactive and configured);
+// Returns expected wait time (in seconds) after which report is likely to be reliable
+Integer performRefreshes(Boolean returnCountOnlyAndDoNotRefresh=false) {
+   logDebug "performRefreshes()...", "trace"
+   Integer waitTime = 0
+   List<com.hubitat.app.DeviceWrapper> toRefreshDevices = getInactiveDevices(false, true) // only includes devices needing refresh
    if (toRefreshDevices) {
-      List<com.hubitat.app.DeviceWrapper> toActuallyRefresh = toRefreshDevices.intersect(inactiveDevices) ?: []
-      logDebug "Devices to refresh: $toActuallyRefresh"
-      toActuallyRefresh.each {
-         try {
-            it.refresh()
-            pauseExecution(400)
-         }
-         catch (Exception ex) {
-            log.warn "Could not refresh $it; $ex"
+      logDebug "Devices to refresh: $toRefreshDevices"
+      if (!returnCountOnlyAndDoNotRefresh) {
+         toRefreshDevices.each {
+            try {
+               it.refresh()
+               pauseExecution(200)
+            }
+            catch (Exception ex) {
+               log.warn "Could not refresh $it:\n$ex"
+            }
          }
       }
-      pauseExecution(toActuallyRefresh.size() * 100 + 5000)
+      waitTime = (toRefreshDevices.size() * 200 + 5000) / 1000
    }
-   inactivityDetectionClosure = null
-   disabledCheckClosure = null
+   return waitTime
 }
 
 // Lists all devices in group, one per line
@@ -416,22 +442,27 @@ void switchHandler(evt) {
 }
 
 // Sends notification with list of inactive devices to selected notification device(s)
-void sendInactiveNotification(Boolean includeLastActivityTime=(settings["includeTime"] != false)) {
+void sendInactiveNotification(Boolean includeLastActivityTime=(settings["includeTime"] != false), Boolean doRefreshIfConfigured=true) {
    logDebug "sendInactiveNotification($includeLastActivityTime) called..."
-   performRefreshes() // no need to check if need to first; this method does that
-   pauseExecution(100) // probably not necessary, but just in case (give a bit more time)
+   if (doRefreshIfConfigured == true) {
+      logDebug "doRefreshIfConfigured == true"
+      Integer waitTime = performRefreshes(true) // only gets time, does not refresh
+      runIn(waitTime, "postRefreshNotificationHandler")
+      performRefreshes()
+      return
+   }
    logDebug "Preparing list of inactive devices..."
    List<com.hubitat.app.DeviceWrapper> inactiveDevices = getInactiveDevices(true) 
    String notificationText = ""
    if (inactiveDevices && isModeOK()) {
-      notificationText += (settings["includeHubName"] ? "${app.label} - ${location.name}:" : "${app.label}:")		
+      notificationText += (settings["includeHubName"] ? "${app.label} - ${location.name}:" : "${app.label}:")
       inactiveDevices.each { dev ->
          notificationText += "\n${dev.displayName}"
          if (includeLastActivityTime) {
             String dateString = dev.getLastActivity()?.format(settings["timeFormat"] ?: 'MMM dd, yyyy h:mm a', location.timeZone) ?: 'No activity reported'
             notificationText += " - $dateString"
          }
-      }		
+      }
       logDebug "Sending notification for inactive devices: \"$notificationText\""
       notificationDevice?.each {
          it.deviceNotification(notificationText)
@@ -439,14 +470,19 @@ void sendInactiveNotification(Boolean includeLastActivityTime=(settings["include
    }
    else {
       String reason = "Notification skipped: "
-      if (inactiveDevices) reason += "No inactive devices. "
+      if (!inactiveDevices) reason += "No inactive devices. "
       if (!isModeOK()) reason += "Outside of specified mode(s)."
       logDebug reason
    }
 }
 
+void postRefreshNotificationHandler() {
+   pauseExecution(100) // probably not necessary, but just in case (give a bit more time)
+   sendInactiveNotification(null, false) // skips refresh
+}
+
 // For list items in report page
-String styleListItem(String text, index=0) {
+String styleListItem(String text, Long index=0) {
    return """<div style="color: ${index %2 == 0 ? "darkslategray" : "black"}; background-color: ${index %2 == 0 ? 'white' : 'ghostwhite'}">$text</div>"""
 }
 
@@ -486,7 +522,7 @@ Boolean isModeOK() {
    return isOK
 }
 
-def appButtonHandler(btn) {
+void appButtonHandler(String btn) {
    switch (btn) {
       case "btnNewGroup":
          Integer newMaxGroup = (state.groups[-1]) ? ((state.groups[-1] as Integer) + 1) : 2
@@ -499,18 +535,23 @@ def appButtonHandler(btn) {
       case "btnTestNotification":
          sendInactiveNotification()
          break
+      case "btnPerformRefreshes":
+         performRefreshes()
+         break
+      default:
+         log.warn "Unhandled button press: $btn"
    }
 }
 
 /** Writes to log.debug by default if debug logging setting enabled; can specify
   * other log level (e.g., "info") if desired
   */
-void logDebug(string, level="debug") {
+void logDebug(String str, String level="debug") {
    switch(level) {
       case "trace": 
-         if (settings["debugLevel"] != null && (settings["debugLevel"].toInteger()) == 2) log.trace(string)
+         if (settings["debugLevel"] != null && (settings["debugLevel"].toInteger()) == 2) log.trace(str)
          break
       default:
-        if (settings["debugLevel"] != null && (settings["debugLevel"].toInteger()) >= 1) log."$level"(string)
+        if (settings["debugLevel"] != null && (settings["debugLevel"].toInteger()) >= 1) log."$level"(str)
    }
 }
