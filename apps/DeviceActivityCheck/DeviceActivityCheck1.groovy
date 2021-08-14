@@ -280,7 +280,7 @@ def pageViewReport() {
          }
          else {
             section(styleSection("Inactive Device Report")) {
-               aragraph "No inactive devices to report"
+               paragraph "No inactive devices to report"
             }
          }
       }
