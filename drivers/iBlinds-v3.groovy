@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
+ *  2021-08-18: Concurrency fix for Z-Wave supervision
  *  2021-07-26: Added additional fingerprint
  *  2021-04-24: Added daily battery refresh option in case device does not send on own; Supervision improvements for S2 devices
  *  2020-11-22: Initial release for iBlinds v3 (portions based on v2 driver)
@@ -23,8 +24,9 @@
  */
 
 import groovy.transform.Field
+import java.util.concurrent.ConcurrentHashMap
 
-@Field static final Map commandClassVersions = [
+@Field static final Map<Short,Short> commandClassVersions = [
    0x20: 1,   // Basic
    0x26: 2,   // Switch Multilevel
    0x55: 1,   // Transport Service
@@ -42,7 +44,7 @@ import groovy.transform.Field
    0x9F: 1    // Security S2
 ]
 
-@Field static final Map zwaveParameters = [
+@Field static final Map<Short,Map> zwaveParameters = [
    1: [input: [name: "param.1", type: "enum", title: "Tightness of gap when closed (used for auto-calibration)",
          options: [["-1": "Do not configure (keep previous/existing configuration)"],[15: "15 - Tightest"],[16:"16"],[17:"17"],[18:"18"],[19:"19"],[20:"20"],[21:"21"],[22:"22 [DEFAULT]"],[23:"23"],
          [24:"24"],[25:"25"],[26:"26"],[27:"27"],[28:"28"],[29:"16"],[29:"29"],[30:"30 - Least Tight"]]], size: 1, ignoreValue: "-1"],
@@ -57,8 +59,9 @@ import groovy.transform.Field
            range: 1..99], size: 1]
 ]
 
-@Field static Map<Long, Map<Short, String>> supervisedPackets = [:]
-@Field static Map<Long, Short> sessionIDs = [:]
+@Field static ConcurrentHashMap<Long, Map<Short, String>> supervisedPackets = [:]
+@Field static ConcurrentHashMap<Long, Short> sessionIDs = [:]
+@Field static final Long supervisionCheckDelay = 5 // number of seconds
 
 metadata {
    definition (name: "iBlinds v3 (Community Driver)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/iBlinds-v3.groovy") {
@@ -81,8 +84,9 @@ metadata {
       }
       input name: "openPosition", type: "number", description: "", title: "\"Open\" command opens to... (default = 50):", defaultValue: 50, range: 1..99
       input name: "refreshTime", type: "enum", description: "", title: "Schedule daily battery level refresh during this hour",
-      options: [[0:"12 Midnight"],[1:"1 AM"],[4:"4 AM"],[5:"5 AM"],[6:"6 AM"],[9:"9 AM"],[10:"10 AM"],[11:"11 AM"],[13:"1 PM"],[15:"3 PM"],
-                  [17:"5 PM"],[22: "10 PM"],[23:"11 PM"],[1000: "Disabled"],[2000: "Random"]]
+      options: [[0:"12 Midnight"],[1:"1 AM"],[3:"3 AM"],[4:"4 AM"],[5:"5 AM"],[6:"6 AM"],[7:"7 AM"],[8:"8 AM"],[9:"9 AM"],
+                 [10:"10 AM"],[11:"11 AM"],[12:"12 Noon"],[13:"1 PM"],[14:"2 PM"],[15:"3 PM"],[16: "4 PM"],
+                 [17:"5 PM"],[22: "10 PM"],[23:"11 PM"],[1000: "Disabled"],[2000: "Random"]]
       input name: "enableDebug", type: "bool", title: "Enable debug logging", defaultValue: true
       input name: "enableDesc", type: "bool", title: "Enable descriptionText logging", defaultValue: true
    }
@@ -221,7 +225,7 @@ hubitat.zwave.Command supervisedEncap(hubitat.zwave.Command cmd) {
       supervised.encapsulate(cmd)
       if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
       supervisedPackets[device.id][supervised.sessionID] = supervised.format()
-      runIn(5, supervisionCheck)
+      runIn(supervisionCheckDelay, supervisionCheck)
       return supervised
    } else {
       return cmd
@@ -396,7 +400,7 @@ void getBattery() {
    state.lastBattAttemptAt = now()
    sendHubCommand(
       new hubitat.device.HubAction(zwave.batteryV1.batteryGet().format(),
-                                    hubitat.device.Protocol.ZWAVE)
+                                   hubitat.device.Protocol.ZWAVE)
    )
 }
 
