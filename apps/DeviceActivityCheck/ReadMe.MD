@@ -1,7 +1,5 @@
 # Device Activity Check
 
-**Current Version:** 1.2.0
-
 This app is primarily designed to periodically check the "Last Acvtivity At" data on selected devices and notify you if
 activity has not happened within your specified timeframe. For example, you could select a few motion sensors
 and configure Device Activity Check to notify you if they have not generated activity within the last
