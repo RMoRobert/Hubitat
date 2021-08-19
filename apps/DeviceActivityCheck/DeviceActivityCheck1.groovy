@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 1.4.6 (2021-08-18) - Eliminated spurious warning message in logs when using presence-based detection and refresh
  * 1.4.5 (2021-08-13) - Improvements to refresh behavior (runIn instead of pauseExecution); fix for inactivity thresholds >24 days
  * 1.4.4 (2021-06-07) - Fix for hours/minutes display when calculating total time for threshold (cosmetic issue only)
  * 1.4.3 (2021-06-06) - Fix for possible NPE when checking "presence"-based devices
@@ -312,10 +313,12 @@ List<com.hubitat.app.DeviceWrapper> getInactiveDevices(Boolean sortByName=true, 
          inactivityDetectionClosure = inactivityDetectionClosure.curry(cutoffEpochTime)
       }
       // For presence-based devices:
-      else if (settings["group${groupNum}.inactivityMethod"] == "presence" && !onlyDevicesToBeRefreshed /* presence not supported for refresh */) {
-         inactivityDetectionClosure = { com.hubitat.app.DeviceWrapper dev ->
-            dev.currentValue("presence") != "present" &&
-            disabledCheckClosure(dev)
+      else if (settings["group${groupNum}.inactivityMethod"] == "presence") {
+         if (!onlyDevicesToBeRefreshed) { /* presence not supported for refresh */
+            inactivityDetectionClosure = { com.hubitat.app.DeviceWrapper dev ->
+               dev.currentValue("presence") != "present" &&
+               disabledCheckClosure(dev)
+            }
          }
       }
       // Shouldn't happen, but warn if does:
