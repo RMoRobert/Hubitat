@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 1.4.7 (2021-08-20) - Fixed for missing dates on some reports
  * 1.4.6 (2021-08-18) - Eliminated spurious warning message in logs when using presence-based detection and refresh
  * 1.4.5 (2021-08-13) - Improvements to refresh behavior (runIn instead of pauseExecution); fix for inactivity thresholds >24 days
  * 1.4.4 (2021-06-07) - Fix for hours/minutes display when calculating total time for threshold (cosmetic issue only)
@@ -122,7 +123,7 @@ def pageMain() {
          input name: "includeHubName", type: "bool", title: "Include hub name in reports (${location.name})"
          input name: "useNotificationTimeFormatForReport", type: "bool", title: 'Use "Date/time format for notifications" for "View current report" dates/times (default is YYYY-MM-dd hh:mm a z)'
          input name: "refreshBeforeViewReport", type: "bool", title: "If configured to refresh devices before sending inactivity notification, also refresh before \"View current report\" (default is no; enabling may cause delay loading that page)"
-         input name: "modes", type: "mode", title: "Only send notifications when mode is", multiple: true, required: false
+         input name: "modes", type: "mode", title: "Only send notifications if mode is", multiple: true, required: false
          input name: "boolIncludeDisabled", type: "bool", title: "Include disabled devices in report"
          input name: "debugLevel", type: "enum", title: "Debug logging level:", options: [[0: "Logs off"], [1: "Debug logging"], [2: "Verbose logging"]],
             defaultValue: 0
@@ -481,7 +482,7 @@ void sendInactiveNotification(Boolean includeLastActivityTime=(settings["include
 
 void postRefreshNotificationHandler() {
    pauseExecution(100) // probably not necessary, but just in case (give a bit more time)
-   sendInactiveNotification(null, false) // skips refresh
+   sendInactiveNotification(settings["includeTime"] != false, false) // skips refresh
 }
 
 // For list items in report page
