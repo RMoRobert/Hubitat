@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
+ *  2021-07-29: Fix for "released" scene to report correct event
  *  2021-04-11: Initial release
  */
 
@@ -54,7 +55,7 @@ import groovy.transform.Field
    0x55: 1,    // TransportService
    0x59: 1,    // AssociationGrpInfo
    0x5A: 1,    // DeviceResetLocally
-   0x5B: 1,    // CentralScene
+   0x5B: 3,    // CentralScene
    0x5E: 2,    // ZwaveplusInfo
    0x6C: 1,    // Supervision
    0x70: 1,    // Configuration
@@ -160,7 +161,16 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
    else {
       if (logEnable) log.debug "Unable to de-encapsulate command from $cmd"
    }
+   // Is this necessary (or effective) on sleepy devices?
+   /*
+   sendHubCommand(new hubitat.device.HubAction(
+      zwaveSecureEncap(zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID,
+         reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0)),
+         hubitat.device.Protocol.ZWAVE)
+   )
+   */
 }
+
 
 void zwaveEvent(hubitat.zwave.commands.versionv2.VersionReport cmd) {
 	if (logEnable) log.debug "VersionReport: ${cmd}"
@@ -207,55 +217,59 @@ void zwaveEvent(hubitat.zwave.commands.batteryv1.BatteryReport cmd) {
    sendEvent(name:"battery", value: lvl, unit:"%", descriptionText: descText, isStateChange: true)
 }
 
-void zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification cmd) {    
+void zwaveEvent(hubitat.zwave.commands.centralscenev3.CentralSceneNotification cmd) {    
    if (logEnable) log.debug "CentralSceneNotification: ${cmd}"
    Integer btnNum = 0
    String btnAction = "pushed"
    if (cmd.sceneNumber == 1) {  // Up paddle
-      switch(cmd.keyAttributes as Integer) {
-         case 1:
+      switch(cmd.keyAttributes) {
+         case hubitat.zwave.commands.centralscenev3.CentralSceneNotification.KEY_RELEASED:        //1
             btnAction = "released"
-            // fall through
-         case 2:
-            btnAction = "held"
-            // fall through
-         case 0:
             btnNum = 1
             break
-         case 3:
+         case hubitat.zwave.commands.centralscenev3.CentralSceneNotification.KEY_HELD_DOWN:       //2
+            btnAction = "held"
+            btnNum = 1
+            break
+         case hubitat.zwave.commands.centralscenev3.CentralSceneNotification.KEY_PRESSED_1_TIME:  //0
+            btnNum = 1
+            break
+         case hubitat.zwave.commands.centralscenev3.CentralSceneNotification.KEY_PRESSED_2_TIMES: //3
             btnNum = 3
             break
-         case 4:
+         case hubitat.zwave.commands.centralscenev3.CentralSceneNotification.KEY_PRESSED_3_TIMES: //4
             btnNum = 5
             break
-         case 5:
+         case hubitat.zwave.commands.centralscenev3.CentralSceneNotification.KEY_PRESSED_4_TIMES: //5
             btnNum = 7
             break
-         case 6:
+         case hubitat.zwave.commands.centralscenev3.CentralSceneNotification.KEY_PRESSED_5_TIMES: //6
             btnNum = 9
             break
       }
    } else if (cmd.sceneNumber == 2) { // Down paddle
-      switch(cmd.keyAttributes as Integer) {
-         case 1:
+      switch(cmd.keyAttributes) {
+         case hubitat.zwave.commands.centralscenev3.CentralSceneNotification.KEY_RELEASED:        //1
             btnAction = "released"
-            // fall through
-         case 2:
-            btnAction = "held"
-            // fall through
-         case 0:
             btnNum = 2
             break
-         case 3:
+         case hubitat.zwave.commands.centralscenev3.CentralSceneNotification.KEY_HELD_DOWN:       //2
+            btnAction = "held"
+            btnNum = 2
+            break
+         case hubitat.zwave.commands.centralscenev3.CentralSceneNotification.KEY_PRESSED_1_TIME:  //0
+            btnNum = 2
+            break
+         case hubitat.zwave.commands.centralscenev3.CentralSceneNotification.KEY_PRESSED_2_TIMES: //3
             btnNum = 4
             break
-         case 4:
+         case hubitat.zwave.commands.centralscenev3.CentralSceneNotification.KEY_PRESSED_3_TIMES: //4
             btnNum = 6
             break
-         case 5:
+         case hubitat.zwave.commands.centralscenev3.CentralSceneNotification.KEY_PRESSED_4_TIMES: //5
             btnNum = 8
             break
-         case 6:
+         case hubitat.zwave.commands.centralscenev3.CentralSceneNotification.KEY_PRESSED_5_TIMES: //6
             btnNum = 10
             break
       }
