@@ -12,7 +12,7 @@ For more discussion see, the <a  href="https://community.hubitat.com/t/release-d
 https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonControllerParent.groovy
 
 2. Add the child app code:
-https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonController2.groovy
+https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonController3.groovy
 
 If you do not know how to add custom app code to Hubitat, consult <a  href="https://docs.hubitat.com/index.php?title=How_to_Install_Custom_Apps">the first five steps of the Hubitat support document on custom app installation</a>.
 
