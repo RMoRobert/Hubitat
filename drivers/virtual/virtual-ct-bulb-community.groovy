@@ -18,6 +18,7 @@
  *  Last modified: 2021-08-27
  *
  *  Changelog:
+ *  v1.0.1  - Moved default value initialization to separate method
  *  v1.0    - Initial Release
  */ 
 
@@ -40,9 +41,7 @@ metadata {
 void installed() {
    log.debug "installed()"
    initialize()
-   // set default values:
-   off()
-   setColorTemperature(2700,100)
+   runIn(1, "setDefaultValues")
 }
 
 void updated() {
@@ -58,6 +57,12 @@ void initialize() {
       log.debug "Debug logging will be automatically disabled in 30 minutes..."
       runIn(1800, "logsOff")
    }
+}
+
+void setDefaultValues() {
+   // sensible initial values:
+   off()
+   setColorTemperature(2700,100)
 }
 
 void logsOff() {
