@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 3.0.1  (2021-09-10) - Fix for UI error if device does not support ChangeLevel
  * 3.0    (2021-07-05) - Breaking changes (see release notes; keep 1.x and/or 2.x child app code if still use!);
  *                       Ability to mix actions (specific settings, scene, etc.) within same button event (e.g., button 1 first push = scene, second push = set CT/level)
  *                       Added "presets" for faster configuration; option to use new two-parameter "Set Color Temperature" (CT+level) command
@@ -37,9 +38,9 @@
 
 import groovy.transform.Field
 
-@Field static Boolean usePrefixedDefaultLabel = false // set to true to make deafult child app name "DBC - Button Name" instead of "Button Name Dimmer Button Controller"
+@Field static final Boolean usePrefixedDefaultLabel = false // set to true to make deafult child app name "DBC - Button Name" instead of "Button Name Dimmer Button Controller"
 
-@Field static final Map eventMap = [
+@Field static final Map<String,Map> eventMap = [
    "pushed": ["capability":"PushableButton", userAction: "push", "multiPresses": true],
    "held": ["capability":"HoldableButton", userAction: "hold", "multiPresses": false],
    "released": ["capability":"ReleasableButton", userAction: "release", "multiPresses": false],
@@ -52,7 +53,7 @@ import groovy.transform.Field
 @Field static final String sRELEASED = "released"
 @Field static final String sDOUBLE_TAPPED = "doubleTapped"
 
-@Field static final Map actionMap = [
+@Field static final Map<String,Map> actionMap = [
    "on": [displayName: "Turn on and set dimmers/bulbs or activate scene", "multiPresses": true],
    "bri": [displayName: "Dim up", "multiPresses": false],
    "dim": [displayName: "Dim down", "multiPresses": false],
@@ -533,9 +534,9 @@ def makeDimSection(btnNum, String strAction = sPUSHED, String direction) {
       if (buttonDevices.any { it.hasCapability("ReleasableButton") } && (strAction == "pushed" || strAction == "held")) {
          String settingTitle = "Dim until release (start level change when button ${strAction}, stop level change when button is released)"
          input name: rampSettingName, type: "bool", title: settingTitle, submitOnChange: true
-         if (dimmers.any { !(it.hasCapability("ChangeLevel")) }) {
-            List<com.hubitat.app.DeviceWrapper> unsupportedDevices = dimmers.findAll { !(it.hasCapability("ChangeLevel")) }.join(", ")
-            paragraph "Warning: one or more lights do not support the \"Start Level Change\" commands: $unsupportedDevices. " +
+         if (settings.dimmers?.any { !(it.hasCapability("ChangeLevel")) }) {
+            List<com.hubitat.app.DeviceWrapper> unsupportedDevices = settings.dimmers.findAll { !(it.hasCapability("ChangeLevel")) }
+            paragraph """Warning: one or more lights do not support the "Start Level Change" commands: ${unsupportedDevices.join(", ")}. """ +
                       "The \"Dim until release\" option above will probably not work."
          }
       } else {
