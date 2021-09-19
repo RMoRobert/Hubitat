@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 1.5   (2021-09-19) - Added battery as notification/report type; log if device checking with unsupported attribute
  * 1.4.7 (2021-08-20) - Fixed for missing dates on some reports
  * 1.4.6 (2021-08-18) - Eliminated spurious warning message in logs when using presence-based detection and refresh
  * 1.4.5 (2021-08-13) - Improvements to refresh behavior (runIn instead of pauseExecution); fix for inactivity thresholds >24 days
@@ -36,7 +37,7 @@
 
 import groovy.transform.Field
 
-@Field static final List dateFormatOptions = ['MMM d, yyyy, h:mm a', 'E, MMM d, yyyy, h:mm a', 'E dd MMM yyyy, h:mm a', 'dd MMM yyyy, h:mm a',
+@Field static final List<String> dateFormatOptions = ['MMM d, yyyy, h:mm a', 'E, MMM d, yyyy, h:mm a', 'E dd MMM yyyy, h:mm a', 'dd MMM yyyy, h:mm a',
                                         'dd MMM yyyy HH:mm', 'E MMM dd HH:mm', 'yyyy-MM-dd HH:mm z']
 @Field static final Integer formatListIfMoreItemsThan = 4
 
@@ -149,7 +150,7 @@ def pageDeviceGroup(params) {
    else {
       groupNum = state.currGroupDispNum
    }
-   strTitle = (state.groups?.size() > 1) ? "Device Group ${groupDispNum}:" : "Devices"   
+   strTitle = (state.groups?.size() > 1) ? "Device Group ${groupDispNum}:" : "Devices"
    state.remove("cancelDelete")
 
    dynamicPage(name: "pageDeviceGroup", title: strTitle, uninstall: false, install: false, nextPage: "pageMain") {
@@ -158,7 +159,7 @@ def pageDeviceGroup(params) {
       }
       section(styleSection("Inactivity Threshold")) {
          input name: "group${groupNum}.inactivityMethod", title: "Inactivity detection method:", type: "enum",
-            options: [["activity": "\"Last Activity\" timestamp"], ["presence": "\"Presence\" attribute"]],
+            options: [["activity": "\"Last Activity\" timestamp"], ["presence": "\"Presence\" attribute"], ["battery": "Battery level"]],
             defaultValue: "activity", required: true, submitOnChange: true
          if (settings["group${groupNum}.inactivityMethod"] == "activity" || settings["group${groupNum}.inactivityMethod"] == null) {
             paragraph "Consider above devices inactive if they have not had activity within..."
@@ -174,6 +175,10 @@ def pageDeviceGroup(params) {
             if (!(settings["group${groupNum}.intervalD"] || settings["group${groupNum}.intervalH"] || settings["group${groupNum}.intervalM"])) {
                paragraph "*At least one of: days, hours, or minutes is required"
             }
+         }
+         else if (settings["group${groupNum}.inactivityMethod"] == "battery") {
+            input name: "group${groupNum}.batteryLevel", type: "number", title: "Include in report if battery level is less than:",
+               range: "1..100"
          }
          else if (settings["group${groupNum}.inactivityMethod"] == "presence") {
             paragraph "Devices will be considered inactive if the value of the \"presence\" attribute is \"not present\" at the time " +
@@ -313,6 +318,17 @@ List<com.hubitat.app.DeviceWrapper> getInactiveDevices(Boolean sortByName=true, 
          }
          inactivityDetectionClosure = inactivityDetectionClosure.curry(cutoffEpochTime)
       }
+      // For battery level devices:
+      else if (settings["group${groupNum}.inactivityMethod"] == "battery") {
+         if (!onlyDevicesToBeRefreshed) { /* battery not supported for refresh */
+            inactivityDetectionClosure = { Integer batteryLevel, com.hubitat.app.DeviceWrapper dev ->
+               dev.currentValue("battery") < batteryLevel &&
+               disabledCheckClosure(dev)
+            }
+            Integer level = settings["group${groupNum}.batteryLevel"] ?: 0
+            inactivityDetectionClosure = inactivityDetectionClosure.curry(level)
+         }
+      }
       // For presence-based devices:
       else if (settings["group${groupNum}.inactivityMethod"] == "presence") {
          if (!onlyDevicesToBeRefreshed) { /* presence not supported for refresh */
@@ -399,6 +415,10 @@ String getDeviceGroupInactivityThresholdString(groupNum) {
    if (settings["group${groupNum}.inactivityMethod"] == "activity" || !settings["group${groupNum}.inactivityMethod"]) {
       thresholdString = daysHoursMinutesToString(settings["group${groupNum}.intervalD"],
          settings["group${groupNum}.intervalH"], settings["group${groupNum}.intervalM"])
+   }
+   else if (settings["group${groupNum}.inactivityMethod"] == "battery") {
+      Integer level = settings["group${groupNum}.batteryLevel"] ?: 0
+      thresholdString = "if battery < $level"
    }
    else if (settings["group${groupNum}.inactivityMethod"] == "presence") {
       thresholdString = "if not present"
@@ -490,6 +510,28 @@ String styleListItem(String text, Long index=0) {
    return """<div style="color: ${index %2 == 0 ? "darkslategray" : "black"}; background-color: ${index %2 == 0 ? 'white' : 'ghostwhite'}">$text</div>"""
 }
 
+
+// Check and log if any detection methods using unspported attributes:
+void verifyAndLogMissingCapabilities() {
+   List groups = state.groups ?: [1]
+   groups.each { groupNum ->
+      List<com.hubitat.app.DeviceWrapper> allDevices = settings["group${groupNum}.devices"] ?: []
+      // ignoring "Last Activity" at devices since works with any
+      // For battery level devices:
+      if (settings["group${groupNum}.inactivityMethod"] == "battery") {
+         allDevices.each {
+            if (!(it.hasAttribute("battery"))) log.warn "Device $it detection method is battery but does not support battery attribute"
+         }
+      }
+      // For presence-based devices:
+      else if (settings["group${groupNum}.inactivityMethod"] == "presence") {
+         allDevices.each {
+            if (!(it.hasAttribute("presence"))) log.warn "Device $it detection method is presence but does not support presence attribute"
+         }
+      }
+   }
+}
+
 void scheduleHandler() {
    logDebug("At scheduled; running report")
    sendInactiveNotification()
@@ -508,6 +550,7 @@ void updated() {
    log.debug "updated()"
    unschedule()
    initialize()
+   verifyAndLogMissingCapabilities()
 }
 
 void initialize() {
