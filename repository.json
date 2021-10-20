@@ -14,6 +14,7 @@
          "name": "CoCoHue (Hue Bridge Integration)",
          "category": "Integrations",
          "location": "https://raw.githubusercontent.com/HubitatCommunity/CoCoHue/master/packageManifest.json",
+         "betaLocation": "https://raw.githubusercontent.com/RMoRobert/CoCoHue/master/packageManifestBeta.json",
          "description": "Community-created Hue Bridge inegration for lights, groups, and scenes",
          "tags": ["Lights & Switches", "LAN"]
       },
