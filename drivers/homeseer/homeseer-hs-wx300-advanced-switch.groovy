@@ -1,5 +1,5 @@
 /*
- * =============== HomeSeer HS-WX300 (Z-Wave Dimmer/Switch - Dimmer) Driver ===============
+ * =============== HomeSeer HS-WX300 (Z-Wave Dimmer/Switch - Switch) Driver ===============
  *
  *  Copyright 2021 Robert Morris
  * 
@@ -23,9 +23,9 @@ import java.util.concurrent.ConcurrentHashMap
 
 @Field static final Map<Short,Short> commandClassVersions = [
    0x20: 1,    // Basic (2)
- //0x25: 1,    // Switch Binary (2) - Switch Mode Only
+   0x25: 1,    // Switch Binary (2) - Switch Mode Only
    0x27: 1,    // Switch All
-   0x26: 3,    // Switch Multilevel (4) - Dimmer Mode Only
+ //0x26: 3,    // Switch Multilevel (4) - Dimmer Mode Only
    0x5B: 1,    // CentralScene (3)
    0x55: 1,    // Transport Service (2))
    0x59: 1,    // AssociationGrpInfo
@@ -67,17 +67,8 @@ import java.util.concurrent.ConcurrentHashMap
        type: "enum", options: [[0: "LED on when load off"],[1:"LED off when load off (DEFAULT)"]]]],
    4: [size: 1, input: [name: "param.4", title: "Paddle orientation",
        type: "enum", options: [[0: "Top of paddle turns load on (DEFAULT)"],[1:"Bottom of paddle turns load on"]]]],
-   5: [size: 1, input: [name: "param.5", title: "Lowest dimming threshold",
-       type: "enum", options: [[1: "1: 16% (3-wire mode)/25% (2-wire mode) (DEFAULT)"],[2:"2"],[3:"3"],[4:"4"],[5:"5"],
-                                [6:"6"],[7:"7"],[8:"8"],[9:"9"],[10:"10"],[11:"11"],[12:"12"],[13:"13"],[14:"14 - 25% (3-wire mode)/30% (2-wire mode)"]]]],
    6: [size: 1, input: [name: "param.6", title: "Multi-tap/Central Scene (button events)",
        type: "enum", options: [[0: "Enabled (DEFAULT)"],[1:"Disabled (controls load without delay; eliminates held, released, and mulit-taps)"]]]],
-   11: [size: 1, input: [name: "param.11", title: "Default level transition time/ramp rate for Z-Wave", type: "enum",
-           options: [[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds (DEFAULT)"],[4:"4 seconds"],[5:"5 seconds"],[6:"6 seconds"],[7:"7 seconds"],[8:"8 seconds"],
-                     [9:"9 seconds"],[10:"10 seconds"],[15:"15 seconds"],[30:"30 seconds"],[45:"45 seconds"],[60:"60 seconds"],[90:"90 seconds"]]]],
-   12: [size: 1, input: [name: "param.12", title: "Default level transition time/ramp rate for physical paddle", type: "enum",
-           options: [[0:"ASAP"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds (DEFAULT)"],[4:"4 seconds"],[5:"5 seconds"],[6:"6 seconds"],[7:"7 seconds"],[8:"8 seconds"],
-                     [9:"9 seconds"],[10:"10 seconds"],[15:"15 seconds"],[30:"30 seconds"],[45:"45 seconds"],[60:"60 seconds"],[90:"90 seconds"]]]],
    // This is exposed as a command instead but can be uncommented if desired:
    /*13: [size: 1, input: [name: "param.13", title: "LED disply mode", type: "enum",
            options: [[0:"Normal (LEDs show load status)"],[1:"Status (custom LED status)"]]]],*/
@@ -100,12 +91,11 @@ import java.util.concurrent.ConcurrentHashMap
 @Field static final Integer debugAutoDisableMinutes = 30
 
 metadata {
-   definition (name: "HomeSeer HS-WX300 Advanced (Dimmer)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/homeseer/homeseer-hs-wx300-advanced-dimmer.groovy") {
+   definition (name: "HomeSeer HS-WX300 Advanced (Switch)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/homeseer/homeseer-hs-wx300-advanced-switch.groovy") {
       capability "Actuator"
       capability "Switch"
-      capability "SwitchLevel"
       capability "ChangeLevel"
-      capability "Flash"
+    //capability "Flash"  // does not work well
       capability "Configuration"
       capability "PushableButton"
       capability "HoldableButton"
@@ -124,10 +114,8 @@ metadata {
 
       command "setConfigParameter", [[name:"Parameter Number*", type: "NUMBER"], [name:"Value*", type: "NUMBER"], [name:"Size*", type: "NUMBER"]]
 
-
-      //fingerprint mfr: "000C", prod: "4447", deviceId: "3036" // WD200 -- would probably work, but commented out just in case
-      fingerprint mfr: "000C", prod: "4447", deviceId: "4036", inClusters: "0x5E,0x55,0x9F,0x6C"  // WX300 (dimmer mode, S2)
-      fingerprint mfr: "000C", prod: "4447", deviceId: "4036", inClusters: "0x5E,0x85,0x59,0x5A,0x7A,0x87,0x72,0x8E,0x73,0x9F,0x6C,0x55,0x86,0x26,0x70,0x5B"  // WX300 (dimmer mode)
+      fingerprint mfr: "000C", prod: "4447", deviceId: "4037", inClusters: "0x5E,0x55,0x9F,0x6C"  // WX300 (switch mode, S2)
+      fingerprint mfr: "000C", prod: "4447", deviceId: "4037", inClusters: "0x5E,0x85,0x59,0x5A,0x7A,0x87,0x72,0x8E,0x73,0x9F,0x6C,0x55,0x86,0x25,0x70,0x5B"  // WX300 (switch mode)
    }
 
    preferences {
@@ -151,7 +139,6 @@ metadata {
 
 void installed(){
    log.debug "installed()"
-   sendEvent(name: "level", value: 1)
    state.blinkval = 0b0000000
    (1..7).each {
       state."statusled${it}" = 0
@@ -327,15 +314,11 @@ void zwaveEvent(hubitat.zwave.commands.basicv1.BasicSet cmd) {
 }
 */
 
-void zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport cmd) {
-   if (enableDebug) log.debug "SwitchMultilevelReport: ${cmd}"
+void zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd) {
+   if (enableDebug) log.debug "SwitchBinaryReport: ${cmd}"
    String value = (cmd.value ? "on" : "off")
    if (enableDesc && device.currentValue("switch") != value) log.info "${device.displayName} switch is ${value}"
    sendEvent(name: "switch", value: value)
-   if (cmd.value) {
-      if (enableDesc && device.currentValue("level") != cmd.value) log.info "${device.displayName} level is ${cmd.value}%"
-      sendEvent(name: "level", value: cmd.value, unit: "%")
-   }
 }
 
 void zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification cmd) {
@@ -410,6 +393,7 @@ void zwaveEvent(hubitat.zwave.Command cmd){
    if (enableDebug) log.debug "skip: ${cmd}"
 }
 
+/*
 String flash() {
    if (enableDesc) log.info "${device.getDisplayName()} was set to flash with a rate of ${flashRate ?: 750} milliseconds"
    state.flashing = true
@@ -419,19 +403,20 @@ String flash() {
 String flashOn() {
    if (!state.flashing) return
    runInMillis((flashRate ?: 750).toInteger(), flashOff)
-   return zwaveSecureEncap(zwave.switchMultilevelV2.switchMultilevelSet(value: 0xFF, dimmingDuration: 0))
+   return zwaveSecureEncap(zwave.basicV1.basicSet(value: 0xFF))
 }
 
 String flashOff() {
    if (!state.flashing) return
    runInMillis((flashRate ?: 750).toInteger(), flashOn)
-   return zwaveSecureEncap(zwave.switchMultilevelV2.switchMultilevelSet(value: 0x00, dimmingDuration: 0))
+   return zwaveSecureEncap(zwave.basicV1.basicSet(value: 0x00))
 }
+*/
 
 List<String> refresh() {
    if (enableDebug) log.debug "refresh"
    return delayBetween([
-      zwaveSecureEncap(zwave.switchMultilevelV1.switchMultilevelGet()),
+      zwaveSecureEncap(zwave.switchMultilevelV1.switchBinaryGet()),
       zwaveSecureEncap(zwave.configurationV1.configurationGet()),
       zwaveSecureEncap(zwave.versionV2.versionGet())
    ], 150)
@@ -447,8 +432,6 @@ List<String> configure() {
 String on() {
    if (enableDebug) log.debug "on()"
    state.flashing = false
-   //hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: 0xFF)
-   // Using Basic instead because does not resepect Z-Wave parameter for rate with Mutlilevel:
    hubitat.zwave.Command cmd = zwave.basicV1.basicSet(value: 0xFF)
    return zwaveSecureEncap(supervisedEncap(cmd))
 }
@@ -456,34 +439,8 @@ String on() {
 String off() {
    if (enableDebug) log.debug "off()"
    state.flashing = false
-   //hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: 0x00)
-   // Using Basic instead because does not resepect Z-Wave parameter for rate with Mutlilevel:
    hubitat.zwave.Command cmd = zwave.basicV1.basicSet(value: 0x00)
    return zwaveSecureEncap(supervisedEncap(cmd))
-}
-
-String setLevel(Number value) {
-   if (enableDebug) log.debug "setLevel($value)"
-   state.flashing = false
-   hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: value < 100 ? value : 99)
-   return zwaveSecureEncap(supervisedEncap(cmd))
-}
-
-String setLevel(Number value, Number duration) {
-   if (enableDebug) log.debug "setLevel($value, $duration)"
-   state.flashing = false
-   Integer dimmingDuration = duration < 128 ? duration : 128 + Math.round(duration / 60)
-   hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: value < 100 ? value : 99, dimmingDuration: dimmingDuration)
-   return zwaveSecureEncap(supervisedEncap(cmd))
-}
-
-String startLevelChange(String direction) {
-   Integer upDown = direction == "down" ? 1 : 0
-   return zwaveSecureEncap(zwave.switchMultilevelV1.switchMultilevelStartLevelChange(upDown: upDown, ignoreStartLevel: 1, startLevel: 0))
-}
-
-String stopLevelChange() {
-   return zwaveSecureEncap(zwave.switchMultilevelV1.switchMultilevelStopLevelChange())
 }
 
 void push(Integer btnNum) {
