@@ -1,7 +1,7 @@
 /*
  * ===================== Inovelli Red Series Dimmer (LZW31-SN) Driver =====================
  *
- *  Copyright 2020 Robert Morris
+ *  Copyright 2021 Robert Morris
  *  Portions based on code from Inovelli and Hubitat
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -16,6 +16,9 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v2.3.0  (2021-11-07) - Added new preferences for newer firmware versions; update for new Hubitat button and flash capabilities;
+ *                         Added target 1 firmware reports to device data (as firmwareTarget1)
+ *  v2.2.0  (2021-04-24) - Z-Wave Supervision improvements
  *  v2.1.2  (2021-04-13) - Avoid converting button number to string when creating event
  *  v2.1.2  (2020-12-20) - Modified setParameter() to log only with debug logging enabled
  *  v2.1.1  (2020-11-18) - Fixed local vs. Z-Wave dimming parameter reversal (typo in Inovelli manual)
@@ -28,19 +31,22 @@
  */
 
 import groovy.transform.Field
+import java.util.concurrent.ConcurrentHashMap
 
-@Field static Map commandClassVersions = [
+@Field static final Map<Short,Short> commandClassVersions = [
    0x20: 1,    // Basic
    0x25: 1,    // Switch Binary
    0x26: 3,    // Switch Multilevel
    0x32: 3,    // Meter
    0x5B: 1,    // CentralScene
+   0x6C: 1,    // Supervision
    0x70: 1,    // Configuration
+   0x72: 2,    // ManufacturerSpecific
    0x86: 2,    // Version
    0x98: 1     // Security
 ]
 
-@Field static Map colorNameMap = [
+@Field static final Map<String,Short> colorNameMap = [
    "red": 1,
    "red-orange": 4,
    "orange": 21,
@@ -57,7 +63,7 @@ import groovy.transform.Field
    "white": 255
 ]
 
-@Field static Map effectNameMap = ["off": 0, "solid": 1, "chase": 2, "fast blink": 3, "slow blink": 4, "pulse": 5]
+@Field static final Map<String,Short> effectNameMap = ["off": 0, "solid": 1, "chase": 2, "fast blink": 3, "slow blink": 4, "pulse": 5]
 
 @Field static final Map zwaveParameters = [
    1: [input: [name: "param.1", type: "enum", title: "Dimming rate from hub",
@@ -103,11 +109,17 @@ import groovy.transform.Field
       size: 1],
    22: [input: [name: "param.22", type: "enum", title: "Switch type", options: [[0:"Single-pole (default)"],[1:"Mutli-way with dumb switch"],[2:"Multi-way with aux switch"]]],
       size: 1],
+   50: [input: [name: "param.50", type: "enum", title: "Button press/multi-tap delay (firmware 1.52+ only; only if physical delay/multi-taps not disabled)", options: [[1:"100 ms"],[2:"200 ms"],[3:"300 ms"],[4:"400 ms"],
+      [5:"500 ms"],[6:"600 ms"],[7:"700 ms (default)"],[8:"800 ms"],[9:"900 ms"]]],
+      size: 1],
    51: [input: [name: "param.51", type: "enum", title: "Disable physical on/off delay", options: [[1:"No (default)"],[0:"Yes (also disables multi-taps)"]]],
       size: 1],
-   52: [input: [name: "param.52", type: "enum", title: "Smart bulb mode", options: [[0:"No (default)"],[1:"Yes (prevents dimming below 99 when on)"]]],
+   52: [input: [name: "param.52", type: "enum", title: "Smart bulb mode", options: [[0:"Disabled (default)"],[1:"On/off (prevents dimming below 99 when on)"], [2:"Smart bulb mode (firmare 1.54+ only)"]]],
       size: 1]
 ]
+
+@Field static ConcurrentHashMap<Long, ConcurrentHashMap<Short, String>> supervisedPackets = [:]
+@Field static ConcurrentHashMap<Long, Short> sessionIDs = [:]
 
 metadata {
    definition (name: "Advanced Inovelli Red Series Dimmer (LZW31-SN)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Red-Dimmer-LZW31SN-Advanced.groovy") {
@@ -115,6 +127,7 @@ metadata {
       capability "Switch"
       capability "SwitchLevel"
       capability "ChangeLevel"
+      capability "Flash"
       capability "EnergyMeter"
       capability "VoltageMeasurement"
       capability "PowerMeter"
@@ -123,11 +136,7 @@ metadata {
       capability "HoldableButton"
       capability "ReleasableButton"
 
-      command "flash"
       command "refresh"
-      command "push", [[name: "Button Number*", type: "NUMBER"]]
-      command "hold", [[name: "Button Number*", type: "NUMBER"]]
-      command "release", [[name: "Button Number*", type: "NUMBER"]]
       command "setConfigParameter", [[name:"Parameter Number*", type: "NUMBER"], [name:"Value*", type: "NUMBER"], [name:"Size*", type: "NUMBER"]]
       command "setIndicator", [[name: "Notification Value*", type: "NUMBER", description: "See https://nathanfiscus.github.io/inovelli-notification-calc to calculate"]]
       command "setIndicator", [[name:"Color", type: "ENUM", constraints: ["red", "red-orange", "orange", "yellow", "green", "spring", "cyan", "azure", "blue", "violet", "magenta", "rose", "white"]],
@@ -165,14 +174,6 @@ void logsOff() {
    device.updateSetting("enableDebug", [value:"false", type:"bool"])
 }
 
-String secure(String cmd) {
-   return zwaveSecureEncap(cmd)
-}
-
-String secure(hubitat.zwave.Command cmd) {
-   return zwaveSecureEncap(cmd)
-}
-
 void parse(String description) {
    if (enableDebug) log.debug "parse description: ${description}"
    hubitat.zwave.Command cmd = zwave.parse(description, commandClassVersions)
@@ -186,13 +187,81 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
    if (encapCmd) {
       zwaveEvent(encapCmd)
    }
+   sendHubCommand(new hubitat.device.HubAction(
+      zwaveSecureEncap(zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID,
+         reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0)),
+         hubitat.device.Protocol.ZWAVE)
+   )
+}
+
+void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionReport cmd) {
+   if (enableDebug) log.debug "supervision report for session: ${cmd.sessionID}"
+   if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
+   if (supervisedPackets[device.id][cmd.sessionID] != null) { supervisedPackets[device.id].remove(cmd.sessionID) }
+   unschedule(supervisionCheck)
+}
+
+void supervisionCheck() {
+   // re-attempt once
+   if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
+   supervisedPackets[device.id].each { k, v ->
+      if (enableDebug) log.debug "re-sending supervised session: ${k}"
+      sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(v), hubitat.device.Protocol.ZWAVE))
+      supervisedPackets[device.id].remove(k)
+   }
+}
+
+Short getSessionId() {
+   Short sessId = 1
+   if (!sessionIDs[device.id]) {
+      sessionIDs[device.id] = sessId
+      return sessId
+   } else {
+      sessId = sessId + sessionIDs[device.id]
+      if (sessId > 63) sessId = 1
+      sessionIDs[device.id] = sessId
+      return sessId
+   }
+}
+
+hubitat.zwave.Command supervisedEncap(hubitat.zwave.Command cmd) {
+   if (getDataValue("S2")?.toInteger() != null) {
+      hubitat.zwave.commands.supervisionv1.SupervisionGet supervised = new hubitat.zwave.commands.supervisionv1.SupervisionGet()
+      supervised.sessionID = getSessionId()
+      if (enableDebug) log.debug "new supervised packet for session: ${supervised.sessionID}"
+      supervised.encapsulate(cmd)
+      if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
+      supervisedPackets[device.id][supervised.sessionID] = supervised.format()
+      runIn(5, supervisionCheck)
+      return supervised
+   } else {
+      return cmd
+   }
 }
 
 void zwaveEvent(hubitat.zwave.commands.versionv2.VersionReport cmd) {
-	if (enableDebug) log.debug "VersionReport: ${cmd}"
-	device.updateDataValue("firmwareVersion", "${cmd.firmware0Version}.${cmd.firmware0SubVersion}")
-	device.updateDataValue("protocolVersion", "${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion}")
-	device.updateDataValue("hardwareVersion", "${cmd.hardwareVersion}")
+   if (enableDebug) log.debug "VersionReport: ${cmd}"
+   if (cmd.firmware0Version != null && cmd.firmware0SubVersion != null) {
+      device.updateDataValue("firmwareVersion", "${cmd.firmware0Version}.${cmd.firmware0SubVersion.toString().padLeft(2,'0')}")
+      if (enableDebug) log.debug "${device.displayName} firmware0Version and subversion is ${cmd.firmware0Version}.${cmd.firmware0SubVersion.toString().padLeft(2,'0')}"
+   }
+   else if (cmd.applicationVersion != null && cmd.applicationSubVersion != null) {
+      device.updateDataValue("applicationVersion", "${cmd.applicationVersion}.${cmd.applicationSubVersion.toString().padLeft(2,'0')}")
+      if (enableDebug) log.debug "${device.displayName} applicationVersion amd subversion is ${cmd.applicationVersion}.${cmd.applicationSubVersion.toString().padLeft(2,'0')}"
+   }
+   if (cmd.zWaveProtocolVersion != null && cmd.zWaveProtocolSubVersion != null) {
+      device.updateDataValue("protocolVersion", "${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion.toString().padLeft(2,'0')}")
+      if (enableDebug) log.debug "${device.displayName} zWaveProtocolVersion and subversion is ${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion.toString().padLeft(2,'0')}"
+   }
+   if (cmd.hardwareVersion != null) {
+      device.updateDataValue("hardwareVersion", "${cmd.hardwareVersion}")
+      if (enableDebug) log.debug "${device.displayName} hardwareVersion is ${cmd.hardwareVersion}"
+   }
+   cmd.targetVersions.each { tgt ->
+      String tgtFW = "${tgt.version}.${tgt.subVersion.toString().padLeft(2,'0')}"
+      device.updateDataValue("firmwareTarget${tgt.version}" as String, tgtFW)
+      if (enableDebug) log.debug "Target ${tgt.version} firwmare is $tgtFW"
+   }
 }
 
 void zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.DeviceSpecificReport cmd) {
@@ -254,7 +323,7 @@ void zwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) 
 void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd) {
    if (enableDebug) log.warn "BasicReport:  ${cmd}"
    dimmerEvents(cmd)
-}            
+}
 
 void zwaveEvent(hubitat.zwave.commands.basicv1.BasicSet cmd) {
    if (enableDebug) log.warn "BasicSet: ${cmd}"
@@ -353,7 +422,7 @@ void zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification c
 }
 
 void zwaveEvent(hubitat.zwave.Command cmd){
-    if (enableDebug) log.debug "skip: ${cmd}"
+   if (enableDebug) log.debug "skip: ${cmd}"
 }
 
 String flash() {
@@ -365,58 +434,66 @@ String flash() {
 String flashOn() {
    if (!state.flashing) return
    runInMillis((flashRate ?: 750).toInteger(), flashOff)
-   return secure(zwave.switchMultilevelV2.switchMultilevelSet(value: 0xFF, dimmingDuration: 0))
+   return zwaveSecureEncap(zwave.switchMultilevelV2.switchMultilevelSet(value: 0xFF, dimmingDuration: 0))
 }
 
 String flashOff() {
    if (!state.flashing) return
    runInMillis((flashRate ?: 750).toInteger(), flashOn)
-   return secure(zwave.switchMultilevelV2.switchMultilevelSet(value: 0x00, dimmingDuration: 0))
+   return zwaveSecureEncap(zwave.switchMultilevelV2.switchMultilevelSet(value: 0x00, dimmingDuration: 0))
 }
 
 List<String> refresh() {
    if (enableDebug) log.debug "refresh"
    return delayBetween([
-      secure(zwave.switchMultilevelV1.switchMultilevelGet()),
-      secure(zwave.meterV3.meterGet(scale: 0)),
-      secure(zwave.meterV3.meterGet(scale: 2)),
-      secure(zwave.configurationV1.configurationGet()),
-      secure(zwave.versionV2.versionGet())
-   ], 100)
+      zwaveSecureEncap(zwave.switchMultilevelV1.switchMultilevelGet()),
+      zwaveSecureEncap(zwave.meterV3.meterGet(scale: 0)),
+      zwaveSecureEncap(zwave.meterV3.meterGet(scale: 2)),
+      zwaveSecureEncap(zwave.configurationV1.configurationGet()),
+      zwaveSecureEncap(zwave.versionV2.versionGet())
+   ], 125)
 }
 
 String on() {
    if (enableDebug) log.debug "on()"
    state.flashing = false
-   return secure(zwave.switchMultilevelV1.switchMultilevelSet(value: 0xFF))
+   hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: 0xFF)
+   return zwaveSecureEncap(cmd)
+   //return zwaveSecureEncap(supervisedEncap(cmd))
 }
 
 String off() {
    if (enableDebug) log.debug "off()"
    state.flashing = false
-   return secure(zwave.switchMultilevelV1.switchMultilevelSet(value: 0x00))
+   hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: 0x00)
+   return zwaveSecureEncap(cmd)
+   //return zwaveSecureEncap(supervisedEncap(cmd))
 }
 
 String setLevel(value) {
    if (enableDebug) log.debug "setLevel($value)"
    state.flashing = false
-   return secure(zwave.switchMultilevelV2.switchMultilevelSet(value: value < 100 ? value : 99))
+   hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: value < 100 ? value : 99)
+   return zwaveSecureEncap(cmd)
+   //return zwaveSecureEncap(supervisedEncap(cmd))
 }
 
 String setLevel(value, duration) {
    if (enableDebug) log.debug "setLevel($value, $duration)"
    state.flashing = false
    Integer dimmingDuration = duration < 128 ? duration : 128 + Math.round(duration / 60)
-   return secure(zwave.switchMultilevelV2.switchMultilevelSet(value: value < 100 ? value : 99, dimmingDuration: dimmingDuration))
+   hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: value < 100 ? value : 99, dimmingDuration: dimmingDuration)
+   return zwaveSecureEncap(cmd)
+   //return zwaveSecureEncap(supervisedEncap(cmd))
 }
 
 String startLevelChange(direction) {
    Integer upDown = direction == "down" ? 1 : 0
-   return secure(zwave.switchMultilevelV1.switchMultilevelStartLevelChange(upDown: upDown, ignoreStartLevel: 1, startLevel: 0))
+   return zwaveSecureEncap(zwave.switchMultilevelV1.switchMultilevelStartLevelChange(upDown: upDown, ignoreStartLevel: 1, startLevel: 0))
 }
 
 String stopLevelChange() {
-   return secure(zwave.switchMultilevelV1.switchMultilevelStopLevelChange())
+   return zwaveSecureEncap(zwave.switchMultilevelV1.switchMultilevelStopLevelChange())
 }
 
 void push(btnNum) {
@@ -436,11 +513,11 @@ void installed(){
    sendEvent(name: "level", value: 1)
 }
 
-void configure() {
+List<String> configure() {
    log.warn "configure..."
-   runIn(1800, logsOff)
+   runIn(1800, "logsOff")
    sendEvent(name: "numberOfButtons", value: 11)
-   refresh() 
+   updated() 
 }
 
 // Apply preferences changes, including updating parameters
@@ -450,7 +527,7 @@ List<String> updated() {
    log.warn "Description logging is: ${enableDesc == true ? 'enabled' : 'disabled'}"
    if (enableDebug) {
       log.debug "Debug logging will be automatically disabled in 30 minutes..."
-      runIn(1800, logsOff)
+      runIn(1800, "logsOff")
    }
 
    List<String> cmds = []
@@ -458,13 +535,17 @@ List<String> updated() {
    zwaveParameters.each { param, data ->
       if (settings[data.input.name] != null) {
          if (enableDebug) log.debug "Setting parameter $param (size:  ${data.size}) to ${settings[data.input.name]}"
-         cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: settings[data.input.name] as BigInteger, parameterNumber: param, size: data.size)))
+         cmds.add(
+            zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: settings[data.input.name] as BigInteger,
+                                                                    parameterNumber: param,
+                                                                    size: data.size))
+         )
       }
     }
 
-   cmds.add(secure(zwave.versionV2.versionGet()))
-   cmds.add(secure(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 1)))
-   cmds.add(secure(zwave.protectionV2.protectionSet(localProtectionState: settings["disableLocal"] ? 1 : 0,
+   cmds.add(zwaveSecureEncap(zwave.versionV2.versionGet()))
+   cmds.add(zwaveSecureEncap(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 1)))
+   cmds.add(zwaveSecureEncap(zwave.protectionV2.protectionSet(localProtectionState: settings["disableLocal"] ? 1 : 0,
                                              rfProtectionState: settings["disableRemote"] ? 1 : 0)))   
    return delayBetween(cmds, 200)
 }
@@ -504,9 +585,9 @@ String setIndicator(String color, level, String effect, BigDecimal duration=255)
 List<String> setLEDColor(value, level=null) {
    if (enableDebug) log.debug "setLEDColor(Object $value, Object $level)"
    List<String> cmds = []   
-   cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: 13, size: 2)))
+   cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: 13, size: 2)))
    if (level != null) {
-      cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: level.toInteger(), parameterNumber: 14, size: 1)))
+      cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: level.toInteger(), parameterNumber: 14, size: 1)))
    }
    return delayBetween(cmds, 750)
 }
@@ -520,9 +601,9 @@ List<String> setLEDColor(String color, level) {
    if (intLevel < 0) intLevel = 0
    else if (intLevel > 10) intLevel = 10
    List<String> cmds = []   
-   cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: intColor, parameterNumber: 13, size: 2)))
+   cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intColor, parameterNumber: 13, size: 2)))
    if (level != null) {
-      cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: intLevel, parameterNumber: 14, size: 1)))
+      cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intLevel, parameterNumber: 14, size: 1)))
    }
    return delayBetween(cmds, 750)
 }
@@ -541,13 +622,15 @@ String setOffLEDLevel(value) {
 
 // Custom command (for apps/users)
 String setConfigParameter(number, value, size) {
-   return setParameter(number, value, size.toInteger())
+   return setParameter(number, value, size.toBigInteger())
 }
 
 // For internal/driver use
 String setParameter(number, value, size) {
    if (enableDebug) log.debug "setParameter(number: $number, value: $value, size: $size)"
-   return secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: number, size: size))
+   hubitat.zwave.Command cmd = zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toBigInteger(), parameterNumber: number as Short, size: size as Short)
+   return zwaveSecureEncap(cmd)
+   //return zwaveSecureEncap(supervisedEncap(cmd))
 }
 
 void clearChildDevsAndState() {
@@ -556,36 +639,3 @@ void clearChildDevsAndState() {
       deleteChildDevice(it.deviceNetworkId)
    }
 }
-
-/*
-def createChildDevicesIfNeeded() {
-   // Notification LED name should have "-31" for dimmers or "-30" for switches
-   def notificationLEDDNI = "${device.deviceNetworkId}-31NotifyLED"
-   def defaultLEDDNI = "${device.deviceNetworkId}-DefaultLED"
-   def offLEDDNI = "${device.deviceNetworkId}-OffLED"
-   if (!getChildDevice(notificationLEDDNI)) {
-      try {
-         def dev = addChildDevice("Inovelli Notification LED", notificationLEDDNI,
-                           ["label": "${device.displayName} Notification LED",
-                           "isComponent": false])
-         dev.installed()
-      } catch (Exception e) {
-         log.error "Error creating notification LED child device: $e"
-      }    
-   }
-   if (!getChildDevice(defaultLEDDNI)) {
-      try {
-         def dev = addChildDevice("Inovelli Default LED", defaultLEDDNI, ["label": "${device.displayName} Default LED"])
-      } catch (Exception e) {
-         log.error "Error creating default LED child device: $e"
-      }    
-   }
-   if (!getChildDevice(offLEDDNI)) {
-      try {
-         def dev = addChildDevice("Inovelli Off LED", offLEDDNI, ["label": "${device.displayName} Off LED"])
-      } catch (Exception e) {
-         log.error "Error creating \"off\" LED child device: $e"
-      }    
-   }
-}
-*/

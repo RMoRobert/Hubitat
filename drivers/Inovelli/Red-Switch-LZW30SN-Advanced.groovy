@@ -1,7 +1,7 @@
 /*
  * ===================== Inovelli Red Series Switch (LZW30-SN) Driver =====================
  *
- *  Copyright 2020 Robert Morris
+ *  Copyright 2021 Robert Morris
  *  Portions based on code from Inovelli and Hubitat
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -16,6 +16,8 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v2.3.0  (2021-11-07) - Updates for new Hubitat 2.2.6+ capabilities, concurrency fixes
+ *  v2.2.0  (2021-04-24) - Z-Wave Supervision improvements
  *  v2.1.2  (2021-04-13) - Fixed parameter 8 (notification) typo; avoid converting button number to string when creating event
  *  v2.1.1  (2020-12-20) - Modified setParameter() to log only with debug logging enabled
  *  v2.1    (2020-11-10) - Added second set of "friendly" setIndicator and setLEDColor commands; allow more unset preferences (will not change if not set)
@@ -28,7 +30,7 @@
 
 import groovy.transform.Field
 
-@Field static Map commandClassVersions = [
+@Field static final Map<Short,Short> commandClassVersions = [
    0x20: 1,    // Basic
    0x25: 1,    // Switch Binary
    0x32: 3,    // Meter
@@ -38,7 +40,7 @@ import groovy.transform.Field
    0x98: 1     // Security
 ]
 
-@Field static Map colorNameMap = [
+@Field static final Map<String,Short> colorNameMap = [
    "red": 1,
    "red-orange": 4,
    "orange": 21,
@@ -55,9 +57,9 @@ import groovy.transform.Field
    "white": 255
 ]
 
-@Field static Map effectNameMap = ["off": 0, "solid": 1, "pulse": 4, /*"fallback" for 31-SN users, can remove if don't want here:*/ "chase": 4, "fast blink": 2, "slow blink": 3]
+@Field static final Map<String,Short> effectNameMap = ["off": 0, "solid": 1, "pulse": 4, /*"fallback" for 31-SN users, can remove if don't want here:*/ "chase": 4, "fast blink": 2, "slow blink": 3]
 
-@Field static final Map zwaveParameters = [
+@Field static final Map<Short,Map> zwaveParameters = [
    1: [input: [name: "param.1", type: "enum", title: "State on power restore",
        options: [[2: "Off"], [1: "On"], [0: "Previous state (default)"]]],
       size: 1],
@@ -79,10 +81,14 @@ import groovy.transform.Field
       size: 1]
 ]
 
+@Field static ConcurrentHashMap<Long, ConcurrentHashMap<Short, String>> supervisedPackets = [:]
+@Field static ConcurrentHashMap<Long, Short> sessionIDs = [:]
+
 metadata {
    definition (name: "Advanced Inovelli Red Series Switch (LZW30-SN)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Red-Switch-LZW30SN-Advanced.groovy") {
       capability "Actuator"
       capability "Switch"
+      capability "Flash"
       capability "EnergyMeter"
       capability "VoltageMeasurement"
       capability "PowerMeter"
@@ -91,11 +97,7 @@ metadata {
       capability "HoldableButton"
       capability "ReleasableButton"
 
-      command "flash"
       command "refresh"
-      command "push", [[name: "Button Number*", type: "NUMBER"]]
-      command "hold", [[name: "Button Number*", type: "NUMBER"]]
-      command "release", [[name: "Button Number*", type: "NUMBER"]]
       command "setConfigParameter", [[name:"Parameter Number*", type: "NUMBER"], [name:"Value*", type: "NUMBER"], [name:"Size*", type: "NUMBER"]]
       command "setIndicator", [[name: "Notification Value*", type: "NUMBER", description: "See https://nathanfiscus.github.io/inovelli-notification-calc to calculate"]]
       command "setIndicator", [[name:"Color", type: "ENUM", constraints: ["red", "red-orange", "orange", "yellow", "green", "spring", "cyan", "azure", "blue", "violet", "magenta", "rose", "white"]],
@@ -132,14 +134,6 @@ void logsOff() {
    device.updateSetting("enableDebug", [value:"false", type:"bool"])
 }
 
-String secure(String cmd){
-   return zwaveSecureEncap(cmd)
-}
-
-String secure(hubitat.zwave.Command cmd){
-   return zwaveSecureEncap(cmd)
-}
-
 void parse(String description){
    if (enableDebug) log.debug "parse description: ${description}"
    hubitat.zwave.Command cmd = zwave.parse(description, commandClassVersions)
@@ -148,10 +142,62 @@ void parse(String description){
    }
 }
 
-void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd){
+void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
+   if (enableDebug) log.debug "SupervisionGet $cmd"
    hubitat.zwave.Command encapCmd = cmd.encapsulatedCommand(commandClassVersions)
    if (encapCmd) {
+      if (enableDebug) "encapCmd $encapCmd"
       zwaveEvent(encapCmd)
+   }
+   sendHubCommand(new hubitat.device.HubAction(
+      zwaveSecureEncap(zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID,
+         reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0)),
+         hubitat.device.Protocol.ZWAVE)
+   )
+}
+
+void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionReport cmd) {
+   if (enableDebug) log.debug "supervision report for session: ${cmd.sessionID}"
+   if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
+   if (supervisedPackets[device.id][cmd.sessionID] != null) { supervisedPackets[device.id].remove(cmd.sessionID) }
+   unschedule("supervisionCheck")
+}
+
+void supervisionCheck() {
+   // re-attempt once
+   if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
+   supervisedPackets[device.id].each { k, v ->
+      if (enableDebug) log.debug "re-sending supervised session: ${k}"
+      sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(v), hubitat.device.Protocol.ZWAVE))
+      supervisedPackets[device.id].remove(k)
+   }
+}
+
+Short getSessionId() {
+   Short sessId = 1
+   if (!sessionIDs[device.id]) {
+      sessionIDs[device.id] = sessId
+      return sessId
+   } else {
+      sessId = sessId + sessionIDs[device.id]
+      if (sessId > 63) sessId = 1
+      sessionIDs[device.id] = sessId
+      return sessId
+   }
+}
+
+hubitat.zwave.Command supervisedEncap(hubitat.zwave.Command cmd) {
+   if (getDataValue("S2")?.toInteger() != null) {
+      hubitat.zwave.commands.supervisionv1.SupervisionGet supervised = new hubitat.zwave.commands.supervisionv1.SupervisionGet()
+      supervised.sessionID = getSessionId()
+      if (enableDebug) log.debug "new supervised packet for session: ${supervised.sessionID}"
+      supervised.encapsulate(cmd)
+      if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
+      supervisedPackets[device.id][supervised.sessionID] = supervised.format()
+      runIn(5, "supervisionCheck")
+      return supervised
+   } else {
+      return cmd
    }
 }
 
@@ -319,36 +365,40 @@ String flash() {
 String flashOn() {
    if (!state.flashing) return
    runInMillis((flashRate ?: 750).toInteger(), flashOff)
-   secure(zwave.basicV1.basicSet(value: 0xFF))
+   zwaveSecureEncap(zwave.basicV1.basicSet(value: 0xFF))
 }
 
 String flashOff() {
    if (!state.flashing) return
    runInMillis((flashRate ?: 750).toInteger(), flashOn)
-   secure(zwave.basicV1.basicSet(value: 0x00))
+   zwaveSecureEncap(zwave.basicV1.basicSet(value: 0x00))
 }
 
 List<String> refresh() {
    if (enableDebug) log.debug "refresh"
    return delayBetween([
-      secure(zwave.switchMultilevelV1.switchMultilevelGet()),
-      secure(zwave.meterV3.meterGet(scale: 0)),
-      secure(zwave.meterV3.meterGet(scale: 2)),
-      secure(zwave.configurationV1.configurationGet()),
-      secure(zwave.versionV2.versionGet())
+      zwaveSecureEncap(zwave.switchMultilevelV1.switchMultilevelGet()),
+      zwaveSecureEncap(zwave.meterV3.meterGet(scale: 0)),
+      zwaveSecureEncap(zwave.meterV3.meterGet(scale: 2)),
+      zwaveSecureEncap(zwave.configurationV1.configurationGet()),
+      zwaveSecureEncap(zwave.versionV2.versionGet())
    ], 100)
 }
 
 String on() {
    if (enableDebug) log.debug "on()"
    state.flashing = false
-   secure(zwave.basicV1.basicSet(value: 0xFF))
+   hubitat.zwave.Command cmd = zwave.basicV1.basicSet(value: 0xFF)
+   return zwaveSecureEncap(cmd)
+   //return zwaveSecureEncap(supervisedEncap(cmd))
 }
 
 String off() {
    if (enableDebug) log.debug "off()"
    state.flashing = false
-   secure(zwave.basicV1.basicSet(value: 0x00))
+   hubitat.zwave.Command cmd = zwave.basicV1.basicSet(value: 0x00)
+   return zwaveSecureEncap(cmd)
+   //return zwaveSecureEncap(supervisedEncap(cmd))
 }
 
 void push(btnNum) {
@@ -368,11 +418,11 @@ void installed(){
    sendEvent(name: "level", value: 1)
 }
 
-void configure() {
+List<String> configure() {
    log.warn "configure..."
-   runIn(1800, logsOff)
+   runIn(1800, "logsOff")
    sendEvent(name: "numberOfButtons", value: 11)
-   refresh() 
+   updated() 
 }
 
 // Apply preferences changes, including updating parameters
@@ -382,7 +432,7 @@ List<String> updated() {
    log.warn "Description logging is: ${enableDesc == true ? 'enabled' : 'disabled'}"
    if (enableDebug) {
       log.debug "Debug logging will be automatically disabled in 30 minutes..."
-      runIn(1800, logsOff)
+      runIn(1800, "logsOff")
    }
 
    List<String> cmds = []
@@ -390,13 +440,13 @@ List<String> updated() {
    zwaveParameters.each { param, data ->
       if (settings[data.input.name] != null) {
          if (enableDebug) log.debug "Setting parameter $param (size:  ${data.size}) to ${settings[data.input.name]}"
-         cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: settings[data.input.name] as BigInteger, parameterNumber: param, size: data.size)))
+         cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: settings[data.input.name] as BigInteger, parameterNumber: param, size: data.size)))
       }
     }
 
-   cmds.add(secure(zwave.versionV2.versionGet()))
-   cmds.add(secure(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 1)))
-   cmds.add(secure(zwave.protectionV2.protectionSet(localProtectionState: settings["disableLocal"] ? 1 : 0,
+   cmds.add(zwaveSecureEncap(zwave.versionV2.versionGet()))
+   cmds.add(zwaveSecureEncap(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 1)))
+   cmds.add(zwaveSecureEncap(zwave.protectionV2.protectionSet(localProtectionState: settings["disableLocal"] ? 1 : 0,
                                              rfProtectionState: settings["disableRemote"] ? 1 : 0)))   
    return delayBetween(cmds, 200)
 }
@@ -439,9 +489,9 @@ String setIndicator(String color, level, String effect, BigDecimal duration) {
 List<String> setLEDColor(value, level=null) {
    if (enableDebug) log.debug "setLEDColor(Object $value, Object $level)"
    List<String> cmds = []   
-   cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: 5, size: 2)))
+   cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: 5, size: 2)))
    if (level != null) {
-      cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: level.toInteger(), parameterNumber: 6, size: 1)))
+      cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: level.toInteger(), parameterNumber: 6, size: 1)))
    }
    return delayBetween(cmds, 750)
 }
@@ -455,9 +505,9 @@ List<String> setLEDColor(String color, level) {
    if (intLevel < 0) intLevel = 0
    else if (intLevel > 10) intLevel = 10
    List<String> cmds = []   
-   cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: intColor, parameterNumber: 5, size: 2)))
+   cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intColor, parameterNumber: 5, size: 2)))
    if (level != null) {
-      cmds.add(secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: intLevel, parameterNumber: 6, size: 1)))
+      cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intLevel, parameterNumber: 6, size: 1)))
    }
    return delayBetween(cmds, 750)
 }
@@ -476,13 +526,15 @@ String setOffLEDLevel(value) {
 
 // Custom command (for apps/users)
 String setConfigParameter(number, value, size) {
-   return secure(setParameter(number, value, size.toInteger()))
+   return zwaveSecureEncap(setParameter(number, value, size.toInteger()))
 }
 
 // For internal/driver use
 String setParameter(number, value, size) {
    if (enableDebug) log.debug "setParameter(number: $number, value: $value, size: $size)"
-   return secure(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: number, size: size))
+   hubitat.zwave.Command cmd = zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: number, size: size)
+   return zwaveSecureEncap(cmd)
+   //return zwaveSecureEncap(supervisedEncap(cmd))
 }
 
 void clearChildDevsAndState() {
