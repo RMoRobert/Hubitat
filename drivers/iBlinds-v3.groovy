@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
+ *  2021-11-07: Additional concurrecnty fix
  *  2021-08-18: Concurrency fix for Z-Wave supervision
  *  2021-07-26: Added additional fingerprint
  *  2021-04-24: Added daily battery refresh option in case device does not send on own; Supervision improvements for S2 devices
@@ -59,7 +60,7 @@ import java.util.concurrent.ConcurrentHashMap
            range: 1..99], size: 1]
 ]
 
-@Field static ConcurrentHashMap<Long, Map<Short, String>> supervisedPackets = [:]
+@Field static ConcurrentHashMap<Long, ConcurrentHashMap<Short, String>> supervisedPackets = [:]
 @Field static ConcurrentHashMap<Long, Short> sessionIDs = [:]
 @Field static final Long supervisionCheckDelay = 5 // number of seconds
 
