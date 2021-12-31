@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
+ *  2021-12-22: Use device.idAsLong instead of device.id for Maps
  *  2021-11-07: Additional concurrecnty fix
  *  2021-08-18: Concurrency fix for Z-Wave supervision
  *  2021-07-26: Added additional fingerprint
@@ -190,30 +191,30 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
 
 void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionReport cmd) {
    logDebug "supervision report for session: ${cmd.sessionID}"
-   if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
-   if (supervisedPackets[device.id][cmd.sessionID] != null) { supervisedPackets[device.id].remove(cmd.sessionID) }
+   if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
+   if (supervisedPackets[device.idAsLong][cmd.sessionID] != null) { supervisedPackets[device.idAsLong].remove(cmd.sessionID) }
    unschedule(supervisionCheck)
 }
 
 void supervisionCheck() {
    // re-attempt once
-   if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
-   supervisedPackets[device.id].each { k, v ->
+   if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
+   supervisedPackets[device.idAsLong].each { k, v ->
       logDebug "re-sending supervised session: ${k}"
       sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(v), hubitat.device.Protocol.ZWAVE))
-      supervisedPackets[device.id].remove(k)
+      supervisedPackets[device.idAsLong].remove(k)
    }
 }
 
 Short getSessionId() {
    Short sessId = 1
-   if (!sessionIDs[device.id]) {
-      sessionIDs[device.id] = sessId
+   if (!sessionIDs[device.idAsLong]) {
+      sessionIDs[device.idAsLong] = sessId
       return sessId
    } else {
-      sessId = sessId + sessionIDs[device.id]
+      sessId = sessId + sessionIDs[device.idAsLong]
       if (sessId > 63) sessId = 1
-      sessionIDs[device.id] = sessId
+      sessionIDs[device.idAsLong] = sessId
       return sessId
    }
 }
@@ -224,8 +225,8 @@ hubitat.zwave.Command supervisedEncap(hubitat.zwave.Command cmd) {
       supervised.sessionID = getSessionId()
       logDebug "new supervised packet for session: ${supervised.sessionID}"
       supervised.encapsulate(cmd)
-      if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
-      supervisedPackets[device.id][supervised.sessionID] = supervised.format()
+      if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
+      supervisedPackets[device.idAsLong][supervised.sessionID] = supervised.format()
       runIn(supervisionCheckDelay, supervisionCheck)
       return supervised
    } else {

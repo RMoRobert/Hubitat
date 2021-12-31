@@ -1,7 +1,7 @@
 /**
  *  iBlinds v2 (manufactured by HAB Home Intel) community driver for Hubitat
  * 
- *  Copyright 2020 Robert Morris
+ *  Copyright 2020-2021 Robert Morris
  *  Original includes code copyrigt 2020 iBlinds
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -16,12 +16,13 @@
  *  Adapted for Hubitat by Robert M based on 2018-09 and 2019-11 updates by Eric B to original iBlinds driver
  * 
  *  Version History
- *  2020-01-20: Initial release
- *  2020-01-21: Fix for configure() and battery reporting
- *  2020-10-05: Minor improvements (fix battery schedule if lost)
- *  2020-11-23: Minor improvements (refacotring, more static typing)
- *  2020-11-24: Added missing "position" events; updated device fingerprint; battery reports now always generate event (state change)
+ *  2021-12-30: Fix (providing default) for if "open to position" was never set
  *  2020-11-25: Minor tweaks to request and parse MSR and version on configure() (and installation)
+ *  2020-11-24: Added missing "position" events; updated device fingerprint; battery reports now always generate event (state change)
+ *  2020-11-23: Minor improvements (refacotring, more static typing)
+ *  2020-10-05: Minor improvements (fix battery schedule if lost)
+ *  2020-01-21: Fix for configure() and battery reporting
+ *  2020-01-20: Initial release
  */
 
 import groovy.transform.Field
@@ -35,12 +36,13 @@ import groovy.transform.Field
 metadata {
    definition (name: "iBlinds v2 (Community Driver)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/iBlinds-v2.groovy") {
       capability "Actuator"
-      capability "WindowShade" 
-      capability "SwitchLevel"
-      capability "Switch"  
+      capability "Initialize"
+      capability "Configuration"
       capability "Refresh"
       capability "Battery"
-      capability "Configuration"
+      capability "Switch"
+      capability "SwitchLevel"
+      capability "WindowShade"
 
       fingerprint  mfr: "0287", prod: "0003", deviceId: "000D", inClusters: "0x5E,0x85,0x59,0x86,0x72,0x5A,0x73,0x26,0x25,0x80,0x70" 
    }
@@ -72,7 +74,7 @@ List<String> updated() {
 }
 
 // Set daily schedule for battery refresh; schedule disable of debug logging if enabled
-void initialize() {    
+void initialize() {
    logDebug("Initializing; scheduling battery refresh interval")
    unschedule()
    scheduleBatteryRefresh()
@@ -221,7 +223,7 @@ void zwaveEvent(hubitat.zwave.Command cmd) {
 
 List<String> on() {
    logDebug("on()")
-   setLevel(openPosition)
+   setLevel((openPosition != null) ? openPosition : 50)
 }
 
 List<String> off() {
