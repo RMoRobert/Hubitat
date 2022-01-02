@@ -2,7 +2,7 @@
  * ==========================  Device Activity Check ==========================
  *  Platform: Hubitat Elevation
  *
- *  Copyright 2021 Robert Morris
+ *  Copyright 2022 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -17,10 +17,10 @@
  *  Author: Robert Morris
  *
  * Changelog:
- * 2.0   (2021-10-24) - [BETA 1] Improved reports for non-activity-based methods (shows attribute value);
- *                               Filter device-selection list based on detection method
- *                               New date format options for report vs. notifications
- *                               Improved refresh behavior (if option selected)
+ * 2.0   (2022-01-02) - Improved reports for non-activity-based methods (shows attribute value);
+*                       Filter device-selection list based on detection method
+*                       New date format options for report vs. notifications
+*                       Improved refresh behavior (if option selected)
  * 1.5.1 (2021-09-21) - Filter device list from detection method
  * 1.5   (2021-09-19) - Added battery as notification/report type; log if device checking with unsupported attribute
  * 1.4.7 (2021-08-20) - Fixed for missing dates on some reports
