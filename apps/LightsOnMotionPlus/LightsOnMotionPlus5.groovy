@@ -158,7 +158,7 @@ def pageMain() {
       }*/
       section("Restrictions") {
          input name: "onKillSwitch", type: "capability.switch", title: "Switch(es) to disable turning on lights", multiple: true, submitOnChange: true
-         input name: "offKillSwitch", type: "capability.switch", title: "Switch(es) to disable turning off (or dimming) ligts", multiple: true, submitOnChange: true
+         input name: "offKillSwitch", type: "capability.switch", title: "Switch(es) to disable turning off (or dimming) lights", multiple: true, submitOnChange: true
          if (onKillSwitch || offKillSwitch) {
             input name: "killSwitchState", type: "enum", title: "Disable when switch(es) is (are)...", required: true,
                defaultValue: "on", options: ["on", "off"]
