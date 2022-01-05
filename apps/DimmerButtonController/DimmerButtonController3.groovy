@@ -2,7 +2,7 @@
  * ==========================  Dimmer Button Controller (Child  App) ==========================
  *  Platform: Hubitat Elevation
  *
- *  Copyright 2018-2021 Robert Morris
+ *  Copyright 2018-2022 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 3.1    (2022-01-04) - Add support for setting to level from hub variable; added command metering preference (optional)
  * 3.0.1  (2021-09-10) - Fix for UI error if device does not support ChangeLevel
  * 3.0    (2021-07-05) - Breaking changes (see release notes; keep 1.x and/or 2.x child app code if still use!);
  *                       Ability to mix actions (specific settings, scene, etc.) within same button event (e.g., button 1 first push = scene, second push = set CT/level)
@@ -37,8 +38,11 @@
  */
 
 import groovy.transform.Field
+import com.hubitat.app.DeviceWrapper
 
 @Field static final Boolean usePrefixedDefaultLabel = false // set to true to make deafult child app name "DBC - Button Name" instead of "Button Name Dimmer Button Controller"
+
+@Field static final Integer pressNumResetDelay = 15
 
 @Field static final Map<String,Map> eventMap = [
    "pushed": ["capability":"PushableButton", userAction: "push", "multiPresses": true],
@@ -159,8 +163,9 @@ def pageMain() {
             options: [[1:1],[2:2],[3:3],[4:4],[5:5],[6:6],[7:7],[8:8],[9:9],[10:10]], defaultValue: 5
       }
       section("Advanced options", hideable: true, hidden: true) {
-         input name: "boolLegacyCT", type: "bool", title: "Use legacy (one-parameter) setColorTemperature() command", defaultValue: true
+         input name: "boolLegacyCT", type: "bool", title: "Use legacy (one-parameter) setColorTemperature() command", defaultValue: false
          input name: "boolDblCmd", type: "bool", title: "Send on/off and level commands twice (workaround for possible device/hub oddities if bulbs don't change first time)"
+         input name: "meterDelay", type: "number", title: "Metering: wait this many milliseconds between successive commands (optional)"
          input name: "boolGroup", type: "bool", title: "Allow separate selection of group device besdies individual bulbs (will attempt to use group device to optimize actions where appropriate)", submitOnChange: true
          input name: "boolShowSetForAll", type: "bool", title: "Always show \"set for all\" option even if only one dimmer/light selected (may be useful if frequently change which lights the button controls)"
          input name: "boolShowReleased", type: "bool", title: "Show actions sections for \"released\" events", submitOnChange: true
@@ -323,7 +328,9 @@ String getButtonConfigDescription(btnNum, String action, Boolean multiPresses) {
             // IF set dimmer/bulb to...
             if (settings[subActionSettingName] == sTO_SETTINGS || settings[subActionSettingName] == null) {
                if (settings["btn${btnNum}.${action}.Press${pressNum}.SetForAll"]) {
-                     Integer lVal = settings["btn${btnNum}.${action}.Press${pressNum}.SetForAll.L"]
+                     String lVal = (settings["btn${btnNum}.${action}.Press${pressNum}.UseVarLevel"]) ? 
+                                       settings["btn${btnNum}.${action}.Press${pressNum}.SetForAll.L.Var"] :
+                                       settings["btn${btnNum}.${action}.Press${pressNum}.SetForAll.L"]
                      Integer ctVal = settings["btn${btnNum}.${action}.Press${pressNum}.SetForAll.CT"]
                      Integer hVal = settings["btn${btnNum}.${action}.Press${pressNum}.SetForAll.H"]
                      Integer sVal = settings["btn${btnNum}.${action}.Press${pressNum}.SetForAll.S"]
@@ -339,8 +346,10 @@ String getButtonConfigDescription(btnNum, String action, Boolean multiPresses) {
                      if (ctVal) sbDesc << "CT: ${ctVal} "
                }
                else {
-                  for (com.hubitat.app.DeviceWrapper dev in settings["dimmers"]) {
-                     Integer lVal = settings["btn${btnNum}.${action}.Press${pressNum}.L.${dev.id}"]
+                  for (DeviceWrapper dev in settings["dimmers"]) {
+                     String lVal = (settings["btn${btnNum}.${action}.Press${pressNum}.UseVarLevel"]) ?
+                                    settings["btn${btnNum}.${action}.Press${pressNum}.L.Var.${dev.id}"] :
+                                    settings["btn${btnNum}.${action}.Press${pressNum}.L.${dev.id}"]
                      Integer ctVal = settings["btn${btnNum}.${action}.Press${pressNum}.CT.${dev.id}"]
                      Integer hVal = settings["btn${btnNum}.${action}.Press${pressNum}.H.${dev.id}"]
                      Integer sVal = settings["btn${btnNum}.${action}.Press${pressNum}.S.${dev.id}"]
@@ -357,14 +366,14 @@ String getButtonConfigDescription(btnNum, String action, Boolean multiPresses) {
             }
             // IF activate scene...
             else if (settings[subActionSettingName] == sSCENE) {
-                  List<String> devNames = settings["btn${btnNum}.${action}.Press${pressNum}.Scene"].collect { com.hubitat.app.DeviceWrapper dev ->
+                  List<String> devNames = settings["btn${btnNum}.${action}.Press${pressNum}.Scene"].collect { DeviceWrapper dev ->
                      dev.displayName
                   }
                   sbDesc << "Activate scene: ${devNames.join(', ')}"
             }
             // IF activate Hue scene...
             else if (settings[subActionSettingName] == sHUE_SCENE) {
-                  List<String> devNames = settings["btn${btnNum}.${action}.Press${pressNum}.HueScene"].collect { com.hubitat.app.DeviceWrapper dev ->
+                  List<String> devNames = settings["btn${btnNum}.${action}.Press${pressNum}.HueScene"].collect { DeviceWrapper dev ->
                      dev.displayName
                   }
                   sbDesc << "Activate Hue scene: ${devNames.join(', ')}"
@@ -426,6 +435,8 @@ def makeTurnOnSection(btnNum, strAction = sPUSHED, multiPresses = false) {
                else {
                   app.removeSetting("btn${btnNum}.${strAction}.Press${pressNum}.Toggle")
                }
+                  input name: "btn${btnNum}.${strAction}.Press${pressNum}.UseVarLevel", type: "bool",
+                     title: "Use hub variable for level", submitOnChange: true
                if (settings["btn${btnNum}.${strAction}.Press${pressNum}.SetForAll"]) {
                   paragraph "", width: 3
                   paragraph "<strong>Level</strong>", width: 2
@@ -433,8 +444,15 @@ def makeTurnOnSection(btnNum, strAction = sPUSHED, multiPresses = false) {
                   paragraph "<strong>Hue</strong>", width: 2
                   paragraph "<strong>Saturation</strong>", width: 2
                   paragraph "Set all :", width: 3
-                  input name: "btn${btnNum}.${strAction}.Press${pressNum}.SetForAll.L", type: "number",
-                     title: "", description: "0-100", range: "0..100", submitOnChange: false, width: 2, required: false
+                  if (settings["btn${btnNum}.${strAction}.Press${pressNum}.UseVarLevel"]) {
+                     List<String> vars =  getGlobalVarsByType("integer")?.collect { it.key } ?: []
+                     input name: "btn${btnNum}.${strAction}.Press${pressNum}.SetForAll.L.Var", type: "enum",
+                        title: "", options: vars, submitOnChange: false, width: 2, required: false
+                  }
+                  else {
+                     input name: "btn${btnNum}.${strAction}.Press${pressNum}.SetForAll.L", type: "number",
+                        title: "", description: "0-100", range: "0..100", submitOnChange: false, width: 2, required: false
+                  }
                   input name: "btn${btnNum}.${strAction}.Press${pressNum}.SetForAll.CT", type: "number",
                      title: "", description: "~2000-7000", range: "1000..8000", submitOnChange: false, width: 3, required: false
                   input name: "btn${btnNum}.${strAction}.Press${pressNum}.SetForAll.H", type: "number",
@@ -450,8 +468,15 @@ def makeTurnOnSection(btnNum, strAction = sPUSHED, multiPresses = false) {
                   paragraph "<strong>Saturation</strong>", width: 2
                   for (dev in settings["dimmers"]) {
                      paragraph "${dev.displayName}:", width: 3
-                     input name: "btn${btnNum}.${strAction}.Press${pressNum}.L.${dev.id}", type: "number",
+                     if (settings["btn${btnNum}.${strAction}.Press${pressNum}.UseVarLevel"]) {
+                        List<String> vars =  getGlobalVarsByType("integer")?.collect { it.key } ?: []
+                        input name: "btn${btnNum}.${strAction}.Press${pressNum}.L.Var.${dev.id}", type: "enum",
+                           title: "", options: vars, submitOnChange: false, width: 2, required: false
+                     }
+                     else {
+                        input name: "btn${btnNum}.${strAction}.Press${pressNum}.L.${dev.id}", type: "number",
                            title: "", description: "0-100", range: "0..100", submitOnChange: false, width: 2, required: false
+                     }
                      input name: "btn${btnNum}.${strAction}.Press${pressNum}.CT.${dev.id}", type: "number",
                            title: "", description: "~1000-8000", range: "1000..8000", submitOnChange: false, width: 3, required: false
                      input name: "btn${btnNum}.${strAction}.Press${pressNum}.H.${dev.id}", type: "number",
@@ -535,7 +560,7 @@ def makeDimSection(btnNum, String strAction = sPUSHED, String direction) {
          String settingTitle = "Dim until release (start level change when button ${strAction}, stop level change when button is released)"
          input name: rampSettingName, type: "bool", title: settingTitle, submitOnChange: true
          if (settings.dimmers?.any { !(it.hasCapability("ChangeLevel")) }) {
-            List<com.hubitat.app.DeviceWrapper> unsupportedDevices = settings.dimmers.findAll { !(it.hasCapability("ChangeLevel")) }
+            List<DeviceWrapper> unsupportedDevices = settings.dimmers.findAll { !(it.hasCapability("ChangeLevel")) }
             paragraph """Warning: one or more lights do not support the "Start Level Change" commands: ${unsupportedDevices.join(", ")}. """ +
                       "The \"Dim until release\" option above will probably not work."
          }
@@ -600,12 +625,12 @@ void buttonHandler(evt) {
             logDebug "  Toggle configured for button ${btnNum} press ${pressNum}", "trace"
             if (dimmers.any { it.currentValue("switch") == "on"} ) {
                didToggle = true
-               List<com.hubitat.app.DeviceWrapper> devices = (settings['boolGroup'] && settings['group']) ? group : dimmers
+               List<DeviceWrapper> devices = (settings['boolGroup'] && settings['group']) ? group : dimmers
                devices.off()
                if (settings['boolToggleInc']) {
                   logTrace "  Incrementing press number because 1+ lights turned off and setting configured to increase"
                   incrementPressNum(btnNum, action)
-                  runIn(15, resetPressNum, [data: [btnNum: btnNum, action: [action]]])
+                  runIn(pressNumResetDelay, "resetPressNum", [data: [btnNum: btnNum, action: [action]]])
                }
                break
             }
@@ -616,60 +641,85 @@ void buttonHandler(evt) {
             if (settings[subActionSettingName] == sTO_SETTINGS || settings[subActionSettingName] == null) {
                if (settings["btn${btnNum}.${action}.Press${pressNum}.SetForAll"]) {
                   logDebug "  SetForAll or configured for press ${pressNum}", "trace"
+                  Integer bulbLevel 
+                  if (settings["btn${btnNum}.${action}.Press${pressNum}.UseVarLevel"]) {
+                     bulbLevel = getGlobalVar(settings["btn${btnNum}.${action}.Press${pressNum}.SetForAll.L.Var" as String].value)
+                  }
+                  else {
+                     bulbLevel = settings["btn${btnNum}.${action}.Press${pressNum}.SetForAll.L"]
+                  }
                   String bulbSettingL = "btn${btnNum}.${action}.Press${pressNum}.SetForAll.L"
                   String bulbSettingCT = "btn${btnNum}.${action}.Press${pressNum}.SetForAll.CT"
                   String bulbSettingH = "btn${btnNum}.${action}.Press${pressNum}.SetForAll.H"
                   String bulbSettingS = "btn${btnNum}.${action}.Press${pressNum}.SetForAll.S"
-                  List<com.hubitat.app.DeviceWrapper> devices = (settings['boolGroup'] && settings['group']) ? group : dimmers
+                  List<DeviceWrapper> devices = (settings['boolGroup'] && settings['group']) ? group : dimmers
                   doActionTurnOn(devices, settings[bulbSettingH], settings[bulbSettingS],
-                           settings[bulbSettingL], settings[bulbSettingCT])
+                           bulbLevel, settings[bulbSettingCT])
                }
                else {
                   logTrace "  Iterating over each device..."
-                  for (com.hubitat.app.DeviceWrapper dev in dimmers) {
-                     String bulbSettingL = "btn${btnNum}.${action}.Press${pressNum}.L.${dev.id}"
+                  for (DeviceWrapper dev in dimmers) {
+                     Integer bulbLevel 
+                     if (settings["btn${btnNum}.${action}.Press${pressNum}.UseVarLevel"]) {
+                        bulbLevel = getGlobalVar(settings["btn${btnNum}.${action}.Press${pressNum}.L.Var.${dev.id}" as String]).value
+                     }
+                     else {
+                        bulbLevel = settings["btn${btnNum}.${action}.Press${pressNum}.L.${dev.id}"]
+                     }
                      String bulbSettingCT = "btn${btnNum}.${action}.Press${pressNum}.CT.${dev.id}"
                      String bulbSettingH = "btn${btnNum}.${action}.Press${pressNum}.H.${dev.id}"
                      String bulbSettingS = "btn${btnNum}.${action}.Press${pressNum}.S.${dev.id}"
                      doActionTurnOn(dev, settings[bulbSettingH], settings[bulbSettingS],
-                        settings[bulbSettingL], settings[bulbSettingCT])
+                        bulbLevel, settings[bulbSettingCT])
                   }
                }
             }
             // IF activate scene...
             else if (settings[subActionSettingName] == sSCENE) {
                logDebug "Subaction \"Activate scene\" specified..."
-               List<com.hubitat.app.DeviceWrapper> devs = settings["btn${btnNum}.${action}.Press${pressNum}.Scene"]
+               List<DeviceWrapper> devs = settings["btn${btnNum}.${action}.Press${pressNum}.Scene"]
                atomicState.lastScene = "btn${btnNum}.${action}.Press${pressNum}.Scene"
-               devs.each { com.hubitat.app.DeviceWrapper dev ->  dev.on() }
+               devs.each { DeviceWrapper dev ->
+                  dev.on()
+                  if (settings.meterDelay) pauseExecution(settings.meterDelay)
+               }
                if (settings['boolDblCmd']) {
-                  pauseExecution(250)
-                  devs.each { com.hubitat.app.DeviceWrapper dev ->  dev.on() }
+                  pauseExecution(settings.meterDelay ?: 200)
+                  devs.each { DeviceWrapper dev ->
+                     dev.on()
+                     if (settings.meterDelay) pauseExecution(settings.meterDelay)
+                  }
                }
                logDebug "Scene(s) turned on: ${devs}"
             }
             // IF activate Hue scene...
             else if (settings[subActionSettingName] == sHUE_SCENE) {
                logDebug "Subaction \"Activate Hue scene\" specified..."
-               List<com.hubitat.app.DeviceWrapper> devs = settings["btn${btnNum}.${action}.Press${pressNum}.HueScene"]
+               List<DeviceWrapper> devs = settings["btn${btnNum}.${action}.Press${pressNum}.HueScene"]
                atomicState.lastScene = "btn${btnNum}.${action}.Press${pressNum}.HueScene"
-               devs.each { com.hubitat.app.DeviceWrapper dev ->  dev.on() }
+               devs.each { DeviceWrapper dev ->
+                  dev.on()
+                  if (settings.meterDelay) pauseExecution(settings.meterDelay)
+               }
                if (settings['boolDblCmd']) {
-                  pauseExecution(250)
-                  devs.each { com.hubitat.app.DeviceWrapper dev ->  dev.on() }
+                  pauseExecution(settings.meterDelay ?: 200)
+                  devs.each { DeviceWrapper dev ->
+                     dev.on()
+                     if (settings.meterDelay) pauseExecution(settings.meterDelay)
+                  }
                }
                logDebug "Hue scene(s) turned on: ${devs}"
             }
          }
          incrementPressNum(btnNum, action)
-         runIn(15, resetPressNum, [data: [btnNum: btnNum, action: [action]]])
+         runIn(pressNumResetDelay, "resetPressNum", [data: [btnNum: btnNum, action: [action]]])
          break
       case sOFF_LAST_SCENE:
          if (atomicState.lastScene) {   
             logDebug("Action \"Turn off last used scene\" specified for button ${btnNum} ${action}; turning off scene ${settings[atomicState.lastScene]}")
             settings[atomicState.lastScene].off()
             if (settings['boolDblCmd']) {
-               pauseExecution(250)
+               pauseExecution(settings.meterDelay ?: 200)
                settings[atomicState.lastScene].off()
             }
          } else {
@@ -683,7 +733,7 @@ void buttonHandler(evt) {
          def sc = settings["btn${btnNum}.${action}.Press${pressNum}.OffScene"]
          sc?.off()
          if (settings['boolDblCmd']) {
-            pauseExecution(250)
+            pauseExecution(settings.meterDelay ?: 200)
             sc?.off()
          }
          resetAllPressNums()
@@ -691,14 +741,20 @@ void buttonHandler(evt) {
       case sOFF:
          logDebug "Action \"turn off\" specified for button ${btnNum} ${action}"
          try {
-            List<com.hubitat.app.DeviceWrapper> devices = (settings['boolGroup'] && settings['group']) ? group : dimmers
+            List<DeviceWrapper> devices = (settings['boolGroup'] && settings['group']) ? group : dimmers
             devices.off()
             offDevices?.off()
             if (settings['boolDblCmd']) {
-               pauseExecution(250)
-               devices.off()
-               pauseExecution(100)
-               offDevices?.off()
+               pauseExecution(settings.meterDelay ?: 200)
+               devices.each { DeviceWrapper dev ->
+                  dev.off()
+                  if (settings.meterDelay) pauseExecution(settings.meterDelay)
+               }
+               pauseExecution(settings.meterDelay ?: 200)
+               offDevices?.each { DeviceWrapper dev ->
+                  dev.off()
+                  if (settings.meterDelay) pauseExecution(settings.meterDelay)
+               }
             }
          } catch (e) {
             log.error "Error when running \"off\" action: ${e}"
@@ -715,7 +771,7 @@ void buttonHandler(evt) {
          else {
             //log.trace "Ramp-down dimming option NOT enabled for button ${btnNum}"
             Integer changeBy = settings[dimStep] ? 0 - settings[dimStep] as Integer : -15
-            List<com.hubitat.app.DeviceWrapper> devices = (settings['boolGroup'] && settings['group']) ? group : dimmers
+            List<DeviceWrapper> devices = (settings['boolGroup'] && settings['group']) ? group : dimmers
             doActionDim(devices, changeBy)
          }
          break
@@ -728,7 +784,7 @@ void buttonHandler(evt) {
          else {
             //log.trace "Ramp-up dimming option NOT enabled for button ${btnNum}" 
             Integer changeBy = settings[dimStep] ? settings[dimStep] as Integer : 15
-            List<com.hubitat.app.DeviceWrapper> devices = (settings['boolGroup'] && settings['group']) ? group : dimmers            
+            List<DeviceWrapper> devices = (settings['boolGroup'] && settings['group']) ? group : dimmers            
             doActionDim(devices, changeBy)
          }
          break
@@ -757,11 +813,17 @@ void buttonHandler(evt) {
 Boolean toggle(devices) {
    logDebug "Running toggle for $devices"
    if (devices.any { it.currentValue('switch') == "on" }) {
-      devices.off()
+      devies.each { DeviceWrapper dev ->
+         dev.off()
+         if (settings.meterDelay) pauseExecution(settings.meterDelay)
+      }
       return false
    }
    else  {
-      devices.on()
+      devies.each { DeviceWrapper dev ->
+         dev.on()
+         if (settings.meterDelay) pauseExecution(settings.meterDelay)
+      }
       return true
    }
 }
@@ -774,52 +836,71 @@ void doSetLevel(devices, Integer level) {
                                 settings['transitionTime'] as BigDecimal : null
    if (transitionTime) transitionTime /= 1000
    if (transitionTime != null) {
-      devices?.setLevel(level, transitionTime)
-      if (settings['boolDblCmd']) {
-         pauseExecution(300)
-         devices?.setLevel(level, transitionTime)
+      devices?.each { DeviceWrapper dev ->
+         dev.setLevel(level, transitionTime)
+         if (settings.meterDelay) pauseExecution(settings.meterDelay)
       }
-   } else {
-      devices?.setLevel(level)
       if (settings['boolDblCmd']) {
-         pauseExecution(300)
-         devices?.setLevel(level)
+         pauseExecution(settings.meterDelay ?: 200)
+         devies?.each { DeviceWrapper dev ->
+            dev.setLevel(level, transitionTime)
+            if (settings.meterDelay) pauseExecution(settings.meterDelay)
+         }
+      }
+   }
+   else {
+      devices?.each { DeviceWrapper dev ->
+         dev.setLevel(level)
+      }
+      if (settings['boolDblCmd']) {
+         pauseExecution(settings.meterDelay ?: 200)
+         devices?.each { DeviceWrapper dev ->
+            dev.setLevel(level)
+            if (settings.meterDelay) pauseExecution(settings.meterDelay)
+         }
       }
    }
 }
 
 void doActionDim(devices, Integer changeBy) {
    logDebug("doActionDim($devices, $changeBy)")
-   List devs = devices?.findAll { it.currentValue("switch") != "off" }
+   List<DeviceWrapper> devs = devices?.findAll { it.currentValue("switch") != "off" }
    logTrace("  on devices = $devs")
    BigDecimal transitionTime = (settings['transitionTime'] != null  && settings['transitionTime'] != 'null') ?
                                 settings['transitionTime'] as BigDecimal : null
    if (transitionTime) transitionTime /= 1000
-   devs.each {
+   //Integer currDevNum = 1
+   devs.each { DeviceWrapper it ->
       Integer currLvl = it.currentValue('level') as Integer
       Integer newLvl = currLvl + changeBy
       if (newLvl > 100) {
          newLvl = 100
-      } else if (newLvl < 1) {
+      }
+      else if (newLvl < 1) {
          newLvl = 1
       }
       if (transitionTime != null) {
          it.setLevel(newLvl, transitionTime)
          if (settings['boolDblCmd']) {
-            pauseExecution(250)
+            pauseExecution(settings.meterDelay ?: 200)
             it.setLevel(newLvl, transitionTime)
          }
-      } else {
+      }
+      else {
          it.setLevel(newLvl)
          if (settings['boolDblCmd']) {
-            pauseExecution(250)
+            pauseExecution(settings.meterDelay ?: 200)
             it.setLevel(newLvl)
          }
       }
    }
+   if (settings.meterDelay /*&& currDevNum < devs.size()*/) {
+      //currDevNum++
+      pauseExecution(settings.meterDelay)
+   }
 }
 
-void startLevelChangeIfOn(List<com.hubitat.app.DeviceWrapper> lights, String direction="up") {
+void startLevelChangeIfOn(List<DeviceWrapper> lights, String direction="up") {
    // Skipping the usual check to see if lights are on. If they are not on,
    // none I've tested will be affected by startLevelChange commands anyway.
    logTrace("startLevelChangeIfOn($lights, $direction)")
@@ -835,34 +916,68 @@ void startLevelChangeIfOn(List<com.hubitat.app.DeviceWrapper> lights, String dir
 /** Turns on specified devices to specificed hue, saturation, level and/or CT;
   * if CT specified, is preferred over hue and saturation; level 0 will turn off
   */
-void doActionTurnOn(devices, hueVal, satVal, levelVal, colorTemperature) {
+void doActionTurnOn(devices, Number hueVal, Number satVal, Number levelVal, Number colorTemperature) {
    logTrace "Running doActionTurnOn($devices, $hueVal, $satVal, $levelVal, $colorTemperature)..."
    if (colorTemperature) {
       if (levelVal) {
-         if (settings.boolLegacyCT != false) {
-            devices?.setColorTemperature(colorTemperature as Integer)
+         if (settings.boolLegacyCT == true) {
+            devices?.setColorTemperature(colorTemperature)
+            //Integer currDevNum = 1
+            devices?.each { DeviceWrapper dev ->
+               dev.setColorTemperature(colorTemperature)
+               if (settings.meterDelay /* && currDevNum < devices.size() */) {
+                  //currDevNum++
+                  if (settings.meterDelay) pauseExecution(settings.meterDelay)
+               }
+            }
             doSetLevel(devices, levelVal as Integer)
          }
          else {
-            devices?.setColorTemperature(colorTemperature as Integer,  levelVal as Integer)
+            //Integer currDevNum = 1
+            devices?.each { DeviceWrapper dev ->
+               dev.setColorTemperature(colorTemperature, levelVal)
+            }
+            if (settings.meterDelay /*&& currDevNum < devices.size()*/) {
+               //currDevNum++
+               if (settings.meterDelay) pauseExecution(settings.meterDelay)
+            }
          }
       }
       else {
-         devices?.setColorTemperature(colorTemperature as Integer)
+         //Integer currDevNum = 1
+         devices?.each { DeviceWrapper dev ->
+            dev.setColorTemperature(colorTemperature)
+            if (settings.meterDelay /*&& currDevNum < devices.size()*/) {
+               //currDevNum++
+               pauseExecution(settings.meterDelay)
+            }
+         }
       }
       if (settings['boolDblCmd']) {
-         log.warn "dbl cmd"
-         pauseExecution(400)
-         devices.setColorTemperature(colorTemperature as Integer)
-         pauseExecution(100)
-         if (levelVal)  doSetLevel(devices, levelVal as Integer)
+         pauseExecution(settings.meterDelay ?: 200)
+         devices.each { DeviceWrapper dev ->
+            dev.setColorTemperature(colorTemperature)
+            if (settings.meterDelay) pauseExecution(settings.meterDelay)
+         }
+         if (levelVal) doSetLevel(devices, levelVal as Integer)
       }
    }
    if (levelVal == 0) {
+      //Integer currDevNum = 1
+      devices.each { DeviceWrapper dev ->
+         dev.off()
+         if (settings.meterDelay /*&& currDevNum < devices.size()*/) {
+            //currDevNum++
+            pauseExecution(settings.meterDelay)
+         }
+      }
       devices.off()
       if (settings['boolDblCmd']) {
-         pauseExecution(250)
-         devices.off()
+         pauseExecution(settings.meterDelay ?: 200)
+         devices.each { DeviceWrapper dev ->
+            dev.off()
+            if (settings.meterDelay) pauseExecution(settings.meterDelay)
+         }
       }
    }
    else if (hueVal != null && satVal != null && levelVal != null && !colorTemperature) {
@@ -870,22 +985,56 @@ void doActionTurnOn(devices, hueVal, satVal, levelVal, colorTemperature) {
       targetColor.hue = hueVal as Integer
       targetColor.saturation = satVal as Integer
       targetColor.level = levelVal as Integer
+      //Integer currDevNum = 1
+      devices.each { DeviceWrapper dev ->
+         dev.setColor(targetColor)
+         if (settings.meterDelay /*&& devices.size()*/) {
+            //currDevNum++
+            pauseExecution(settings.meterDelay)
+         }
+      }
       devices?.setColor(targetColor)
       if (settings['boolDblCmd']) {
-         pauseExecution(400)
-         devices.setColor(targetColor)
+         pauseExecution(settings.meterDelay ?: 200)
+         //currDevNum = 1 
+         devices.each { DeviceWrapper dev ->
+            dev.setColor(targetColor)
+            if (settings.meterDelay /*&& currDevNum < devices.size()*/) {
+               //currDevNum++
+               pauseExecution(settings.meterDelay)
+            }
+         }
       }
    }
    else if (!colorTemperature) {
-      if (hueVal != null) devices.setHue(hueVal)
-      if (satVal != null) devices.setSaturation(satVal)
+      if (hueVal != null) {
+         //Integer currDevNum = 1 
+         devices.each { DeviceWrapper dev ->
+            dev.setHue(hueVal)
+            if (settings.meterDelay /* && currDevNum < devices.size()*/) {
+               //currDevNum++
+               pauseExecution(settings.meterDelay)
+            }
+         }
+      }
+      if (satVal != null) {
+         //Integer currDevNum = 1 
+         devices.each { DeviceWrapper dev ->
+            dev.setSaturation(satVal)
+            if (settings.meterDelay /* && currDevNum < devices.size()*/) {
+               //currDevNum++
+               pauseExecution(settings.meterDelay)
+            }
+         }
+      }
       if (levelVal != null)  doSetLevel(devices, levelVal as Integer)
       if (settings['boolDblCmd']) {
-         pauseExecution(400)
+         // not as nuanced as the above, but this is a hack-y workaround that should probably be removed at some point anyway...
+         pauseExecution(settings.meterDelay ?: 200)
          if (hueVal != null) devices.setHue(hueVal)
-         pauseExecution(100)
+         pauseExecution(settings.meterDelay ?: 100)
          if (satVal != null) devices.setSaturation(satVal)
-         pauseExecution(100)
+         pauseExecution(settings.meterDelay ?: 100)
          if (levelVal != null) doSetLevel(devices, levelVal as Integer)
       }
    }
@@ -999,7 +1148,7 @@ Boolean getDoesPressNumHaveAction(btnNum, String strAction = sPUSHED, pressNum) 
                }
             }
             else {
-               dimmers.each { com.hubitat.app.DeviceWrapper dev ->
+               dimmers.each { DeviceWrapper dev ->
                   String bulbSettingL = "btn${btnNum}.${strAction}.Press${pressNum}.L.${dev.id}"
                   String bulbSettingCT = "btn${btnNum}.${strAction}.Press${pressNum}.CT.${dev.id}"
                   String bulbSettingH = "btn${btnNum}.${strAction}.Press${pressNum}.H.${dev.id}"
@@ -1054,6 +1203,45 @@ void initialize() {
    if (settings['boolInitOnBoot'] || settings['boolInitOnBoot'] == null) {
       subscribe(location, "systemStart", hubRestartHandler)   
    }
+   registerHubVariables()
+   
+}
+
+// Adds app to "In use by" for any used hub variables
+void registerHubVariables () {
+   logDebug "registerHubVariables()"
+   removeAllInUseGlobalVar()
+   pauseExecution(50)
+   List<String> inUseVars = []
+   (1..getNumberOfButtons()).each { btnNum ->
+      eventMap.each { key, value ->
+         // getButtonConfigDescription(btnNum, key, value.multiPresses)
+         String actionSettingName = "btn${btnNum}.${key}.Action"
+         Integer maxPress = getMaxPressNum() ?: 1
+         if (settings[actionSettingName] == sON) {
+            for (Integer pressNum in 1..maxPress) {
+               if (getDoesPressNumHaveAction(btnNum, key, pressNum)) {
+                  String subActionSettingName = "btn${btnNum}.${key}.Press${pressNum}.SubAction"
+                  if (settings[subActionSettingName] == sTO_SETTINGS || settings[subActionSettingName] == null) {
+                     if (settings["btn${btnNum}.${key}.Press${pressNum}.UseVarLevel"]) {
+                        if (settings["btn${btnNum}.${key}.Press${pressNum}.SetForAll"]) {
+                           inUseVars << (settings["btn${btnNum}.${key}.Press${pressNum}.SetForAll.L.Var"] as String)
+                        }
+                        else {
+                           for (DeviceWrapper dev in settings["dimmers"]) {
+                              String v = settings["btn${btnNum}.${key}.Press${pressNum}.L.Var.${dev.id}"]
+                              if (v != null) inUseVars << v
+                           }
+                        }
+                     }
+                  }
+               }
+            }
+         }
+      }
+   }
+   logDebug "In-use variables: $inUseVars"
+   if (inUseVars) addInUseGlobalVar(inUseVars)
 }
 
 void hubRestartHandler(evt) {
