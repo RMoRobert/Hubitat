@@ -1,7 +1,7 @@
 /*
  * ===================== Inovelli Red Series Switch (LZW30-SN) Driver =====================
  *
- *  Copyright 2021 Robert Morris
+ *  Copyright 2022 Robert Morris
  *  Portions based on code from Inovelli and Hubitat
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v2.3.1  (2022-01-09) - Fixed missing ConcurrentHashMap import
  *  v2.3.0  (2021-11-07) - Updates for new Hubitat 2.2.6+ capabilities, concurrency fixes
  *  v2.2.0  (2021-04-24) - Z-Wave Supervision improvements
  *  v2.1.2  (2021-04-13) - Fixed parameter 8 (notification) typo; avoid converting button number to string when creating event
@@ -29,6 +30,7 @@
  */
 
 import groovy.transform.Field
+import java.util.concurrent.ConcurrentHashMap
 
 @Field static final Map<Short,Short> commandClassVersions = [
    0x20: 1,    // Basic
@@ -158,30 +160,30 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
 
 void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionReport cmd) {
    if (enableDebug) log.debug "supervision report for session: ${cmd.sessionID}"
-   if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
-   if (supervisedPackets[device.id][cmd.sessionID] != null) { supervisedPackets[device.id].remove(cmd.sessionID) }
+   if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
+   if (supervisedPackets[device.idAsLong][cmd.sessionID] != null) { supervisedPackets[device.idAsLong].remove(cmd.sessionID) }
    unschedule("supervisionCheck")
 }
 
 void supervisionCheck() {
    // re-attempt once
-   if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
-   supervisedPackets[device.id].each { k, v ->
+   if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
+   supervisedPackets[device.idAsLong].each { k, v ->
       if (enableDebug) log.debug "re-sending supervised session: ${k}"
       sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(v), hubitat.device.Protocol.ZWAVE))
-      supervisedPackets[device.id].remove(k)
+      supervisedPackets[device.idAsLong].remove(k)
    }
 }
 
 Short getSessionId() {
    Short sessId = 1
-   if (!sessionIDs[device.id]) {
-      sessionIDs[device.id] = sessId
+   if (!sessionIDs[device.di]) {
+      sessionIDs[device.idAsLong] = sessId
       return sessId
    } else {
-      sessId = sessId + sessionIDs[device.id]
+      sessId = sessId + sessionIDs[device.idAsLong]
       if (sessId > 63) sessId = 1
-      sessionIDs[device.id] = sessId
+      sessionIDs[device.idAsLong] = sessId
       return sessId
    }
 }
@@ -192,8 +194,8 @@ hubitat.zwave.Command supervisedEncap(hubitat.zwave.Command cmd) {
       supervised.sessionID = getSessionId()
       if (enableDebug) log.debug "new supervised packet for session: ${supervised.sessionID}"
       supervised.encapsulate(cmd)
-      if (!supervisedPackets[device.id]) { supervisedPackets[device.id] = [:] }
-      supervisedPackets[device.id][supervised.sessionID] = supervised.format()
+      if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
+      supervisedPackets[device.idAsLong][supervised.sessionID] = supervised.format()
       runIn(5, "supervisionCheck")
       return supervised
    } else {
