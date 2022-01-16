@@ -158,7 +158,6 @@ def pageMain() {
             options: [[1:1],[2:2],[3:3],[4:4],[5:5],[6:6],[7:7],[8:8],[9:9],[10:10]], defaultValue: 5
       }
       section("Advanced options", hideable: true, hidden: true) {
-         input name: "boolLegacyCT", type: "bool", title: "Use legacy (one-parameter) setColorTemperature() command", defaultValue: false
          input name: "meterDelay", type: "number", title: "Metering: wait this many milliseconds between successive commands (optional)"
          input name: "boolGroup", type: "bool", title: "Allow separate selection of group device besdies individual bulbs (will attempt to use group device to optimize actions where appropriate)", submitOnChange: true
          input name: "boolShowSetForAll", type: "bool", title: "Always show \"set for all\" option even if only one dimmer/light selected (may be useful if frequently change which lights the button controls)"
@@ -833,27 +832,13 @@ void doActionTurnOn(devices, Number hueVal, Number satVal, Number levelVal, Numb
    logTrace "Running doActionTurnOn($devices, $hueVal, $satVal, $levelVal, $colorTemperature)..."
    if (colorTemperature) {
       if (levelVal) {
-         if (settings.boolLegacyCT == true) {
-            devices?.setColorTemperature(colorTemperature)
-            //Integer currDevNum = 1
-            devices?.each { DeviceWrapper dev ->
-               dev.setColorTemperature(colorTemperature)
-               if (settings.meterDelay /* && currDevNum < devices.size() */) {
-                  //currDevNum++
-                  if (settings.meterDelay) pauseExecution(settings.meterDelay)
-               }
-            }
-            doSetLevel(devices, levelVal as Integer)
+         //Integer currDevNum = 1
+         devices?.each { DeviceWrapper dev ->
+            dev.setColorTemperature(colorTemperature, levelVal)
          }
-         else {
-            //Integer currDevNum = 1
-            devices?.each { DeviceWrapper dev ->
-               dev.setColorTemperature(colorTemperature, levelVal)
-            }
-            if (settings.meterDelay /*&& currDevNum < devices.size()*/) {
-               //currDevNum++
-               if (settings.meterDelay) pauseExecution(settings.meterDelay)
-            }
+         if (settings.meterDelay /*&& currDevNum < devices.size()*/) {
+            //currDevNum++
+            if (settings.meterDelay) pauseExecution(settings.meterDelay)
          }
       }
       else {
