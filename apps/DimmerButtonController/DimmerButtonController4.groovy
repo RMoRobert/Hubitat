@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 4.0    (2022-01-16) - Add support for setting CT with variable; removed presets (use app cloning instead) and legacy preferences
  * 3.1    (2022-01-04) - Add support for setting to level from hub variable; added command metering preference (optional)
  * 3.0.1  (2021-09-10) - Fix for UI error if device does not support ChangeLevel
  * 3.0    (2021-07-05) - Breaking changes (see release notes; keep 1.x and/or 2.x child app code if still use!);
@@ -103,7 +104,6 @@ definition(
 preferences {
    page name: "pageMain"
    page name: "pageButtonConfig"
-   page name: "pagePresets"
    page name: "pageFinal"
 }
 
@@ -146,11 +146,6 @@ def pageMain() {
                   }
                }
             }
-            paragraph "or..."
-            href name: "pagePresetsHref",
-                 page: "pagePresets",
-                 title: "Configure using presets",
-                 description: "Automatically fill in the above for commonly used devices and actions"
          }
       }
       section("Options", hideable: true, hidden: false) {
@@ -164,7 +159,6 @@ def pageMain() {
       }
       section("Advanced options", hideable: true, hidden: true) {
          input name: "boolLegacyCT", type: "bool", title: "Use legacy (one-parameter) setColorTemperature() command", defaultValue: false
-         input name: "boolDblCmd", type: "bool", title: "Send on/off and level commands twice (workaround for possible device/hub oddities if bulbs don't change first time)"
          input name: "meterDelay", type: "number", title: "Metering: wait this many milliseconds between successive commands (optional)"
          input name: "boolGroup", type: "bool", title: "Allow separate selection of group device besdies individual bulbs (will attempt to use group device to optimize actions where appropriate)", submitOnChange: true
          input name: "boolShowSetForAll", type: "bool", title: "Always show \"set for all\" option even if only one dimmer/light selected (may be useful if frequently change which lights the button controls)"
@@ -173,23 +167,6 @@ def pageMain() {
          input name: "boolInitOnBoot", type: "bool", title: "Initialize app on hub start (may avoid delays with first button presses after reboot)", defaultValue: true
          input name: "debugLogging", type: "bool", title: "Enable debug logging"
          //input name: "traceLogging", type: "bool", title: "Enable trace/verbose logging (for development only)"
-      }
-   }
-}
-
-def pagePresets() {
-   List<Map> presets = parent.getAllPresets()
-   dynamicPage(name: "pagePresets", title: "Apply Presets", uninstall: false, nextPage: "pageMain") {
-      section("Presets") {
-         presets.each {
-            paragraph "<strong>${it.name}</strong>"
-            input name: "btnApplyPreset.${it.id}", type: "button", title: "Apply Preset"
-            paragraph "<details><summary>Description</summary>${it.description}</details>"
-            paragraph "<br>"
-         }
-      }
-      section("Instructions") {
-         paragraph "Find a preset matching (or nearly so) your desired settings above, click its \"Apply Preset\" button, then click \"Next\" to go back to the main page and verify your settings."
       }
    }
 }
@@ -580,23 +557,9 @@ def makeDimSection(btnNum, String strAction = sPUSHED, String direction) {
 
 void appButtonHandler(String btn) {
       switch(btn) {
-         case { it.startsWith("btnApplyPreset.") }:
-            applyPreset(new Integer(btn - "btnApplyPreset."))
-            break
+         default:
+            log.warn "Unhandled button press: $btn"
       }
-}
-
-void applyPreset(Integer presetNumber) {
-   logDebug "applyPreset($presetNumber)"
-   Map preset = parent.getPresetByID(presetNumber)
-   if (preset) {
-      preset.settings.each {
-         app.updateSetting(it[0], [type: it[1], value: it[2]])
-      }
-   }
-   else {
-      log.warn "preset $presetNumber not found"
-   }
 }
 
 Boolean isModeOK() {
@@ -683,13 +646,6 @@ void buttonHandler(evt) {
                   dev.on()
                   if (settings.meterDelay) pauseExecution(settings.meterDelay)
                }
-               if (settings['boolDblCmd']) {
-                  pauseExecution(settings.meterDelay ?: 200)
-                  devs.each { DeviceWrapper dev ->
-                     dev.on()
-                     if (settings.meterDelay) pauseExecution(settings.meterDelay)
-                  }
-               }
                logDebug "Scene(s) turned on: ${devs}"
             }
             // IF activate Hue scene...
@@ -701,13 +657,6 @@ void buttonHandler(evt) {
                   dev.on()
                   if (settings.meterDelay) pauseExecution(settings.meterDelay)
                }
-               if (settings['boolDblCmd']) {
-                  pauseExecution(settings.meterDelay ?: 200)
-                  devs.each { DeviceWrapper dev ->
-                     dev.on()
-                     if (settings.meterDelay) pauseExecution(settings.meterDelay)
-                  }
-               }
                logDebug "Hue scene(s) turned on: ${devs}"
             }
          }
@@ -718,10 +667,6 @@ void buttonHandler(evt) {
          if (atomicState.lastScene) {   
             logDebug("Action \"Turn off last used scene\" specified for button ${btnNum} ${action}; turning off scene ${settings[atomicState.lastScene]}")
             settings[atomicState.lastScene].off()
-            if (settings['boolDblCmd']) {
-               pauseExecution(settings.meterDelay ?: 200)
-               settings[atomicState.lastScene].off()
-            }
          } else {
             log.debug ("Configured to turn off last used scene but no scene was previously used; exiting.")
          }
@@ -732,29 +677,19 @@ void buttonHandler(evt) {
          Integer pressNum = getPressNum(btnNum)      
          def sc = settings["btn${btnNum}.${action}.Press${pressNum}.OffScene"]
          sc?.off()
-         if (settings['boolDblCmd']) {
-            pauseExecution(settings.meterDelay ?: 200)
-            sc?.off()
-         }
          resetAllPressNums()
          break
       case sOFF:
          logDebug "Action \"turn off\" specified for button ${btnNum} ${action}"
          try {
             List<DeviceWrapper> devices = (settings['boolGroup'] && settings['group']) ? group : dimmers
-            devices.off()
-            offDevices?.off()
-            if (settings['boolDblCmd']) {
-               pauseExecution(settings.meterDelay ?: 200)
-               devices.each { DeviceWrapper dev ->
-                  dev.off()
-                  if (settings.meterDelay) pauseExecution(settings.meterDelay)
-               }
-               pauseExecution(settings.meterDelay ?: 200)
-               offDevices?.each { DeviceWrapper dev ->
-                  dev.off()
-                  if (settings.meterDelay) pauseExecution(settings.meterDelay)
-               }
+            devices.each { DeviceWrapper dev ->
+               dev.off()
+               if (settings.meterDelay) pauseExecution(settings.meterDelay)
+            }
+            offDevices?.each { DeviceWrapper dev ->
+               dev.off()
+               if (settings.meterDelay) pauseExecution(settings.meterDelay)
             }
          } catch (e) {
             log.error "Error when running \"off\" action: ${e}"
@@ -840,24 +775,11 @@ void doSetLevel(devices, Integer level) {
          dev.setLevel(level, transitionTime)
          if (settings.meterDelay) pauseExecution(settings.meterDelay)
       }
-      if (settings['boolDblCmd']) {
-         pauseExecution(settings.meterDelay ?: 200)
-         devies?.each { DeviceWrapper dev ->
-            dev.setLevel(level, transitionTime)
-            if (settings.meterDelay) pauseExecution(settings.meterDelay)
-         }
-      }
    }
    else {
       devices?.each { DeviceWrapper dev ->
          dev.setLevel(level)
-      }
-      if (settings['boolDblCmd']) {
-         pauseExecution(settings.meterDelay ?: 200)
-         devices?.each { DeviceWrapper dev ->
-            dev.setLevel(level)
-            if (settings.meterDelay) pauseExecution(settings.meterDelay)
-         }
+         if (settings.meterDelay) pauseExecution(settings.meterDelay)
       }
    }
 }
@@ -869,7 +791,6 @@ void doActionDim(devices, Integer changeBy) {
    BigDecimal transitionTime = (settings['transitionTime'] != null  && settings['transitionTime'] != 'null') ?
                                 settings['transitionTime'] as BigDecimal : null
    if (transitionTime) transitionTime /= 1000
-   //Integer currDevNum = 1
    devs.each { DeviceWrapper it ->
       Integer currLvl = it.currentValue('level') as Integer
       Integer newLvl = currLvl + changeBy
@@ -881,17 +802,9 @@ void doActionDim(devices, Integer changeBy) {
       }
       if (transitionTime != null) {
          it.setLevel(newLvl, transitionTime)
-         if (settings['boolDblCmd']) {
-            pauseExecution(settings.meterDelay ?: 200)
-            it.setLevel(newLvl, transitionTime)
-         }
       }
       else {
          it.setLevel(newLvl)
-         if (settings['boolDblCmd']) {
-            pauseExecution(settings.meterDelay ?: 200)
-            it.setLevel(newLvl)
-         }
       }
    }
    if (settings.meterDelay /*&& currDevNum < devs.size()*/) {
@@ -953,14 +866,6 @@ void doActionTurnOn(devices, Number hueVal, Number satVal, Number levelVal, Numb
             }
          }
       }
-      if (settings['boolDblCmd']) {
-         pauseExecution(settings.meterDelay ?: 200)
-         devices.each { DeviceWrapper dev ->
-            dev.setColorTemperature(colorTemperature)
-            if (settings.meterDelay) pauseExecution(settings.meterDelay)
-         }
-         if (levelVal) doSetLevel(devices, levelVal as Integer)
-      }
    }
    if (levelVal == 0) {
       //Integer currDevNum = 1
@@ -969,14 +874,6 @@ void doActionTurnOn(devices, Number hueVal, Number satVal, Number levelVal, Numb
          if (settings.meterDelay /*&& currDevNum < devices.size()*/) {
             //currDevNum++
             pauseExecution(settings.meterDelay)
-         }
-      }
-      devices.off()
-      if (settings['boolDblCmd']) {
-         pauseExecution(settings.meterDelay ?: 200)
-         devices.each { DeviceWrapper dev ->
-            dev.off()
-            if (settings.meterDelay) pauseExecution(settings.meterDelay)
          }
       }
    }
@@ -991,18 +888,6 @@ void doActionTurnOn(devices, Number hueVal, Number satVal, Number levelVal, Numb
          if (settings.meterDelay /*&& devices.size()*/) {
             //currDevNum++
             pauseExecution(settings.meterDelay)
-         }
-      }
-      devices?.setColor(targetColor)
-      if (settings['boolDblCmd']) {
-         pauseExecution(settings.meterDelay ?: 200)
-         //currDevNum = 1 
-         devices.each { DeviceWrapper dev ->
-            dev.setColor(targetColor)
-            if (settings.meterDelay /*&& currDevNum < devices.size()*/) {
-               //currDevNum++
-               pauseExecution(settings.meterDelay)
-            }
          }
       }
    }
@@ -1028,15 +913,6 @@ void doActionTurnOn(devices, Number hueVal, Number satVal, Number levelVal, Numb
          }
       }
       if (levelVal != null)  doSetLevel(devices, levelVal as Integer)
-      if (settings['boolDblCmd']) {
-         // not as nuanced as the above, but this is a hack-y workaround that should probably be removed at some point anyway...
-         pauseExecution(settings.meterDelay ?: 200)
-         if (hueVal != null) devices.setHue(hueVal)
-         pauseExecution(settings.meterDelay ?: 100)
-         if (satVal != null) devices.setSaturation(satVal)
-         pauseExecution(settings.meterDelay ?: 100)
-         if (levelVal != null) doSetLevel(devices, levelVal as Integer)
-      }
    }
 }
 
