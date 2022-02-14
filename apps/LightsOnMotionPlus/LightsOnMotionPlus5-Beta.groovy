@@ -16,11 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2021-09-27
+ *  Last modified: 2022-02-13
  *
  *  Changelog:
  *
- * 5.4.1 - (BETA3) Update rule lists to show Rule 5.0 rules; dim/off rules do not run if no lights were dimmed/turned off; grace period not entered if no lights were turned off
+ * 5.4.1 - (BETA5) Update rule lists to show Rule 5.0 rules; dim/off rules do not run if no lights were dimmed/turned off; grace period not entered if no lights were turned off
  * 5.4   - Added option to use new (three-parameter) "Set Color Temperature" command (disabled by default, as many devices do not yet support this)
  * 5.3   - Added option to run Rule actions when lights turn off or dim; fixed incorrect inactivity delay calculation
  * 5.2.4 - "Keep on" sensors now also trigger "on" action during grace period (previously only "turn on" sensors did)
@@ -160,7 +160,7 @@ def pageMain() {
       }*/
       section("Restrictions") {
          input name: "onKillSwitch", type: "capability.switch", title: "Switch(es) to disable turning on lights", multiple: true, submitOnChange: true
-         input name: "offKillSwitch", type: "capability.switch", title: "Switch(es) to disable turning off (or dimming) ligts", multiple: true, submitOnChange: true
+         input name: "offKillSwitch", type: "capability.switch", title: "Switch(es) to disable turning off (or dimming) lights", multiple: true, submitOnChange: true
          if (onKillSwitch || offKillSwitch) {
             input name: "killSwitchState", type: "enum", title: "Disable when switch(es) is (are)...", required: true,
                defaultValue: "on", options: ["on", "off"]
@@ -461,7 +461,7 @@ void performActiveAction() {
             logDebug "    -> not performing any action (anyOn = $anyOn; dimmed = ${state.isDimmed}; notIfOn = $notIfOn)", 2, "debug"
          }
          state.isDimmed = false
-         state.inGrace = false
+         endGrace()
          break
       case "onColor":
          logDebug '  action is "onColor"', 2, "debug"
@@ -515,7 +515,7 @@ void performActiveAction() {
             if (settings["doOn"]) getDevicesToTurnOn().each { it.on() }
          }
          state.isDimmed = false
-         state.inGrace = false
+         endGrace()
          break
       case "onScene":
          logDebug '  action is "onScene"', 2, "debug"
@@ -538,20 +538,20 @@ void performActiveAction() {
             getDevicesToTurnOn().each { it.on() }
          }
          state.isDimmed = false
-         state.inGrace = false
+         endGrace()
          break
       case "no":
          logDebug "  action is 'no'", 2, "debug"
          if (state.isDimmed) {
             restoreStates()
             state.isDimmed = false
-            state.inGrace = false
+            endGrace()
             logDebug "Restored light states even though no action was configured because lights were dimmed", 1, "debug"
          }
          else if (state.inGrace) {
             logDebug "Restoring light states even though no action was configured because in grace period", 1, "debug"
             restoreStates()
-            state.inGrace = false
+            endGrace()
             state.isDimmed = false
          }
          else {
@@ -650,13 +650,12 @@ void scheduledOffHandler() {
       Integer graceSeconds = settings["gracePeriod"] as Integer
       logDebug "  Grace period configured for $graceSeconds seconds"
       if (devsToTurnOff.size() > 0) {
-         state.inGrace = true
+         startGrace()
          logDebug " Entered grace period"
       }
       else {
          logDebug " Not entering grace period because no lights were on"
       }
-      runIn(graceSeconds, "scheduledGraceEndHandler")
    }
    if (settings["offRule"] != null && wereAnyOn) {
       logDebug "Also running \"turn off\" rule actions"
@@ -711,6 +710,18 @@ void scheduledGraceEndHandler() {
    logDebug "scheduledGraceEndHandler()", 2, "trace"
 }
 
+void endGrace() {
+   logDebug "endGrace()", 2, "trace"
+   state.inGrace = false
+   unschedule("scheduledGraceEndHandler")
+}
+
+void startGrace() {
+   logDebug "startGrace()", 2, "trace"
+   state.inGrace = true
+   runIn(settings.graceSeconds, "scheduledGraceEndHandler")
+}
+
 def modeChangeHandler(evt) {
    if (settings["changeWithMode"]) {
       logDebug "modeChangeHandler: configured to handle", 2, "trace"
@@ -729,7 +740,7 @@ def modeChangeHandler(evt) {
             case "on":
                restoreStates()
                state.isDimmed = false
-               state.inGrace = false
+               endGrace()
                break
             case "onColor":
                if (settings["onColor.CT${suffix}"]) {
@@ -764,12 +775,12 @@ def modeChangeHandler(evt) {
                }
                //if (settings["doOn"]) getDevicesToTurnOn().each { it.on() } // shouldn't be needed since already on
                state.isDimmed = false
-               state.inGrace = false
+               endGrace()
                break
             case "onScene":
                getDevicesToTurnOn().each { it.on() }
                state.isDimmed = false
-               state.inGrace = false
+               endGrace()
                break
             default:
                logDebug "Not adjusting lights on mode change because not applicable for configured action for this mode", 2, "debug"
@@ -946,7 +957,7 @@ void initialize() {
    unschedule()
    unsubscribe()
    state.isDimmed = false
-   state.inGrace = false
+   endGrace()
    subscribe(onSensors, "motion", motionHandler)
    subscribe(keepOnSensors, "motion", motionHandler)
    if (changeWithMode) {
