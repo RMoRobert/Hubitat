@@ -1,7 +1,7 @@
 /*
  * ===================== Zooz Scene Controller (ZEN32) Driver =====================
  *
- *  Copyright 2021 Robert Morris
+ *  Copyright 2022 Robert Morris
  *  
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -36,6 +36,7 @@
  *
  * 
  *  Changelog:
+ *  v2.0    (2022-02-20): Add Indicator command class support (thanks to @jtp10181); requires ZEN32 firmware 10.10 or greater
  *  v1.0.1  (2021-04-23): Fix typo in BasicGet; pad firmware subversion with 0 as needed
  *  v1.0    (2021-04-01): Initial Release   
  */
@@ -53,6 +54,7 @@ import groovy.transform.Field
    0x72: 2,    // ManufacturerSpecific
    0x85: 1,    // Association
    0x86: 2,    // Version
+   0x87: 3,    // Indicator
    0x8E: 2,    // MultichannelAssociation
    0x98: 1,    // Security
    0x9F: 1     // Security S2
@@ -66,10 +68,13 @@ import groovy.transform.Field
    "red": 3
 ]
 
-// LED/button number to parameter value mappings:
+// LED/button number to parameter value mappings (for LED color parmeters):
 @Field static Map<Integer,Integer> ledIndicatorParams = [1: 2, 2: 3, 3: 4, 4: 5, 5: 1]
 @Field static Map<Integer,Integer> ledColorParams = [1: 7, 2: 8, 3: 9, 4: 10, 5: 6]
 @Field static Map<Integer,Integer> ledBrightnessParams = [1: 12, 2: 13, 3: 14, 4: 15, 5: 11]
+
+// LED number mappings for Indicator command class:
+@Field static Map<Integer,Short> indicatorLEDNumberMap = [0:0x50, 5:0x43, 1:0x44, 2:0x45, 3:0x46, 4:0x47]
 
 @Field static final Map zwaveParameters = [
    16: [input: [name: "param.16", type: "number", title: "[16] Automtically turn relay off after ... minutes (0=disable auto-off; default)", range: 0..65535],
@@ -116,6 +121,13 @@ metadata {
       command "setLED", [[name:"ledNumber", type: "NUMBER", description: "LED/button number (1-5, 5=large/relay button)", constraints: 1..5],
                          [name:"colorName", type: "ENUM", description: "Color name (white, blue, green, red)", constraints: ["white", "blue", "green", "red"]],
                          [name:"brightness", type: "NUMBER", description: "Brightness level (100, 60, or 30%; will round to nearest; 0 for off)", constraints: [100,60,30,0]],
+                        ]
+
+      command "setIndicator", [[name:"ledNumber*", type: "NUMBER", description: "LED/Button number (1-5, 5=large button, 0=all)", constraints: 0..5],
+                         [name:"mode*", type: "ENUM", description: "Mode (flash, on, or off)", constraints: ["flash", "on", "off"]],
+                         [name:"lengthOfOnOffPeriods", type: "NUMBER", description: "On/off period length in tenths of seconds (0-254, e.g., 10 = 1 second)", constraints: 2..255],
+                         [name:"numberOfOnOffPeriods", type: "NUMBER", description: "Number of total on/off periods (1-254), or 255 for indefinite", constraints: 1..255],
+                         [name:"lengthOfOnPeriod", type: "NUMBER", description: "On period length in tenths of seconds (e.g., 8 = 0.8 seconds; can be used to create asymmetric on/off periods)", constraints: 1..254],
                         ]
 
       // Uncomment if switching from another driver and need to "clean up" things--will expose command in UI:
@@ -224,13 +236,29 @@ void zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification c
    }
 }
 
-void zwaveEvent(hubitat.zwave.commands.indicatorv1.IndicatorReport cmd) {
+void zwaveEvent(hubitat.zwave.commands.indicatorv3.IndicatorReport cmd) {
    if (enableDebug) log.debug "IndicatorReport: ${cmd}"
+}
+
+void zwaveEvent(hubitat.zwave.commands.indicatorv3.IndicatorSupportedReport cmd) {
+   if (enableDebug) log.debug "IndicatorSupportedReport: ${cmd}"
+   if (cmd.nextIndicatorId > 0) {
+      sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(zwave.indicatorV3.indicatorSupportedGet(indicatorId:cmd.nextIndicatorId)), hubitat.device.Protocol.ZWAVE)) 
+   }
 }
 
 void zwaveEvent(hubitat.zwave.Command cmd){
    if (enableDebug) log.debug "skip: ${cmd}"
 }
+
+/*
+List<String> indicatorGet() {
+   List<String> cmds = []
+   cmds << zwaveSecureEncap(zwave.indicatorV3.indicatorSupportedGet(indicatorId:0x00))
+   return delayBetween(cmds,300)
+}
+*/
+
 
 List<String> refresh() {
    if (enableDebug) log.debug "refresh"
@@ -366,6 +394,33 @@ List<String> setLED(Number ledNumber, String colorName, brightness) {
    }
    return delayBetween(cmds, 500)
 }
+
+// List<String> indicatorSet(String mode, Number ledNumber=0, String indSettings=null) {
+List<String> setIndicator(Number ledNumber=0, String mode="on", Number lengthOfOnOffPeriods=null, Number numberOfOnOffPeriods=null, Number lengthOfOnPeriod=null) {
+   if (enableDebug) log.debug "setIndicator($ledNumber, $mode, $lengthOfOnOffPeriods, $numberOfOnOffPeriods, $lengthOfOnPeriod)"
+   Short indId = indicatorLEDNumberMap[ledNumber as Integer] ?: 0
+   List<String> cmds = []
+   if (mode.equalsIgnoreCase("flash")) {
+      Short lenOnOff = lengthOfOnOffPeriods != null ? lengthOfOnOffPeriods as Short : 0
+      Short numOnOff = numberOfOnOffPeriods != null ? numberOfOnOffPeriods as Short : 0
+      Short lenOn = lengthOfOnPeriod != null ? lengthOfOnPeriod as Short : 0
+      log.trace "lenOnOff = $lenOnOff, numOnOff=$numOnOff, lenOn=$lenOn, indId=$indId "
+      cmds << zwaveSecureEncap(zwave.indicatorV3.indicatorSet(value: 0xFF, indicatorCount: 3, indicatorValues: [
+            [indicatorId: indId, propertyId: 0x03, value: lenOnOff], // This property is used to set the duration (in tenth of seconds) of an on/off period
+            [indicatorId: indId, propertyId: 0x04, value: numOnOff], // This property is used to set the number of on/off periods to run
+            [indicatorId: indId, propertyId: 0x05, value: lenOn] // This property is used to set the length of the on time during an on/off period; it allows asymmetric on/off  periods
+         ]))
+   }
+   else {
+      Short onOff = (mode.equalsIgnoreCase("on") ? 0xFF : 0x00)
+      cmds << zwaveSecureEncap(zwave.indicatorV3.indicatorSet(value: 0xFF, indicatorCount: 1, indicatorValues: [
+            [indicatorId: indId, propertyId: 0x02, value: onOff]
+         ]))
+   }
+
+   return delayBetween(cmds, 300)
+}
+
 
 // Custom command (for apps/users)
 String setConfigParameter(number, value, size) {
