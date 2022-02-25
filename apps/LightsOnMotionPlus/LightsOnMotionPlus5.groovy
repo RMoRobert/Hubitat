@@ -4,7 +4,7 @@
  *  Add code for parent app first and then and child app (this). To use, install/create new
  *  instance of parent app.
  *
- *  Copyright 2018-2021 Robert Morris
+ *  Copyright 2018-2022 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2021-06-20
+ *  Last modified: 2022-02-24
  *
  *  Changelog:
  *
+ * 5.4.1 - Update rule lists to show Rule 5.x rules; dim/off rules do not run if no lights were dimmed/turned off; grace period not entered if no lights were turned off
  * 5.4   - Added option to use new (three-parameter) "Set Color Temperature" command (disabled by default, as many devices do not yet support this)
  * 5.3   - Added option to run Rule actions when lights turn off or dim; fixed incorrect inactivity delay calculation
  * 5.2.4 - "Keep on" sensors now also trigger "on" action during grace period (previously only "turn on" sensors did)
@@ -89,6 +90,7 @@ def pageMain() {
    state.remove('perModePageModeName')
    state.remove('perModePageModeID')
    List<Map<Long,String>> ruleList = RMUtils.getRuleList()
+   List<Map<Long,String>> rule5List = RMUtils.getRuleList("5.0")
    dynamicPage(name: "pageMain", title: "Lights on Motion Plus", install: true, uninstall: true) {
       section() {
          label title: "Name this Lights on Motion Plus app:", required: true
@@ -158,7 +160,7 @@ def pageMain() {
       }*/
       section("Restrictions") {
          input name: "onKillSwitch", type: "capability.switch", title: "Switch(es) to disable turning on lights", multiple: true, submitOnChange: true
-         input name: "offKillSwitch", type: "capability.switch", title: "Switch(es) to disable turning off (or dimming) ligts", multiple: true, submitOnChange: true
+         input name: "offKillSwitch", type: "capability.switch", title: "Switch(es) to disable turning off (or dimming) lights", multiple: true, submitOnChange: true
          if (onKillSwitch || offKillSwitch) {
             input name: "killSwitchState", type: "enum", title: "Disable when switch(es) is (are)...", required: true,
                defaultValue: "on", options: ["on", "off"]
@@ -209,8 +211,8 @@ def pageMain() {
          input name: "logLevel", type: "enum", title: "Debug logging level",
             options: [[0: 'Disabled'], [1: 'Moderate logging'], [2: 'Verbose logging']],
             defaultValue: 0
-         input name: "dimRule", type: "enum", title: "Run these Rule actions after lights dim", options: ruleList, multiple: true
-         input name: "offRule", type: "enum", title: "Run these Rule actions after lights turn off", options: ruleList, multiple: true
+         input name: "dimRule", type: "enum", title: "Run these Rule actions after lights dim", options: (ruleList + rule5List), multiple: true
+         input name: "offRule", type: "enum", title: "Run these Rule actions after lights turn off", options: (ruleList + rule5List), multiple: true
          input name: "noRestoreScene", type: "bool", title: 'Re-activate "Turn on and set scene" or "Turn on and set color..." settings instead of restoring saved state when motion detected during dim'
          input name: "boolLegacyCT", type: "bool", title: "Use legacy (one-parameter) setColorTemperature() command (default: yes)", defaultValue: true
          input name: "doOn", type: "bool", title: "Send \"On\" command after \"Set Level\" or \"Set Color\" when restoring states (enable if devices use \"legacy\" prestaging preference)"
@@ -459,7 +461,7 @@ void performActiveAction() {
             logDebug "    -> not performing any action (anyOn = $anyOn; dimmed = ${state.isDimmed}; notIfOn = $notIfOn)", 2, "debug"
          }
          state.isDimmed = false
-         state.inGrace = false
+         endGrace()
          break
       case "onColor":
          logDebug '  action is "onColor"', 2, "debug"
@@ -513,7 +515,7 @@ void performActiveAction() {
             if (settings["doOn"]) getDevicesToTurnOn().each { it.on() }
          }
          state.isDimmed = false
-         state.inGrace = false
+         endGrace()
          break
       case "onScene":
          logDebug '  action is "onScene"', 2, "debug"
@@ -536,20 +538,20 @@ void performActiveAction() {
             getDevicesToTurnOn().each { it.on() }
          }
          state.isDimmed = false
-         state.inGrace = false
+         endGrace()
          break
       case "no":
          logDebug "  action is 'no'", 2, "debug"
          if (state.isDimmed) {
             restoreStates()
             state.isDimmed = false
-            state.inGrace = false
+            endGrace()
             logDebug "Restored light states even though no action was configured because lights were dimmed", 1, "debug"
          }
          else if (state.inGrace) {
             logDebug "Restoring light states even though no action was configured because in grace period", 1, "debug"
             restoreStates()
-            state.inGrace = false
+            endGrace()
             state.isDimmed = false
          }
          else {
@@ -640,17 +642,31 @@ Boolean isTimeOK() {
 void scheduledOffHandler() {
    logDebug "scheduledOffHandler", 2, "trace"
    if (!state.isDimmed) captureStates()
-   getDevicesToTurnOff(true).each { it.off() }
+   List<com.hubitat.app.DeviceWrapper> devsToTurnOff = getDevicesToTurnOff(true)
+   Boolean wereAnyOn = devsToTurnOff.any { it.currentValue("switch") == "on" }
+   devsToTurnOff.each { it.off() }
    state.isDimmed = false
    if (settings["gracePeriod"]?.isInteger() && settings["gracePeriod"] as Integer != 0) {
       Integer graceSeconds = settings["gracePeriod"] as Integer
       logDebug "  Grace period configured for $graceSeconds seconds"
-      state.inGrace = true
-      runIn(graceSeconds, "scheduledGraceEndHandler")
+      if (devsToTurnOff.size() > 0) {
+         startGrace()
+         logDebug " Entered grace period"
+      }
+      else {
+         logDebug " Not entering grace period because no lights were on"
+      }
    }
-   if (settings["offRule"] != null) {
-      logDebug "Also running \"turn off\" rule actions"\
-      RMUtils.sendAction(offRule, "runRuleAct", app.label)
+   if (settings["offRule"] != null && wereAnyOn) {
+      logDebug "Also running \"turn off\" rule actions"
+      settings.offRule.each { ruleId ->
+         if ((ruleId as Long) in RMUtils.getRuleList("5.0").collect { it.keySet()[0]} ) {
+            RMUtils.sendAction([ruleId], "runRuleAct", app.label, "5.0")
+         }
+         else {
+            RMUtils.sendAction([ruleId], "runRuleAct", app.label)
+         }
+      }
    }
    logDebug "Turned off all lights", 1, "debug"
 }
@@ -664,17 +680,27 @@ void scheduledDimHandler() {
       dimToLevel = settings["dimToLevel.${location.getCurrentMode().id}"]
    }
    settings["perMode"] && settings["perMode.${location.getCurrentMode().id}"]
-   getDevicesToTurnOff(true).each {
+   List<com.hubitat.app.DeviceWrapper> devsToTurnOff = getDevicesToTurnOff(true)
+   Boolean dimmedAny = false
+   devsToTurnOff.each {
       if (it.currentValue("switch") == 'on') {
+         dimmedAny = true
          if (it.hasCommand('setLevel')) it.setLevel(dimToLevel)
       }
       else {
          logDebug "Not dimming ${it.displayName} because not on", 2, "debug"
       }
    }
-   if (settings["dimRule"] != null) {
+   if (settings["dimRule"] != null && dimmedAny == true) {
       logDebug "Also running \"dimmed\" rule actions"
-      RMUtils.sendAction(dimRule, "runRuleAct", app.label)
+      settings.dimRule.each { ruleId ->
+         if ((ruleId as Long) in RMUtils.getRuleList("5.0").collect { it.keySet()[0]} ) {
+            RMUtils.sendAction([ruleId], "runRuleAct", app.label, "5.0")
+         }
+         else {
+            RMUtils.sendAction([ruleId], "runRuleAct", app.label)
+         }
+      }
    }
    logDebug "Dimmed all applicable lights", 1, "debug"
 }
@@ -682,6 +708,18 @@ void scheduledDimHandler() {
 void scheduledGraceEndHandler() {
    state.inGrace = false
    logDebug "scheduledGraceEndHandler()", 2, "trace"
+}
+
+void endGrace() {
+   logDebug "endGrace()", 2, "trace"
+   state.inGrace = false
+   unschedule("scheduledGraceEndHandler")
+}
+
+void startGrace() {
+   logDebug "startGrace()", 2, "trace"
+   state.inGrace = true
+   runIn(settings.graceSeconds, "scheduledGraceEndHandler")
 }
 
 def modeChangeHandler(evt) {
@@ -702,7 +740,7 @@ def modeChangeHandler(evt) {
             case "on":
                restoreStates()
                state.isDimmed = false
-               state.inGrace = false
+               endGrace()
                break
             case "onColor":
                if (settings["onColor.CT${suffix}"]) {
@@ -737,12 +775,12 @@ def modeChangeHandler(evt) {
                }
                //if (settings["doOn"]) getDevicesToTurnOn().each { it.on() } // shouldn't be needed since already on
                state.isDimmed = false
-               state.inGrace = false
+               endGrace()
                break
             case "onScene":
                getDevicesToTurnOn().each { it.on() }
                state.isDimmed = false
-               state.inGrace = false
+               endGrace()
                break
             default:
                logDebug "Not adjusting lights on mode change because not applicable for configured action for this mode", 2, "debug"
@@ -916,10 +954,10 @@ void updated() {
 
 void initialize() {
    log.trace "${app.label} initializing..."
-   unschedule()   
+   unschedule()
    unsubscribe()
-   state.isDimmed = false   
-   state.inGrace = false
+   state.isDimmed = false
+   endGrace()
    subscribe(onSensors, "motion", motionHandler)
    subscribe(keepOnSensors, "motion", motionHandler)
    if (changeWithMode) {
