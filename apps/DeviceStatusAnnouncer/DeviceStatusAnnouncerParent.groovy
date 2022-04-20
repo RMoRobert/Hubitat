@@ -2,7 +2,7 @@
  * ====================  Device Status Announcer (Parent App) ====================
  *  Platform: Hubitat Elevation
  *
- *  Copyright 2020 Robert Morris
+ *  Copyright 2022 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -16,9 +16,8 @@
  *
  *  Author: Robert Morris
  *
- * == App version: 2.0.0 ==
- *
  * Changelog:
+ * 3.0   (2022-04-19) - Updated to allow v3 child app creation
  * 2.0   (2020-08-02) - New parent app
  *
  */
@@ -38,32 +37,34 @@ definition(
 )
 
 preferences {
-    page(name: "mainPage", title: "Device Status Announcer", install: true, uninstall: true) {
-        section {      
-            if (app.getInstallationState() == "INCOMPLETE") {
-                paragraph("<b>Please press \"Done\" to finish installing this app, then re-open it to begin setting up child instances.</b>")
+   page(name: "mainPage", title: "Device Status Announcer", install: true, uninstall: true) {
+      section {
+         if (app.getInstallationState() == "INCOMPLETE") {
+            paragraph("<b>Please press \"Done\" to finish installing this app, then re-open it to begin setting up child instances.</b>")
+         }
+         else {
+            app(name: "childApps", appName: "Device Status Announcer Child 3", namespace: "RMoRobert", title: "Add new Device Status Announcer instance...", multiple: true)
+            Boolean oldChildApps = app?.getChildApps().find { it.name == 'Device Status Announcer Child 2.x' }
+            if (oldChildApps) {
+               app(name: "childApps2x", appName: "Device Status Announcer Child 2.x", namespace: "RMoRobert",
+                  title: "Add new Device Status Announcer 2.x instance (deprecated)...", multiple: true)
             }
-            else {
-                app(name: "childApps", appName: "Device Status Announcer Child 2.x", namespace: "RMoRobert", title: "Add new Device Status Announcer child...", multiple: true)
-            }
-        }
-    }
+         }
+      }
+   }
 }
 
-def installed() {
-    log.debug "Installed with settings: ${settings}"
-    initialize()
+void installed() {
+   log.debug "installed()"
+   initialize()
 }
 
-def updated() {
-    log.debug "Updated with settings: ${settings}"
-    //unsubscribe()
-    initialize()
+void updated() {
+   log.debug "updated() with settings: ${settings}"
+   //unsubscribe()
+   initialize()
 }
 
-def initialize() {
-    log.debug "Initializing; there are ${childApps.size()} child apps installed:"
-    childApps.each {child ->
-        log.debug "  child app: ${child.label}"
-    }
+void initialize() {
+   log.debug "initialize()"
 }
