@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 3.0.1 (2022-04-23) - Added optional volume parameter for speech command
  * 3.0   (2022-04-19) - Added ability to check "custom" devices (additional capabilities/attributes besides the pre-provided options)
  * 2.6   (2020-12-17) - Added options to turn switches off/on if devices are/aren't in expected states
  * 2.5   (2020-09-20) - Added thermostats and contact/lock "name grouping"
@@ -150,6 +151,7 @@ Map pageMain() {
       }
       
       section("Advanced Options", hideable: true, hidden: true) {
+         input name: "ttsVolume", type: "number", title: "Specify volume for \"Speak\" command (optional)"
          input name: "boolIncludeDisabled", type: "bool", title: "Include disabled devices in report"
          input "modes", "mode", title: "Only make announcements/notifications when mode is", multiple: true, required: false
          input name: "debugLogging", type: "bool", title: "Enable debug logging" 
@@ -471,7 +473,8 @@ void doNotificationOrAnnouncement() {
       }
       if (speechText) {
          logDebug "Doing TTS for undesired devices: \"${speechText}\""
-         speechDevice?.speak(speechText)
+         if (settings.ttsVolume != null) speechDevice?.speak(speechText, settings.ttsVolume)
+         else speechDevice?.speak(speechText)
       }
       else {
          logDebug "TTS skipped: nothing to report"
@@ -543,7 +546,7 @@ private void removeCustomDeviceGroup(String groupNum) {
 void appButtonHandler(btn) {
    switch (btn) {
       case "btnApply":
-         breal
+         break
       case "btnTestNotification":
          doNotificationOrAnnouncement()
          break
