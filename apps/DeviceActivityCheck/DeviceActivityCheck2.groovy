@@ -17,10 +17,11 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 2.0.1 (2022-06-19) - Fix for error on platform 2.3.2 (thanks to @jtp10181 for spotting the issue)
  * 2.0   (2022-01-02) - Improved reports for non-activity-based methods (shows attribute value);
-*                       Filter device-selection list based on detection method
-*                       New date format options for report vs. notifications
-*                       Improved refresh behavior (if option selected)
+ *                      Filter device-selection list based on detection method
+ *                      New date format options for report vs. notifications
+ *                      Improved refresh behavior (if option selected)
  * 1.5.1 (2021-09-21) - Filter device list from detection method
  * 1.5   (2021-09-19) - Added battery as notification/report type; log if device checking with unsupported attribute
  * 1.4.7 (2021-08-20) - Fixed for missing dates on some reports
@@ -263,49 +264,47 @@ Map pageRemoveGroup(params) {
 
 Map pageViewReport() {
    logDebug "Loading \"View current report\" page..."
+   // Format is [DeviceWrapper: ["device status (last activity, battery, etc.)", "optional other device status,..."]]
+   Map<DeviceWrapper,List<String>> inactiveDeviceMap = getInactiveDeviceMap(true)
+   if (inactiveDeviceMap) inactiveDeviceMap = inactiveDeviceMap.sort { it.key.displayName }
    dynamicPage(name: "pageViewReport", title: "Device Activity Check", uninstall: false, install: false, nextPage: "pageMain") {
-      section(styleSection("Inactive Device Report")) {
-         // Format is [DeviceWrapper: ["device status (last activity, battery, etc.)", "optional other device status,..."]]
-         Map<DeviceWrapper,List<String>> inactiveDeviceMap = getInactiveDeviceMap(true)
-         if (inactiveDeviceMap) {
-            inactiveDeviceMap = inactiveDeviceMap.sort { it.key.displayName }
-            section(styleSection("Inactive Device Report")) {
-               paragraph "<strong>Device</strong>", width: 6
-               paragraph "<strong>Status/Last Activity</strong>", width: 6
-               Boolean doFormatting = inactiveDeviceMap.size() > formatListIfMoreItemsThan
-               inactiveDeviceMap.eachWithIndex { DeviceWrapper dev, List<String> states, index ->
-                  paragraph(doFormatting ? """<a href="/device/edit/${dev.id}">${styleListItem(dev.displayName, index)}</a>""" : """<a href="/device/edit/${dev.id}">${dev.displayName}</a>""", width: 6)
-                  paragraph(doFormatting ? "${styleListItem(states.join(', '), index)}" : states.join(', '), width: 6)
-               }
-            }
-            List<DeviceWrapper> toRefreshDevices = []
-            state.groups.each {
-               toRefreshDevices.addAll(getInactiveDevices(it,true)) // catches devices that are inactive AND configured to be refreshed
-            }
-            if (toRefreshDevices) {
-               section(styleSection("Refresh")) {
-                  Integer waitSeconds = performRefreshes(true) // gets estimated refresh time only; does NOT refresh
-                  String waitTime
-                  if (waitSeconds < 60) waitTime = "about ${waitSeconds} seconds"
-                  else if (waitSeconds < 75) waitTime = "about 1 minute"
-                  else if (waitSeconds < 145) waitTime = "about 2 minutes"
-                  else waitTime = "several minutes"
-                  paragraph "You have configured some inactive devices to be refreshed if inactive when a report is run (this happens automatically only for notifications, not when viewing this page). To perform this refresh now, press the \"Perform Refreshes\" button below, then reload this page in ${waitTime}."
-                  input type: "button", name: "btnPerformRefreshes", title: "Perform Refreshes", submitOnChange: false
-                  StringBuilder refreshSummarySB = new StringBuilder()
-                  refreshSummarySB << "<details><summary style=\"cursor: pointer\">Devices to be refreshed</summary>"
-                  toRefreshDevices.each { DeviceWrapper dev ->
-                     refreshSummarySB <<  "<p>${dev.displayName}</p>"
-                  }
-                  refreshSummarySB <<  "</details>"
-                  paragraph refreshSummarySB.toString()
-               }
+      if (inactiveDeviceMap) {
+         section(styleSection("Inactive Device Report")) {
+            paragraph "<strong>Device</strong>", width: 6
+            paragraph "<strong>Status/Last Activity</strong>", width: 6
+            Boolean doFormatting = inactiveDeviceMap.size() > formatListIfMoreItemsThan
+            inactiveDeviceMap.eachWithIndex { DeviceWrapper dev, List<String> states, index ->
+               paragraph(doFormatting ? """<a href="/device/edit/${dev.id}">${styleListItem(dev.displayName, index)}</a>""" : """<a href="/device/edit/${dev.id}">${dev.displayName}</a>""", width: 6)
+               paragraph(doFormatting ? "${styleListItem(states.join(', '), index)}" : states.join(', '), width: 6)
             }
          }
-         else {
-            section(styleSection("Inactive Device Report")) {
-               paragraph "No inactive devices to report"
+         List<DeviceWrapper> toRefreshDevices = []
+         state.groups.each {
+            toRefreshDevices.addAll(getInactiveDevices(it,true)) // catches devices that are inactive AND configured to be refreshed
+         }
+         if (toRefreshDevices) {
+            section(styleSection("Refresh")) {
+               Integer waitSeconds = performRefreshes(true) // gets estimated refresh time only; does NOT refresh
+               String waitTime
+               if (waitSeconds < 60) waitTime = "about ${waitSeconds} seconds"
+               else if (waitSeconds < 75) waitTime = "about 1 minute"
+               else if (waitSeconds < 145) waitTime = "about 2 minutes"
+               else waitTime = "several minutes"
+               paragraph "You have configured some inactive devices to be refreshed if inactive when a report is run (this happens automatically only for notifications, not when viewing this page). To perform this refresh now, press the \"Perform Refreshes\" button below, then reload this page in ${waitTime}."
+               input type: "button", name: "btnPerformRefreshes", title: "Perform Refreshes", submitOnChange: false
+               StringBuilder refreshSummarySB = new StringBuilder()
+               refreshSummarySB << "<details><summary style=\"cursor: pointer\">Devices to be refreshed</summary>"
+               toRefreshDevices.each { DeviceWrapper dev ->
+                  refreshSummarySB <<  "<p>${dev.displayName}</p>"
+               }
+               refreshSummarySB <<  "</details>"
+               paragraph refreshSummarySB.toString()
             }
+         }
+      }
+      else {
+         section(styleSection("Inactive Device Report")) {
+            paragraph "No inactive devices to report"
          }
       }
    }
