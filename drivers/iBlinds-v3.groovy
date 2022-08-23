@@ -1,7 +1,7 @@
 /**
  *  iBlinds v3 (manufactured by HAB Home Intel) community driver for Hubitat
  * 
- *  Copyright 2021 Robert Morris
+ *  Copyright 2022 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
+ *  2022-08-23: Fix for Version and MSR reports
  *  2021-12-22: Use device.idAsLong instead of device.id for Maps
  *  2021-11-07: Additional concurrecnty fix
  *  2021-08-18: Concurrency fix for Z-Wave supervision
@@ -41,7 +42,7 @@ import java.util.concurrent.ConcurrentHashMap
    //0x7A: 2, // Firmware Update Md (v5)
    0x80: 1,   // Battery
    //0x85: 2, // Association
-   0x86: 1,   // Version (v2)
+   0x86: 2,   // Version
    0x8E: 2,   // MultiChannelAssociation (v3)
    0x9F: 1    // Security S2
 ]
@@ -129,8 +130,7 @@ List<String> configure() {
    // Parameter 3 = 1 to send Report back to Hubitat after Set:
    cmds << zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: 1, parameterNumber: 3, size: 1))
    cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
-   cmds << zwaveSecureEncap(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 0))
-   cmds << zwaveSecureEncap(zwave.manufacturerSpecificV2.manufacturerSpecificGet())
+   cmds << zwaveSecureEncap(zwave.manufacturerSpecificV1.manufacturerSpecificGet())
    cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
    return delayBetween(cmds, 300)
 }
@@ -286,7 +286,7 @@ void zwaveEvent(hubitat.zwave.commands.hailv1.Hail cmd) {
    //sendEvent(name: "hail", value: "hail", descriptionText: "Switch button was pressed")
 }
 
-void zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.ManufacturerSpecificReport cmd) {
+void zwaveEvent(hubitat.zwave.commands.manufacturerspecificv1.ManufacturerSpecificReport cmd) {
    logDebug("manufacturerId:   ${cmd.manufacturerId}")
    logDebug("manufacturerName: ${cmd.manufacturerName}")
    logDebug("productId:        ${cmd.productId}")
@@ -314,14 +314,14 @@ void zwaveEvent(hubitat.zwave.commands.batteryv1.BatteryReport cmd) {
 }
 
 void zwaveEvent(hubitat.zwave.commands.versionv2.VersionReport cmd) {
-	if (enableDebug) log.debug "VersionReport: ${cmd}"
-	device.updateDataValue("firmwareVersion", "${cmd.firmware0Version}.${cmd.firmware0SubVersion.toString().padLeft(2,'0')}")
-	device.updateDataValue("protocolVersion", "${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion}")
-	device.updateDataValue("hardwareVersion", "${cmd.hardwareVersion}")
+   if (enableDebug) log.debug "VersionReport: ${cmd}"
+   device.updateDataValue("firmwareVersion", "${cmd.firmware0Version}.${cmd.firmware0SubVersion.toString().padLeft(2,'0')}")
+   device.updateDataValue("protocolVersion", "${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion}")
+   device.updateDataValue("hardwareVersion", "${cmd.hardwareVersion}")
 }
 
 void zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.DeviceSpecificReport cmd) {
-	if (enableDebug) log.debug "DeviceSpecificReport: ${cmd}"
+   if (enableDebug) log.debug "DeviceSpecificReport: ${cmd}"
    switch (cmd.deviceIdType) {
       case 1: // Serial number
          String serialNumber= ""
