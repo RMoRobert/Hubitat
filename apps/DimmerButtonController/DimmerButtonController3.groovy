@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 3.1.1  (2022-08-23) - Fix for dim step setting being ignored
  * 3.1    (2022-01-04) - Add support for setting to level from hub variable; added command metering preference (optional)
  * 3.0.1  (2021-09-10) - Fix for UI error if device does not support ChangeLevel
  * 3.0    (2021-07-05) - Breaking changes (see release notes; keep 1.x and/or 2.x child app code if still use!);
@@ -549,7 +550,7 @@ def makeDimSection(btnNum, String strAction = sPUSHED, String direction) {
    String rampSettingName = "btn${btnNum}.${strAction}.UseStartLevelChange"
    section() {
       if (!settings[rampSettingName]) {
-      paragraph "Adjust level by ${direction == 'up' ? '+' : '-'}${settings[dimStep] ?: 15}% for any " +
+      paragraph "Adjust level by ${direction == 'up' ? '+' : '-'}${settings["dimStep"] ?: 15}% for any " +
                 "lights that are on when button ${btnNum} is $strAction"
       } else {
          paragraph "Dim $direction on ${eventMap[strAction]?.userAction}"
@@ -770,7 +771,7 @@ void buttonHandler(evt) {
          }
          else {
             //log.trace "Ramp-down dimming option NOT enabled for button ${btnNum}"
-            Integer changeBy = settings[dimStep] ? 0 - settings[dimStep] as Integer : -15
+            Integer changeBy = settings["dimStep"] ? 0 - settings["dimStep"] as Integer : -15
             List<DeviceWrapper> devices = (settings['boolGroup'] && settings['group']) ? group : dimmers
             doActionDim(devices, changeBy)
          }
@@ -783,7 +784,7 @@ void buttonHandler(evt) {
          }
          else {
             //log.trace "Ramp-up dimming option NOT enabled for button ${btnNum}" 
-            Integer changeBy = settings[dimStep] ? settings[dimStep] as Integer : 15
+            Integer changeBy = settings["dimStep"] ? settings["dimStep"] as Integer : 15
             List<DeviceWrapper> devices = (settings['boolGroup'] && settings['group']) ? group : dimmers            
             doActionDim(devices, changeBy)
          }

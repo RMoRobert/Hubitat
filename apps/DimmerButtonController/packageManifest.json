@@ -1,10 +1,10 @@
 {
    "packageName": "Dimmer Button Controller",
-   "minimumHEVersion": "2.2.6",
+   "minimumHEVersion": "2.3.1",
    "author": "Robert Morris",
-   "dateReleased": "2022-01-04",
+   "dateReleased": "2022-08-23",
    "licenseFile": "",
-   "releaseNotes": "Version 3.1: Add ability to use hub variable for level; added optional command metering preference.\n\nVersion 3.0.1: Fix for error in UI that may appear when dimmers do not support ChangeLevel capability.\n\nVersion 3.0: New child app version 3. See forum for more details. Ability to mix different actions for same button event and additional enhacements.\n\nVersion 2.1.3: Fix for \"togggle\" option not showing with only single dimmer selected\n\nVersion 2.1.2: Minor bugfix for display name of press/action numbers greater than 9.\n\nNote: Version 2 is a major upgrade and is not directly upgradeable from version 1. Version 1 users should consult the Community thread for manual upgrade instructions.",
+   "releaseNotes": "Version 3.1.1: Fix for dim step setting being ignored\n\nVersion 3.1: Add ability to use hub variable for level; added optional command metering preference.\n\nVersion 3.0.1: Fix for error in UI that may appear when dimmers do not support ChangeLevel capability.\n\nVersion 3.0: New child app version 3. See forum for more details. Ability to mix different actions for same button event and additional enhacements.\n\nVersion 2.1.3: Fix for \"togggle\" option not showing with only single dimmer selected\n\nVersion 2.1.2: Minor bugfix for display name of press/action numbers greater than 9.\n\nNote: Version 2 is a major upgrade and is not directly upgradeable from version 1. Version 1 users should consult the Community thread for manual upgrade instructions.",
    "apps" : [
       {
          "id": "34a19578-5345-4562-9e01-ebc057f394x5",
@@ -22,7 +22,7 @@
          "namespace": "RMoRobert",
          "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonController3.groovy",
          "required": true,
-         "version": "3.1.0",
+         "version": "3.1.1",
          "oauth": false
       }
    ]
