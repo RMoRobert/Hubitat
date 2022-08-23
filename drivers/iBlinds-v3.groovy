@@ -132,6 +132,8 @@ List<String> configure() {
    cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
    cmds << zwaveSecureEncap(zwave.manufacturerSpecificV1.manufacturerSpecificGet())
    cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
+   // Lifeline association; alternative to parameter 3, but either should work...
+   //cmds << zwaveSecureEncap(zwave.associationV2.associationSet(groupingIdentifier: 1, nodeId: [zwaveHubNodeId]))
    return delayBetween(cmds, 300)
 }
 
