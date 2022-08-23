@@ -13,7 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
- *  2022-08-23: Fix for Version and MSR reports
+ *  2022-08-23: Fix for Version and MSR reports; switch to lifeline instead of parameter 3
  *  2021-12-22: Use device.idAsLong instead of device.id for Maps
  *  2021-11-07: Additional concurrecnty fix
  *  2021-08-18: Concurrency fix for Z-Wave supervision
@@ -56,7 +56,7 @@ import java.util.concurrent.ConcurrentHashMap
    2: [input: [name: "param.2", type: "enum", title: "Reverse direction of blinds",
            options: [[0:"No (close down) [DEFAULT]"],[1:"Yes (close up)"]]], size: 1],
    /* 3: [input: [name: "param.3", type: "enum", title: "Disable automatic Z-Wave report",
-           options: [[0:"Yes [DEFAULT]"],[1:"No (recommended for Hubitat)"]],
+           options: [[0:"Yes [DEFAULT]"],[1:"No (recommended for Hubitat unless Lifeline association used)"]],
       size: 1], */
    4: [input: [name: "param.4", type: "number", title: "Default \"on\" level for manual push button (default = 50)",
            range: 1..99], size: 1]
@@ -128,12 +128,14 @@ List<String> configure() {
       }
    }
    // Parameter 3 = 1 to send Report back to Hubitat after Set:
-   cmds << zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: 1, parameterNumber: 3, size: 1))
+   //cmds << zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: 1, parameterNumber: 3, size: 1))
+   // actually, let's try 0 and lifeline instead:
+   cmds << zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: 1, parameterNumber: 3, size: 0))
    cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
    cmds << zwaveSecureEncap(zwave.manufacturerSpecificV1.manufacturerSpecificGet())
    cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
    // Lifeline association; alternative to parameter 3, but either should work...
-   //cmds << zwaveSecureEncap(zwave.associationV2.associationSet(groupingIdentifier: 1, nodeId: [zwaveHubNodeId]))
+   cmds << zwaveSecureEncap(zwave.associationV2.associationSet(groupingIdentifier: 1, nodeId: [zwaveHubNodeId]))
    return delayBetween(cmds, 300)
 }
 
