@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
+ *  2022-09-01: a. Remove inadvertent initialize() (and subsequent configure()) on hub restart
  *  2022-08-31: Change parameter 3 back to 1 per iBlinds' suggestion
  *  2022-08-23: Fix for Version and MSR reports; switch to lifeline instead of parameter 3
  *  2021-12-22: Use device.idAsLong instead of device.id for Maps
@@ -72,7 +73,6 @@ import java.util.concurrent.ConcurrentHashMap
 metadata {
    definition (name: "iBlinds v3 (Community Driver)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/iBlinds-v3.groovy") {
       capability "Actuator"
-      capability "Initialize"
       capability "Configuration"
       capability "Refresh"
       capability "Battery"
@@ -100,7 +100,7 @@ metadata {
 
 List<String> installed() {
    logDebug("installed()")
-   runIn(5, zwaveSecureEncap(zwave.batteryV1.batteryGet()))
+   runIn(5, "getBattery")
    initialize()
 }
 
@@ -110,13 +110,13 @@ List<String> updated() {
 }
 
 List<String> initialize() {
-   logDebug("Initializing")
+   logDebug("initialize()")
    unschedule()
    scheduleBatteryRefresh()
    Integer disableTime = 1800
    if (enableDebug) {
       log.debug "Debug logging will be automatically disabled in ${disableTime} seconds"
-      runIn(disableTime, debugOff)
+      runIn(disableTime, "debugOff")
    }
    return configure()
 }
@@ -232,7 +232,7 @@ hubitat.zwave.Command supervisedEncap(hubitat.zwave.Command cmd) {
       supervised.encapsulate(cmd)
       if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
       supervisedPackets[device.idAsLong][supervised.sessionID] = supervised.format()
-      runIn(supervisionCheckDelay, supervisionCheck)
+      runIn(supervisionCheckDelay, "supervisionCheck")
       return supervised
    } else {
       return cmd
