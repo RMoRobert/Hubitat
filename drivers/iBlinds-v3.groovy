@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
+ *  2022-09-01: b. Add new parameters (calib, min/max tilt)
  *  2022-09-01: a. Remove inadvertent initialize() (and subsequent configure()) on hub restart
  *  2022-08-31: Change parameter 3 back to 1 per iBlinds' suggestion
  *  2022-08-23: Fix for Version and MSR reports; switch to lifeline instead of parameter 3
@@ -32,6 +33,7 @@ import groovy.transform.Field
 import java.util.concurrent.ConcurrentHashMap
 
 @Field static final BigInteger param3DefaultValue = 1 // 1 = send Report after Set (so don't need to query after setPosition(), etc.)
+@Field static final Integer calibrationTime = 60 // Number of seconds to wait before setting paramater 7 back to 0 when set to 1
 
 @Field static final Map<Short,Short> commandClassVersions = [
    0x20: 1,   // Basic
@@ -63,7 +65,9 @@ import java.util.concurrent.ConcurrentHashMap
            options: [[0:"Yes [DEFAULT]"],[1:"No (recommended for Hubitat)"]],
       size: 1], */
    4: [input: [name: "param.4", type: "number", title: "Default \"on\" level for manual push button (default = 50)",
-           range: 1..99], size: 1]
+           range: 1..99], size: 1],
+   8: [input: [name: "param.8", type: "number", title: "Minimum tilt level (default = 0)", range:0..25], size:1],
+   9: [input: [name: "param.9", type: "number", title: "Maximum tilt level (default = 99; adjust these only if closing too tightly in up/down direction)", range:75..99], size:1]
 ]
 
 @Field static ConcurrentHashMap<Long, ConcurrentHashMap<Short, String>> supervisedPackets = [:]
@@ -79,6 +83,8 @@ metadata {
       capability "Switch"
       capability "SwitchLevel"
       capability "WindowShade"
+
+      command "initiateCalibration"
 
       fingerprint mfr: "0287", prod: "0004", deviceId: "0071", inClusters: "0x5E,0x55,0x98,0x9F,0x6C"
       fingerprint mfr: "0287", prod: "0004", deviceId: "0072", inClusters: "0x5E,0x55,0x98,0x9F,0x6C"  // v3.1
@@ -99,18 +105,18 @@ metadata {
 }
 
 List<String> installed() {
-   logDebug("installed()")
+   if (enableDebug) log.debug "installed()"
    runIn(5, "getBattery")
    initialize()
 }
 
 List<String> updated() {
-   logDebug("updated()")
+   if (enableDebug) log.debug "updated()"
    initialize()
 }
 
 List<String> initialize() {
-   logDebug("initialize()")
+   if (enableDebug) log.debug "initialize()"
    unschedule()
    scheduleBatteryRefresh()
    Integer disableTime = 1800
@@ -141,7 +147,7 @@ List<String> configure() {
 }
 
 void debugOff() {
-   log.warn("Disabling debug logging")
+   log.warn "Disabling debug logging"
    device.updateSetting("enableDebug", [value:"false", type:"bool"])
 }
 
@@ -163,17 +169,17 @@ void scheduleBatteryRefresh() {
       else {
          log.debug "invalid battery refresh time configuration: hour = $hour"
       }
-      logDebug "battery schedule = \"${cronStr}\""
+      if (enableDebug) log.debug "battery schedule = \"${cronStr}\""
       if (cronStr) schedule(cronStr, "getBattery")
    }
    else {
-      logDebug "Battery refresh not configured; unscheduling if scheduled"
+      if (enableDebug) log.debug "Battery refresh not configured; unscheduling if scheduled"
       unschedule("getBattery")
    }
 }
 
 void parse(String description) {
-   logDebug("parse: $description")
+   if (enableDebug) log.debug "parse: $description"
    if (description != "updated") {
       def cmd = zwave.parse(description, commandClassVersions)
       if (cmd) {
@@ -195,7 +201,7 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
 }
 
 void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionReport cmd) {
-   logDebug "supervision report for session: ${cmd.sessionID}"
+   if (enableDebug) log.debug "supervision report for session: ${cmd.sessionID}"
    if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
    if (supervisedPackets[device.idAsLong][cmd.sessionID] != null) { supervisedPackets[device.idAsLong].remove(cmd.sessionID) }
    unschedule(supervisionCheck)
@@ -205,7 +211,7 @@ void supervisionCheck() {
    // re-attempt once
    if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
    supervisedPackets[device.idAsLong].each { k, v ->
-      logDebug "re-sending supervised session: ${k}"
+      if (enableDebug) log.debug "re-sending supervised session: ${k}"
       sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(v), hubitat.device.Protocol.ZWAVE))
       supervisedPackets[device.idAsLong].remove(k)
    }
@@ -228,7 +234,7 @@ hubitat.zwave.Command supervisedEncap(hubitat.zwave.Command cmd) {
    if (getDataValue("S2")?.toInteger() != null) {
       hubitat.zwave.commands.supervisionv1.SupervisionGet supervised = new hubitat.zwave.commands.supervisionv1.SupervisionGet()
       supervised.sessionID = getSessionId()
-      logDebug "new supervised packet for session: ${supervised.sessionID}"
+      if (enableDebug) log.debug "new supervised packet for session: ${supervised.sessionID}"
       supervised.encapsulate(cmd)
       if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
       supervisedPackets[device.idAsLong][supervised.sessionID] = supervised.format()
@@ -240,17 +246,17 @@ hubitat.zwave.Command supervisedEncap(hubitat.zwave.Command cmd) {
 }
 
 void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd) {
-   logDebug("BasicReport: $cmd")
+   if (enableDebug) log.debug "BasicReport: $cmd"
    dimmerEvents(cmd)
 }
 
 void zwaveEvent(hubitat.zwave.commands.switchmultilevelv2.SwitchMultilevelReport cmd) {
-   logDebug("SwitchMultilevelReport: $cmd")
+   if (enableDebug) log.debug "SwitchMultilevelReport: $cmd"
    dimmerEvents(cmd)
 }
 
 private void dimmerEvents(hubitat.zwave.Command cmd) {
-   logDebug("Dimmer events:  $cmd")
+   if (enableDebug) log.debug "Dimmer events:  $cmd"
    Integer position = cmd.value as Integer
    String switchValue = "off"
    String windowShadeState = "closed"
@@ -277,7 +283,7 @@ private void dimmerEvents(hubitat.zwave.Command cmd) {
 }
 
 void zwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) {
-   logDebug("ConfigurationReport $cmd")
+   if (enableDebug) log.debug "ConfigurationReport $cmd"
    // Did iBlinds leave this in from a generic driver? I don't think their devices have indicators
    String value = "when off"
    if (cmd.configurationValue[0] == 1) {value = "when on"}
@@ -292,16 +298,16 @@ void zwaveEvent(hubitat.zwave.commands.hailv1.Hail cmd) {
 }
 
 void zwaveEvent(hubitat.zwave.commands.manufacturerspecificv1.ManufacturerSpecificReport cmd) {
-   logDebug("manufacturerId:   ${cmd.manufacturerId}")
-   logDebug("manufacturerName: ${cmd.manufacturerName}")
-   logDebug("productId:        ${cmd.productId}")
-   logDebug("productTypeId:    ${cmd.productTypeId}")
+   if (enableDebug) log.debug "manufacturerId:   ${cmd.manufacturerId}"
+   if (enableDebug) log.debug "manufacturerName: ${cmd.manufacturerName}"
+   if (enableDebug) log.debug "productId:        ${cmd.productId}"
+   if (enableDebug) log.debug "productTypeId:    ${cmd.productTypeId}"
    String msr = String.format("%04X-%04X-%04X", cmd.manufacturerId, cmd.productTypeId, cmd.productId)
    device.updateDataValue("MSR", msr)
 }
 
 void zwaveEvent(hubitat.zwave.commands.switchmultilevelv2.SwitchMultilevelStopLevelChange cmd) {
-   logDebug("SwitchMultilevelStopLevelChange: $cmd")
+   if (enableDebug) log.debug "SwitchMultilevelStopLevelChange: $cmd"
    sendHubCommand(
       new hubitat.device.HubAction(zwaveSecureEncap(zwave.switchMultilevelV1.switchMultilevelGet()),
                                     hubitat.device.Protocol.ZWAVE)
@@ -309,7 +315,7 @@ void zwaveEvent(hubitat.zwave.commands.switchmultilevelv2.SwitchMultilevelStopLe
 }
 
 void zwaveEvent(hubitat.zwave.commands.batteryv1.BatteryReport cmd) {
-   logDebug("BatteryReport $cmd")
+   if (enableDebug) log.debug "BatteryReport $cmd"
    Integer batteryLevel = cmd.batteryLevel as Integer
    if (cmd.batteryLevel == 0xFF) {
       batteryLevel = 1
@@ -341,45 +347,45 @@ void zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.DeviceSpecificRepo
 }
 
 void zwaveEvent(hubitat.zwave.Command cmd) {
-   logDebug("Skipping: $cmd")
+   if (enableDebug) log.debug "skip: $cmd"
 }
 
 List<String> on() {
-   logDebug("on()")
+   if (enableDebug) log.debug "on()"
    Integer openTo = settings["openPosition"] ? (settings["openPosition"]  as Integer) : 50   
    setLevel(openTo)
 }
 
 List<String> off() {
-   logDebug("off()")
+   if (enableDebug) log.debug "off()"
    setLevel(0)
 }
 
 List<String> open() {
-   logDebug("open()")
+   if (enableDebug) log.debug "open()"
    Integer openTo = settings["openPosition"] ? (settings["openPosition"]  as Integer) : 50   
    setLevel(openTo)
 }
 
 List<String> close() {
-   logDebug("close()")
+   if (enableDebug) log.debug "close()"
    setLevel(0)
 }
 
 List<String> setPosition(value) {
-   logDebug("setPosition($value)")
+   if (enableDebug) log.debug "setPosition($value)"
    setLevel(value)
 }
 
 List<String> setLevel(value) {
-   logDebug("setLevel($value)")
+   if (enableDebug) log.debug "setLevel($value)"
    Integer level = Math.max(Math.min(value as Integer, 99), 0)
    hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: level)
    return [zwaveSecureEncap(supervisedEncap(cmd))]
 }
 
 List<String> setLevel(value, duration) {
-   logDebug("setLevel($value, $duration)")
+   if (enableDebug) log.debug "setLevel($value, $duration)"
    // First, if a battery refresh hasn't happened in the last day and is scheduled to,
    // attempt to recover this schedule by re-scheduling:
    if (refreshTime != "1000" && (now() - (state.lastBattAttemptAt ?: 0) > 86400000)) {
@@ -393,7 +399,7 @@ List<String> setLevel(value, duration) {
 }
 
 List<String> refresh() {
-   logDebug("refresh()")
+   if (enableDebug) log.debug "refresh()"
    state.lastBattAttemptAt = now()
    delayBetween([
       //zwaveSecureEncap(zwave.switchBinaryV1.switchBinaryGet()),
@@ -402,19 +408,31 @@ List<String> refresh() {
    ], 200)
 }
 
-void getBattery() {
-   logDebug("getBattery()")
-   state.lastBattAttemptAt = now()
-   sendHubCommand(
-      new hubitat.device.HubAction(zwave.batteryV1.batteryGet().format(),
-                                   hubitat.device.Protocol.ZWAVE)
-   )
+// Sets parameter 7 to 1 (firmware 3.06+ only)
+String initiateCalibration() {
+   if (enableDebug) log.debug "initiateCalibration()"
+   if (getDataValue("firmwareVersion") == "3.03" || getDataValue("firmwareVersion") == "3.02") {
+      log.warn "Remote initiation of calibration is not possible on iBlinds v3 firmware versions before 3.06; ignoring command"
+      return ""
+   }
+   String cmd = zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: 1, parameterNumber: 7, size: 1))
+   runIn(calibrationTime, "resetCalibrationParameter")
+   return cmd
 }
 
-void logDebug(str) {
-   if (settings.enableDebug) log.debug(str)
+// Resets parameter 7 to 0 (recommended after calibration is done after setting to 1)
+void resetCalibrationParameter() {
+   if (enableDebug) log.debug "resetCalibrationParameter()"
+   String cmd = zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: 0, parameterNumber: 7, size: 1))
+   sendHubCommand(new hubitat.device.HubAction(cmd, hubitat.device.Protocol.ZWAVE))
+}
+
+void getBattery() {
+   if (enableDebug) log.debug "getBattery()"
+   state.lastBattAttemptAt = now()
+   sendHubCommand(new hubitat.device.HubAction(cmd, hubitat.device.Protocol.ZWAVE))
 }
 
 void logDesc(str) {
-   if (settings.enableDesc) log.info(str)
+   if (settings.enableDesc == true) log.info(str)
 }
