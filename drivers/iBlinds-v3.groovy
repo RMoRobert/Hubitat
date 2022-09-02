@@ -13,8 +13,8 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
- *  2022-09-01: b. Add new parameters (calib, min/max tilt)
- *  2022-09-01: a. Remove inadvertent initialize() (and subsequent configure()) on hub restart
+ *  2022-09-01: Add initiateCalibration() command, new min/max tilt parameters, add levelchange
+ *              remove inadvertent initialize()/configure() on hub restart
  *  2022-08-31: Change parameter 3 back to 1 per iBlinds' suggestion
  *  2022-08-23: Fix for Version and MSR reports; switch to lifeline instead of parameter 3
  *  2021-12-22: Use device.idAsLong instead of device.id for Maps
@@ -38,8 +38,9 @@ import java.util.concurrent.ConcurrentHashMap
 @Field static final Map<Short,Short> commandClassVersions = [
    0x20: 1,   // Basic
    0x26: 2,   // Switch Multilevel
+   0x50: 1,   // Basic Window Covering
    0x55: 1,   // Transport Service
-   //0x59: 1, // AssociationGrpInfo
+   0x59: 1, // AssociationGrpInfo
    0x5A: 1,   // DeviceResetLocally
    0x5E: 2,   // ZwavePlusInfo
    0x6C: 1,   // Supervision
@@ -47,7 +48,7 @@ import java.util.concurrent.ConcurrentHashMap
    0x72: 1,   // ManufacturerSpecific
    //0x7A: 2, // Firmware Update Md (v5)
    0x80: 1,   // Battery
-   //0x85: 2, // Association
+   0x85: 2, // Association
    0x86: 2,   // Version
    0x8E: 2,   // MultiChannelAssociation (v3)
    0x9F: 1    // Security S2
@@ -66,8 +67,8 @@ import java.util.concurrent.ConcurrentHashMap
       size: 1], */
    4: [input: [name: "param.4", type: "number", title: "Default \"on\" level for manual push button (default = 50)",
            range: 1..99], size: 1],
-   8: [input: [name: "param.8", type: "number", title: "Minimum tilt level (default = 0)", range:0..25], size:1],
-   9: [input: [name: "param.9", type: "number", title: "Maximum tilt level (default = 99; adjust these only if closing too tightly in up/down direction)", range:75..99], size:1]
+   8: [input: [name: "param.8", type: "number", title: "Minimum tilt level (default = 0), firmware 3.07/3.12+ only", range:0..25], size:1],
+   9: [input: [name: "param.9", type: "number", title: "Maximum tilt level (default = 99; adjust these only if closing too tightly in up/down direction), firmware 3.07/3.12+ only", range:75..99], size:1]
 ]
 
 @Field static ConcurrentHashMap<Long, ConcurrentHashMap<Short, String>> supervisedPackets = [:]
@@ -103,6 +104,10 @@ metadata {
       input name: "enableDesc", type: "bool", title: "Enable descriptionText logging", defaultValue: true
    }
 }
+
+// ---------------------
+// Required callback methods, configure(), and helper methods:
+// ---------------------
 
 List<String> installed() {
    if (enableDebug) log.debug "installed()"
@@ -178,6 +183,10 @@ void scheduleBatteryRefresh() {
    }
 }
 
+// ---------------------
+// Z-Wave parsing methods:
+// ---------------------
+
 void parse(String description) {
    if (enableDebug) log.debug "parse: $description"
    if (description != "updated") {
@@ -205,44 +214,6 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionReport cmd) {
    if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
    if (supervisedPackets[device.idAsLong][cmd.sessionID] != null) { supervisedPackets[device.idAsLong].remove(cmd.sessionID) }
    unschedule(supervisionCheck)
-}
-
-void supervisionCheck() {
-   // re-attempt once
-   if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
-   supervisedPackets[device.idAsLong].each { k, v ->
-      if (enableDebug) log.debug "re-sending supervised session: ${k}"
-      sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(v), hubitat.device.Protocol.ZWAVE))
-      supervisedPackets[device.idAsLong].remove(k)
-   }
-}
-
-Short getSessionId() {
-   Short sessId = 1
-   if (!sessionIDs[device.idAsLong]) {
-      sessionIDs[device.idAsLong] = sessId
-      return sessId
-   } else {
-      sessId = sessId + sessionIDs[device.idAsLong]
-      if (sessId > 63) sessId = 1
-      sessionIDs[device.idAsLong] = sessId
-      return sessId
-   }
-}
-
-hubitat.zwave.Command supervisedEncap(hubitat.zwave.Command cmd) {
-   if (getDataValue("S2")?.toInteger() != null) {
-      hubitat.zwave.commands.supervisionv1.SupervisionGet supervised = new hubitat.zwave.commands.supervisionv1.SupervisionGet()
-      supervised.sessionID = getSessionId()
-      if (enableDebug) log.debug "new supervised packet for session: ${supervised.sessionID}"
-      supervised.encapsulate(cmd)
-      if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
-      supervisedPackets[device.idAsLong][supervised.sessionID] = supervised.format()
-      runIn(supervisionCheckDelay, "supervisionCheck")
-      return supervised
-   } else {
-      return cmd
-   }
 }
 
 void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd) {
@@ -350,6 +321,52 @@ void zwaveEvent(hubitat.zwave.Command cmd) {
    if (enableDebug) log.debug "skip: $cmd"
 }
 
+// ---------------------
+// Z-Wave Supervision helper methods:
+// ---------------------
+
+void supervisionCheck() {
+   // re-attempt once
+   if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
+   supervisedPackets[device.idAsLong].each { k, v ->
+      if (enableDebug) log.debug "re-sending supervised session: ${k}"
+      sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(v), hubitat.device.Protocol.ZWAVE))
+      supervisedPackets[device.idAsLong].remove(k)
+   }
+}
+
+Short getSessionId() {
+   Short sessId = 1
+   if (!sessionIDs[device.idAsLong]) {
+      sessionIDs[device.idAsLong] = sessId
+      return sessId
+   } else {
+      sessId = sessId + sessionIDs[device.idAsLong]
+      if (sessId > 63) sessId = 1
+      sessionIDs[device.idAsLong] = sessId
+      return sessId
+   }
+}
+
+hubitat.zwave.Command supervisedEncap(hubitat.zwave.Command cmd) {
+   if (getDataValue("S2")?.toInteger() != null) {
+      hubitat.zwave.commands.supervisionv1.SupervisionGet supervised = new hubitat.zwave.commands.supervisionv1.SupervisionGet()
+      supervised.sessionID = getSessionId()
+      if (enableDebug) log.debug "new supervised packet for session: ${supervised.sessionID}"
+      supervised.encapsulate(cmd)
+      if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
+      supervisedPackets[device.idAsLong][supervised.sessionID] = supervised.format()
+      runIn(supervisionCheckDelay, "supervisionCheck")
+      return supervised
+   } else {
+      return cmd
+   }
+}
+
+// ---------------------
+// Command implementations:
+// ---------------------
+
 List<String> on() {
    if (enableDebug) log.debug "on()"
    Integer openTo = settings["openPosition"] ? (settings["openPosition"]  as Integer) : 50   
@@ -372,26 +389,20 @@ List<String> close() {
    setLevel(0)
 }
 
-List<String> setPosition(value) {
+List<String> setPosition(Number value) {
    if (enableDebug) log.debug "setPosition($value)"
-   setLevel(value)
-}
-
-List<String> setLevel(value) {
-   if (enableDebug) log.debug "setLevel($value)"
    Integer level = Math.max(Math.min(value as Integer, 99), 0)
    hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: level)
    return [zwaveSecureEncap(supervisedEncap(cmd))]
 }
 
-List<String> setLevel(value, duration) {
+List<String> setLevel(Number value) {
+   if (enableDebug) log.debug "setLevel($value)"
+   return setPosition(value)
+}
+
+List<String> setLevel(Number value, Number duration) {
    if (enableDebug) log.debug "setLevel($value, $duration)"
-   // First, if a battery refresh hasn't happened in the last day and is scheduled to,
-   // attempt to recover this schedule by re-scheduling:
-   if (refreshTime != "1000" && (now() - (state.lastBattAttemptAt ?: 0) > 86400000)) {
-      scheduleBatteryRefresh()
-   }
-   // Now, set level:
    Integer level = Math.max(Math.min(value as Integer, 99), 0)
    Integer dimmingDuration = duration < 128 ? duration : 128 + Math.round(duration / 60)
    hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: level, dimmingDuration: dimmingDuration)
@@ -419,6 +430,10 @@ String initiateCalibration() {
    runIn(calibrationTime, "resetCalibrationParameter")
    return cmd
 }
+
+// ---------------------
+// Miscellaneous methods:
+// ---------------------
 
 // Resets parameter 7 to 0 (recommended after calibration is done after setting to 1)
 void resetCalibrationParameter() {
