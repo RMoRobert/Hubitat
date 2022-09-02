@@ -13,7 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
- *  2022-09-01: Add initiateCalibration() command, new min/max tilt parameters, add levelchange
+ *  2022-09-01: Add initiateCalibration() command, new min/max tilt parameters, add start/stopPositionChange(),
  *              remove inadvertent initialize()/configure() on hub restart
  *  2022-08-31: Change parameter 3 back to 1 per iBlinds' suggestion
  *  2022-08-23: Fix for Version and MSR reports; switch to lifeline instead of parameter 3
@@ -394,6 +394,19 @@ List<String> setPosition(Number value) {
    Integer level = Math.max(Math.min(value as Integer, 99), 0)
    hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: level)
    return [zwaveSecureEncap(supervisedEncap(cmd))]
+}
+
+List<String> startPositionChange(String direction) {
+   if (enableDebug) log.debug "startPositionChange($direction)"
+   Boolean openClose = (direction != "open")
+   hubitat.zwave.Command cmd = zwave.switchMultilevelV1.switchMultilevelStartLevelChange(upDown: openClose, ignoreStartLevel: 1, startLevel: 0)
+   return [zwaveSecureEncap(cmd)]
+}
+
+List<String> stopPositionChange() {
+   if (enableDebug) log.debug "stopPositionChange()"
+   hubitat.zwave.Command cmd = zwave.switchMultilevelV1.switchMultilevelStopLevelChange()
+   return [zwaveSecureEncap(cmd)]
 }
 
 List<String> setLevel(Number value) {
