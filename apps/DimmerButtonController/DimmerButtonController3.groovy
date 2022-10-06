@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 3.1.2  (2022-10-05) - Fix for toggle and setLevel error (typo)
  * 3.1.1  (2022-08-23) - Fix for dim step setting being ignored
  * 3.1    (2022-01-04) - Add support for setting to level from hub variable; added command metering preference (optional)
  * 3.0.1  (2021-09-10) - Fix for UI error if device does not support ChangeLevel
@@ -814,14 +815,14 @@ void buttonHandler(evt) {
 Boolean toggle(devices) {
    logDebug "Running toggle for $devices"
    if (devices.any { it.currentValue('switch') == "on" }) {
-      devies.each { DeviceWrapper dev ->
+      devices.each { DeviceWrapper dev ->
          dev.off()
          if (settings.meterDelay) pauseExecution(settings.meterDelay)
       }
       return false
    }
    else  {
-      devies.each { DeviceWrapper dev ->
+      devices.each { DeviceWrapper dev ->
          dev.on()
          if (settings.meterDelay) pauseExecution(settings.meterDelay)
       }
@@ -843,7 +844,7 @@ void doSetLevel(devices, Integer level) {
       }
       if (settings['boolDblCmd']) {
          pauseExecution(settings.meterDelay ?: 200)
-         devies?.each { DeviceWrapper dev ->
+         devices?.each { DeviceWrapper dev ->
             dev.setLevel(level, transitionTime)
             if (settings.meterDelay) pauseExecution(settings.meterDelay)
          }
