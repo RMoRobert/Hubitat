@@ -20,7 +20,7 @@
          "id": "da72690d-08dc-428d-ba42-283ca4d7ea53",
          "name": "Dimmer Button Controller (Child App) 3",
          "namespace": "RMoRobert",
-         "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/deprecated/DimmerButtonController3.groovy",
+         "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonController3.groovy",
          "required": true,
          "version": "3.1.2",
          "oauth": false
