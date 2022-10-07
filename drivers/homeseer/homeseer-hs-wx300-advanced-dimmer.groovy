@@ -15,6 +15,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.1    (2022-10-06) - Add "smart bulb mode" parameter, default level parameter, LED level command (requires firmware 1.13+)
  *  v1.0    (2021-11-06) - Initial release
  */
 
@@ -91,10 +92,14 @@ import java.util.concurrent.ConcurrentHashMap
    /*14: [size: 1, input: [name: "param.14", title: "Normal mode LED color", type: "enum",
          options: [[0:"off"],[1:"red"],[2:"green"],[3:"blue"],[4:"magenta"],[5:"yellow"],[6:"cyan"],[7:"white"]]]],*/
    32: [size: 1, input: [name: "param.32", title: "Wire mode (neutral/non-neutral)", type: "enum",
-           options: [[0:"3-wire mode (neutral, line, load) (DEFAULT)"],[1:"2-wire mode (line, load)"]]]]
+           options: [[0:"3-wire mode (neutral, line, load) (DEFAULT)"],[1:"2-wire mode (line, load)"]]]],
+   36: [size: 1, input: [name: "param.36", title: "Default level when turned on from paddle (1-99, or 0 for last [DEFAULT]) (firmware 1.13+)", type: "number",
+           range: "0..99" ]],
+   37: [size: 1, input: [name: "param.37", title: "Smart bulb mode? (firmware 1.13+)", type: "enum",
+           options: [[0:"No, load controlled with paddle (DEFAULT)"],[1:"Yes, load not controlled with paddle"]]]]
 ]
 
-@Field static ConcurrentHashMap<Long, ConcurrentHashMap<Short, String>> supervisedPackets = [:]
+@Field static ConcurrentHashMap<Long, ConcurrentHashMap<Short, String>> supervisedPackets = new ConcurrentHashMap()
 @Field static ConcurrentHashMap<Long, Short> sessionIDs = [:]
 @Field static final Integer supervisionCheckDelay = 5
 @Field static final Integer debugAutoDisableMinutes = 30
@@ -124,6 +129,7 @@ metadata {
 
       command "setConfigParameter", [[name:"Parameter Number*", type: "NUMBER"], [name:"Value*", type: "NUMBER"], [name:"Size*", type: "NUMBER"]]
 
+      command "setLEDLevel", [[name:"level*", type: "ENUM", description: "LED brightness level, 0 (lowest) to 6 (highest) -- firmware 1.13+ only", constraints: [0,1,2,3,4,5,6]]]
 
       //fingerprint mfr: "000C", prod: "4447", deviceId: "3036" // WD200 -- would probably work, but commented out just in case
       fingerprint mfr: "000C", prod: "4447", deviceId: "4036", inClusters: "0x5E,0x55,0x9F,0x6C"  // WX300 (dimmer mode, S2)
@@ -199,7 +205,7 @@ void parse(String description) {
 
 void supervisionCheck() {
    // re-attempt once
-   if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
+   if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = new ConcurrentHashMap() }
    supervisedPackets[device.idAsLong].each { k, v ->
       if (enableDebug) log.debug "re-sending supervised session: ${k}"
       sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(v), hubitat.device.Protocol.ZWAVE))
@@ -581,6 +587,12 @@ String setLEDMode(String mode) {
    if (enableDebug) log.debug "setLEDMode($mode)"
    Byte val = (mode.toLowerCase() == "status") ? 1 : 0
    return setConfigParameter(13, val, 1)
+}
+
+String setLEDLevel(level) {
+   if (enableDebug) log.debug "setLEDLevel($level)"
+   BigInteger intLevel = new BigInteger(level)
+   return setConfigParameter(34, intLevel, 1)
 }
 
 String setConfigParameter(Integer number, BigInteger value, Integer size) {

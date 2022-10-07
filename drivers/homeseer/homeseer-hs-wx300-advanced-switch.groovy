@@ -15,6 +15,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.1    (2022-10-06) - Add "smart bulb mode" parameter, toggle mode, and LED level command (requires firmware 1.13+)
  *  v1.0    (2021-11-06) - Initial release
  */
 
@@ -82,10 +83,14 @@ import java.util.concurrent.ConcurrentHashMap
    /*14: [size: 1, input: [name: "param.14", title: "Normal mode LED color", type: "enum",
          options: [[0:"off"],[1:"red"],[2:"green"],[3:"blue"],[4:"magenta"],[5:"yellow"],[6:"cyan"],[7:"white"]]]],*/
    32: [size: 1, input: [name: "param.32", title: "Wire mode (neutral/non-neutral)", type: "enum",
-           options: [[0:"3-wire mode (neutral, line, load) (DEFAULT)"],[1:"2-wire mode (line, load)"]]]]
+           options: [[0:"3-wire mode (neutral, line, load) (DEFAULT)"],[1:"2-wire mode (line, load)"]]]],
+   35: [size: 1, input: [name: "param.35", title: "Toggle mode for paddle? (firmware 1.13+)", type: "enum",
+           options: [[0:"No, top turns on and bottom turns off (DEFAULT)"],[1:"Yes, load toggled on or off with any press"]]]],
+   37: [size: 1, input: [name: "param.37", title: "Smart bulb mode? (firmware 1.13+)", type: "enum",
+           options: [[0:"No, load controlled with paddle (DEFAULT)"],[1:"Yes, load not controlled with paddle"]]]]
 ]
 
-@Field static ConcurrentHashMap<Long, ConcurrentHashMap<Short, String>> supervisedPackets = [:]
+@Field static ConcurrentHashMap<Long, ConcurrentHashMap<Short, String>> supervisedPackets = new ConcurrentHashMap()
 @Field static ConcurrentHashMap<Long, Short> sessionIDs = [:]
 @Field static final Integer supervisionCheckDelay = 5
 @Field static final Integer debugAutoDisableMinutes = 30
@@ -113,6 +118,8 @@ metadata {
                               constraints: ["normal", "status"]]]
 
       command "setConfigParameter", [[name:"Parameter Number*", type: "NUMBER"], [name:"Value*", type: "NUMBER"], [name:"Size*", type: "NUMBER"]]
+      
+      command "setLEDLevel", [[name:"level*", type: "ENUM", description: "LED brightness level, 0 (lowest) to 6 (highest) -- firmware 1.13+ only", constraints: [0,1,2,3,4,5,6]]]
 
       fingerprint mfr: "000C", prod: "4447", deviceId: "4037", inClusters: "0x5E,0x55,0x9F,0x6C"  // WX300 (switch mode, S2)
       fingerprint mfr: "000C", prod: "4447", deviceId: "4037", inClusters: "0x5E,0x85,0x59,0x5A,0x7A,0x87,0x72,0x8E,0x73,0x9F,0x6C,0x55,0x86,0x25,0x70,0x5B"  // WX300 (switch mode)
@@ -186,7 +193,7 @@ void parse(String description) {
 
 void supervisionCheck() {
    // re-attempt once
-   if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
+   if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = new ConcurrentHashMap() }
    supervisedPackets[device.idAsLong].each { k, v ->
       if (enableDebug) log.debug "re-sending supervised session: ${k}"
       sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(v), hubitat.device.Protocol.ZWAVE))
@@ -297,7 +304,7 @@ void zwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) 
    }
 }
 
-// Might be needed for switch mode? Dimmer does not use
+// Using SwithcBinary instead...
 /*
 void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd) {
    if (enableDebug) log.warn "BasicReport:  ${cmd}"
@@ -416,7 +423,7 @@ String flashOff() {
 List<String> refresh() {
    if (enableDebug) log.debug "refresh"
    return delayBetween([
-      zwaveSecureEncap(zwave.switchMultilevelV1.switchBinaryGet()),
+      zwaveSecureEncap(zwave.switchBinaryV1.switchBinaryGet()),
       zwaveSecureEncap(zwave.configurationV1.configurationGet()),
       zwaveSecureEncap(zwave.versionV2.versionGet())
    ], 150)
@@ -493,7 +500,7 @@ List<String> setNormalLEDColor(Short colorNum, Boolean setModeToNormal=false) {
 }
 
 List<String> setStatusLED(String ledNumber, String colorName, String blink) {
-   if (enableDebug) log.debug "setStatusLED(Integer $ledNumber, String $colorName, String $blink)"
+   if (enableDebug) log.debug "setStatusLED(String $ledNumber, String $colorName, String $blink)"
    List<String> cmds = []
    Integer ledNum = Integer.parseInt(ledNumber)
    Short colorNum = statusColorNameMap[colorName]
@@ -538,6 +545,12 @@ String setLEDMode(String mode) {
    if (enableDebug) log.debug "setLEDMode($mode)"
    Byte val = (mode.toLowerCase() == "status") ? 1 : 0
    return setConfigParameter(13, val, 1)
+}
+
+String setLEDLevel(level) {
+   if (enableDebug) log.debug "setLEDLevel($level)"
+   BigInteger intLevel = new BigInteger(level)
+   return setConfigParameter(34, intLevel, 1)
 }
 
 String setConfigParameter(Integer number, BigInteger value, Integer size) {
