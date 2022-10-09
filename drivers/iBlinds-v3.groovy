@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
+ *  2022-10-09: Fix for error during scheduled battery refresh
  *  2022-09-01: Add initiateCalibration() command, new min/max tilt parameters, add start/stopPositionChange(),
  *              remove inadvertent initialize()/configure() on hub restart
  *  2022-08-31: Change parameter 3 back to 1 per iBlinds' suggestion
@@ -111,7 +112,8 @@ metadata {
 
 List<String> installed() {
    if (enableDebug) log.debug "installed()"
-   runIn(5, "getBattery")
+   //runIn(5, "getBattery")
+   runIn(5, "refresh")
    initialize()
 }
 
@@ -458,6 +460,7 @@ void resetCalibrationParameter() {
 void getBattery() {
    if (enableDebug) log.debug "getBattery()"
    state.lastBattAttemptAt = now()
+   String cmd = zwaveSecureEncap(zwave.batteryV1.batteryGet())
    sendHubCommand(new hubitat.device.HubAction(cmd, hubitat.device.Protocol.ZWAVE))
 }
 
