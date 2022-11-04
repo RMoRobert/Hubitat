@@ -1,7 +1,7 @@
 /*
  * ===================== Advanced Inovelli Red Series Fan + Light Switch (LZW36) Driver =====================
  *
- *  Copyright 2020 Robert Morris
+ *  Copyright 2020-2021 Robert Morris
  *  Portions based on code from Inovelli and Hubitat
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
