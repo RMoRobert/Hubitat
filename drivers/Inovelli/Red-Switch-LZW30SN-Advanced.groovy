@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v2.3.2  (2022-11-06) - Add "clear" as LED effect for Blue compatibility (sets parameter to 0)
  *  v2.3.1  (2022-01-09) - Fixed missing ConcurrentHashMap import
  *  v2.3.0  (2021-11-07) - Updates for new Hubitat 2.2.6+ capabilities, concurrency fixes
  *  v2.2.0  (2021-04-24) - Z-Wave Supervision improvements
@@ -104,7 +105,7 @@ metadata {
       command "setIndicator", [[name: "Notification Value*", type: "NUMBER", description: "See https://nathanfiscus.github.io/inovelli-notification-calc to calculate"]]
       command "setIndicator", [[name:"Color", type: "ENUM", constraints: ["red", "red-orange", "orange", "yellow", "green", "spring", "cyan", "azure", "blue", "violet", "magenta", "rose", "white"]],
                                [name:"Level", type: "ENUM", description: "Level, 0-100", constraints: [100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0]],
-                               [name:"Effect", type: "ENUM", description: "Effect name from list", constraints: ["off", "solid", "chase", "fast blink", "slow blink", "pulse"]],
+                               [name:"Effect", type: "ENUM", description: "Effect name from list", constraints: ["clear", "off", "solid", "chase", "fast blink", "slow blink", "pulse"]],
                                [name: "Duration", type: "NUMBER", description: "Duration in seconds, 1-254 or 255 for indefinite"]]
       command "setLEDColor", [[name: "Color*", type: "NUMBER", description: "Inovelli format, 0-255"], [name: "Level", type: "NUMBER", description: "Inovelli format, 0-10"]]
       command "setLEDColor", [[name: "Color*", type: "ENUM", description: "Color name (from list)", constraints: ["red", "red-orange", "orange", "yellow", "chartreuse", "green", "spring", "cyan", "azure", "blue", "violet", "magenta", "rose", "white"]],
@@ -464,27 +465,32 @@ String setIndicator(value) {
 // Sets "notification LED" parameter to value calculated based on provided parameters
 String setIndicator(String color, level, String effect, BigDecimal duration) {
    if (enableDebug) log.debug "setIndicator($color, $level, $effect, $duration)"
-	Integer calcValue = 0
-   Integer intColor = colorNameMap[color?.toLowerCase()] ?: 170
-   Integer intLevel = level as Integer
-   Integer intEffect = 0
-   if (effect != null) intEffect = (effectNameMap[effect?.toLowerCase()] != null) ? effectNameMap[effect?.toLowerCase()] : 4
-
-   // Convert level from 0-100 to 0-10:
-
-   intLevel = Math.round(intLevel/10)
-   // Range check:
-   if (intLevel < 0) intLevel = 0
-   else if (intLevel > 10) intLevel = 10
-   if (duration < 1) duration = 1
-   else if (duration > 255) duration = 255
-   if (intEffect != 0) {
-      calcValue += intColor // * 1
-      calcValue += intLevel * 256
-      calcValue += duration * 65536
-      calcValue += intEffect * 16777216
+   if (effect == "clear") {
+      return setParameter(8, 0, 4)
    }
-   return setParameter(8, calcValue, 4)
+   else {
+      Integer calcValue = 0
+      Integer intColor = colorNameMap[color?.toLowerCase()] ?: 170
+      Integer intLevel = level as Integer
+      Integer intEffect = 0
+      if (effect != null) intEffect = (effectNameMap[effect?.toLowerCase()] != null) ? effectNameMap[effect?.toLowerCase()] : 4
+
+      // Convert level from 0-100 to 0-10:
+
+      intLevel = Math.round(intLevel/10)
+      // Range check:
+      if (intLevel < 0) intLevel = 0
+      else if (intLevel > 10) intLevel = 10
+      if (duration < 1) duration = 1
+      else if (duration > 255) duration = 255
+      if (intEffect != 0) {
+         calcValue += intColor // * 1
+         calcValue += intLevel * 256
+         calcValue += duration * 65536
+         calcValue += intEffect * 16777216
+      }
+      return setParameter(8, calcValue, 4)
+   }
 }
 
 // Sets default LED color parameter to value (0-255) and level (0-10)
