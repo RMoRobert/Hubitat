@@ -1,7 +1,8 @@
 /**
 * Inovelli VZM31-SN Blue Series Zigbee 2-in-1 Dimmer (Advanced)
 *
-* "Advanced" Fork by RMoRobert (Robert Morris)
+* "Advanced" Fork by RMoRobert (Robert Morris) - includes new buttom mapping and dedicated commands for LED
+* color, leve, and notifications -- like my "Advanced" Red Series drivers
 *
 * Based on Inovelli VZM31-SN driver:
 * Author: Eric Maycock (erocm123)
@@ -17,7 +18,8 @@
 * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
 * for the specific language governing permissions and limitations under the License.
 *
-*
+* 
+* 2022-11-06 (RM) - Update for new FW (2.05) parameters
 * 2022-11-03 (RM) - Remove QuickStart emulation, change button events to match other Advanced drivers
 * 2022-08-14 (MA) - Original base:  emulate QuickStart for dimmer (can be disabled); add presetLevel command
 *
@@ -50,12 +52,13 @@ import java.security.MessageDigest
 ]
 
 @Field static final Map<String,Short> effectNameAllMap = ["off": 0, "solid": 1, "chase": 5, "fast blink": 2, "slow blink": 3, "pulse": 4, "open/close": 6,
-                                                       "small to big": 7, "aurora": 8, "clear": 255]
+                                                       "small to big": 7, "aurora": 8, "slow falling": 9, "medium falling": 10, "fast falling": 11, "slow rising": 12, "medium rising": 13, "fast rising": 14, "medium blink": 15,
+                                                       "slow chase": 16, "fast chase": 17, "fast siren": 18, "slow siren": 19, "clear": 255]
 
 @Field static final Map<String,Short> effectNameOneMap = ["off": 0, "solid": 1, "chase": 5, "fast blink": 2, "slow blink": 3, "pulse": 4, "clear": 255]
 
 metadata {
-    definition(name: "Inovelli Blue Series 2-in-1 (VZM31-SN) Advanced", namespace: "RMoRobert", author: "E.Maycock/M.Amber/R.Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Blue-Dimmer-VZM31-Advanced.groovy") { 
+    definition(name: "Advanced Inovelli Blue Series 2-in-1 (VZM31-SN) Advanced", namespace: "RMoRobert", author: "E.Maycock/M.Amber/R.Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Blue-Dimmer-VZM31SN-Advanced.groovy") { 
         
         capability "Actuator"
         capability "ChangeLevel"
@@ -115,7 +118,7 @@ metadata {
       command "setOffLEDLevel", [[name:"Level*", type: "NUMBER", description: "Brightess (0-10, or 0-100 if not in Red compatibility mode; 0=off)", range: 0..100],[name:"UseRedCompatibility", type: "ENUM", constraints: ["false", "true"],descrription:"Use Red Series-compatible level (0-10); default true"]]
 
       // Leaving in for compatibiltiy with Inovelli, but probably don't need:
-        command "ledEffectAll",        [[name: "Type*",type:"ENUM", description: "1=Solid, 2=Fast Blink, 3=Slow Blink, 4=Pulse, 5=Chase, 6=Open/Close, 7=Small-to-Big, 8=Aurora, 0=LEDs off, 255=Clear Notification", constraints: [1,2,3,4,5,6,7,8,0,255]],
+        command "ledEffectAll",        [[name: "Type*",type:"ENUM", description: "1=Solid, 2=Fast Blink, 3=Slow Blink, 4=Pulse, 5=Chase, 6=Open/Close, 7=Small-to-Big, 8=Aurora, 9=Slow Falling, 10=Medium Falling, 11=Fast Falling, 12=Slow Rising, 13=Medium Rusing, 14=Fast Rising, 15=Medium Blink, 16=Slow Chase, 17=Fast Chase, 18=Fast Siren, 19=Slow Siren, 0=LEDs off, 255=Clear Notification", constraints: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,0,255]],
                                         [name: "Color",type:"NUMBER", description: "0-254=Hue Color, 255=White, default=Red"], 
                                         [name: "Level", type:"NUMBER", description: "0-100=LED Intensity, default=100"], 
                                         [name: "Duration", type:"NUMBER", description: "1-60=seconds, 61-120=1-120 minutes, 121-254=1-134 hours, 255=Indefinitely, default=255"]]
@@ -123,7 +126,7 @@ metadata {
 
       // Keep for now; no Red equivalent:     
         command "ledEffectOne",        [[name: "LEDnum*",type:"ENUM", description: "LED 1-7", constraints: ["7","6","5","4","3","2","1","123","567","12","345","67","147","1357","246"]],
-                                        [name: "Type*",type:"ENUM", description: "1=Solid, 2=Fast Blink, 3=Slow Blink, 4=Pulse, 5=Chase, 0=LED off, 255=Clear Notification", constraints: [1,2,3,4,5,0,255]], 
+                                        [name: "Type*",type:"ENUM", description: "1=Solid, 2=Fast Blink, 3=Slow Blink, 4=Pulse, 5=Chase, 6=Falling, 7=Rising, 8=Aurora, 0=LED off, 255=Clear Notification", constraints: [1,2,3,4,5,6,7,8,0,255]], 
                                         [name: "Color",type:"NUMBER", description: "0-254=Hue Color, 255=White, default=Red"], 
                                         [name: "Level", type:"NUMBER", description: "0-100=LED Intensity, default=100"], 
                                         [name: "Duration", type:"NUMBER", description: "1-60=seconds, 61-120=1-120 minutes, 121-254=1-134 hours, 255=Indefinitely, default=255"]]
@@ -250,9 +253,9 @@ metadata {
 
 List getParameterNumbers() {   //controls which options are available depending on whether the device is configured as a switch or a dimmer.
     if (parameter258 == "1")  //on/off mode
-        return [258,22,52,11,12,17,18,19,20,21,50,51,95,96,97,98,256,257,259,260,261]
+        return [258,22,52,10,11,12,17,18,19,20,21,50,51,95,96,97,98,256,257,259,260,261,262]
     else                      //dimmer mode
-        return [258,22,52,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,17,18,19,20,21,50,51,53,95,96,97,98,256,257,260]
+        return [258,22,52,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,17,18,19,20,21,50,51,53,95,96,97,98,256,257,260,262]
 }
 
 @Field static final Map configParams = [
@@ -605,10 +608,21 @@ List getParameterNumbers() {   //controls which options are available depending 
         size: 1,
         type: "enum",
         value: null
+        ],
+    parameter262 : [
+        number: 262,
+        name: "Double-Tap config to clear notification",
+        description: "Double-Tap the Config button to clear notifications",
+        range: ["0":"Enabled (default)", "1":"Disabled"],
+        default: 0,
+        size: 1,
+        type: "enum",
+        value: null
         ]
 ]
 
-@Field static Integer defaultDelay = 450    //default delay to use for zigbee commands (in milliseconds)
+@Field static final Integer defaultDelay = 450    //default delay to use for zigbee commands (in milliseconds)
+@Field static final Integer longerDelay = 2500    //longer delay to use for changing switch modes (in milliseconds)
 
 def bind(cmds=[]) {
    if (logEnable) log.debug "bind($cmds)"
@@ -733,11 +747,14 @@ def configure(option) {
         cmds += ["he rattr ${device.deviceNetworkId} 0x01 0x0008 0x0010                    {}", "delay ${defaultDelay}"] //get OnOff Transition Time
     cmds += ["he rattr ${device.deviceNetworkId} 0x01 0x0008 0x0011                    {}", "delay ${defaultDelay}"] //get Default Remote On Level
     cmds += ["he rattr ${device.deviceNetworkId} 0x01 0x0008 0x4000                    {}", "delay ${defaultDelay}"] //get Startup Level
-    //if we didn't pick option "All" (so we don't read them twice) then preload the dimming/ramp rates so they are not null in calculations
-    if (option!="All") for(int i = 1;i<=8;i++) cmds += getAttribute(0xfc31, i)
-    //update local copies of the read-only parameters
-    //cmds += getAttribute(0xfc31, 21)        //power source (neutral/non-neutral)
-    cmds += getAttribute(0xfc31, 51)        //number of bindings
+    if (option!="All") { //if we didn't pick option "All" (so we don't read them twice) then preload the dimming/ramp rates and key parameters so they are not null in calculations
+        for(int i = 1;i<=8;i++) cmds += getAttribute(0xfc31, i)
+        cmds += getAttribute(0xfc31, 258)       //switch mode
+        cmds += getAttribute(0xfc31, 22)        //aux switch type
+        cmds += getAttribute(0xfc31, 52)        //smart bulb mode
+        cmds += getAttribute(0xfc31, 21)        //power source (neutral/non-neutral)
+        cmds += getAttribute(0xfc31, 51)        //number of bindings
+    }
     if (option!="") cmds += updated(option) //if option was selected on Configure button, pass it on to update settings.
     return cmds
 }
@@ -764,8 +781,7 @@ def convertPercentToByte(int value=0) {                  //Zigbee uses a 0-254 r
 List<String> initialize() {
     if (logEnable) log.debug "initialize()"
     state.clear()
-    def cmds = []
-    cmds = refresh()
+    List<String> cmds = refresh()
     return cmds
 }
 
@@ -924,7 +940,7 @@ def parse(String description) {
                                        "clusterId:${descMap.cluster?:descMap.clusterId}" +
                                        (descMap.attrId==null?"":" attrId:${descMap.attrId}") +
                                        (descMap.value==null?"":" value:${descMap.value}") +
-                                       (zigbee.getEvent(description)==[:]?(descMap.data==null?"":" data:${descMap.data}"):(" ${zigbee.getEvent(description)}")) + 
+                                       //(zigbee.getEvent(description)==[:]?(descMap.data==null?"":" data:${descMap.data}"):(" ${zigbee.getEvent(description)}")) + 
                                        ")"
             switch (attrInt) {
                 case 0x0004:
@@ -1357,11 +1373,14 @@ def parse(String description) {
                     case 261:    //Relay Click
                         infoMsg += "\t(Relay Click " + (valueInt==0?green("enabled"):red("disabled")) + ")"
                         break
+                    case 262:    //Double-Tap config button to clear notification
+                        infoMsg += "\t(Double-Tap config button " + (valueInt==0?green("enabled"):red("disabled")) + ")"
+                        break
                     default:
-                        infoMSg += orangeRed(" *** Undefined Parameter $attrInt ***")
+                        infoMsg += orangeRed(" *** Undefined Parameter $attrInt ***")
                         break
                 }
-                if (txtEnable) log.info infoMsg
+                if (logEnable) log.debug infoMsg
                 if ((attrInt==9)||(attrInt==10)||(attrInt==13)||(attrInt==14)||(attrInt==15)) valueInt = convertByteToPercent(valueInt)    //these attributes are stored as bytes but presented as percentages
                 if (attrInt>0) device.updateSetting("parameter${attrInt}",[value:"${valueInt}",type:configParams["parameter${attrInt.toString().padLeft(3,"0")}"].type.toString()]) //update local setting with value received from device                   
                 state."parameter${attrInt}value" = valueInt  //update state variable with value received from device
@@ -1370,9 +1389,9 @@ def parse(String description) {
                     state."parameter${attrInt}custom" = Math.round(valueInt/255*360)
                 }
                 if ((valueInt==configParams["parameter${attrInt.toString()?.padLeft(3,"0")}"]?.default?.toInteger())  //IF  setting is the default
-                && (attrInt!=21)&&(attrInt!=22)&&(attrInt!=51)&&(attrInt!=52)&&(attrInt!=258)) {                     //AND  not read-only or primary config params
+                && (attrInt!=21)&&(attrInt!=22)&&(attrInt!=51)&&(attrInt!=52)&&(attrInt!=258)) {                      //AND  not read-only or primary config params
                     if (logEnable) log.debug "${device.displayName}: parse() cleared parameter${attrInt}"
-                    device.clearSetting("parameter${attrInt}")                                                       //THEN clear the setting (so only changed settings are displayed)
+                    device.clearSetting("parameter${attrInt}")                                                        //THEN clear the setting (so only changed settings are displayed)
                 }
             }
             else if (txtEnable||logEnable) log.warn "${device.displayName}: "+fireBrick("${clusterLookup(clusterHex)}(${clusterHex}) UNKNOWN COMMAND" + (logEnable?"\t$descMap\t${zigbee.getEvent(description)}":""))
@@ -1461,7 +1480,7 @@ List<String> refresh(option) {
             case "":
             case " ":
             case null:
-                if (((i>=1)&&(i<=8))||(i==22)||(i==51)||(i==52)||(i==258)) cmds += getAttribute(0xfc31, i) //if option is blank or null then refresh primary and read-only settings
+                if (((i>=1)&&(i<=8))||(i==21)||(i==22)||(i==51)||(i==52)||(i==258)) cmds += getAttribute(0xfc31, i) //if option is blank or null then refresh primary and read-only settings
                 break
             case "User":                
                 if (settings."parameter${i}"!=null) cmds += getAttribute(0xfc31, i) //if option is User then refresh settings that are non-blank
@@ -1553,7 +1572,7 @@ List<String> setPrivateCluster(attributeId, value=null, size=8) {
     Integer attId = attributeId.toInteger()
     Integer attValue = (value?:0).toInteger()
     Integer attSize = calculateSize(size).toInteger()
-    if (value!=null) cmds += setAttribute(0xfc31,attId,attSize,attValue,[:],attId==258?2000:defaultDelay)
+    if (value!=null) cmds += setAttribute(0xfc31,attId,attSize,attValue,[:],attId==258?longerDelay:defaultDelay)
     cmds += getAttribute(0xfc31, attId)
     //if (traceEnable) log.trace "setPrivate $cmds"
     return cmds
@@ -1566,7 +1585,7 @@ def setZigbeeAttribute(cluster, attributeId, value=null, size=8) {
     Integer attId = attributeId.toInteger()
     Integer attValue = (value?:0).toInteger()
     Integer attSize = calculateSize(size).toInteger()
-    if (value!=null) cmds += setAttribute(setCluster,attId,attSize,attValue,[:],attId==258?2000:defaultDelay)
+    if (value!=null) cmds += setAttribute(setCluster,attId,attSize,attValue,[:],attId==258?longerDelay:defaultDelay)
     cmds += getAttribute(setCluster, attId)
     //if (traceEnable) log.trace "setZigbee $cmds"
     return cmds
@@ -1634,8 +1653,8 @@ List<String> updated(option) {
       if ((newValue!=oldValue) 
       || ((option=="User")&&(settings."parameter${i}"!=null)) 
       || ((option=="All")&&(i!=258))) {
-         if ((i==52)||(i==258)) setAttrDelay = setAttrDelay!=2000?2000:defaultDelay  //IF   we're changing modes THEN delay longer
-         else                   setAttrDelay = defaultDelay                          //ELSE set back to default delay if we already delayed previously
+         if ((i==52)||(i==258)) setAttrDelay = setAttrDelay!=longerDelay?longerDelay:defaultDelay  //IF   we're changing modes THEN delay longer
+         else                   setAttrDelay = defaultDelay                                        //ELSE set back to default delay if we already delayed previously
          cmds += setAttribute(0xfc31, i, calculateSize(configParams["parameter${i.toString().padLeft(3,'0')}"].size), newValue.toInteger(), ["mfgCode":"0x122F"], setAttrDelay)
          changedParams += i
          nothingChanged = false
@@ -1645,7 +1664,7 @@ List<String> updated(option) {
       cmds += getAttribute(0xfc31, i)
    }
    if (nothingChanged && (txtEnable||logEnable||traceEnable)) {
-      log.info "${device.displayName}: No device settings were changed"
+      log.debug "${device.displayName}: No device settings were changed"
       log.info  "${device.displayName}: Info logging    "  + (txtEnable?green("Enabled"):red("Disabled"))
       log.debug "${device.displayName}: Debug logging "    + (logEnable?green("Enabled"):red("Disabled"))
    }
@@ -1654,10 +1673,22 @@ List<String> updated(option) {
 
 List<String> updateFirmware() {
     if (logEnable) log.debug "updateFirmware()"
+    /*  // remove and replace with this when no longer beta firmware:
     def cmds = []
     cmds += zigbee.updateFirmware()
     if (logEnable) log.trace "updateFirmware cmds = $cmds"
     return cmds
+    */
+    if (state.lastUpdateFw != null && now() - state.lastUpdateFw < 2000) {
+    List<String> cmds = []
+    cmds += zigbee.updateFirmware()
+    if (logEnable) log.debug "updateFirmware cmds = $cmds"
+    return cmds
+    } else {
+        log.warn "Firmware in this channel may be \"beta\" quality. Please check https://community.inovelli.com/c/switches/switch-firmware/42 before proceeding. Double-click \"Update Firmware\" to proceed"
+    }
+    state.lastUpdateFw = now()
+    return []
 }
 
 void ZigbeePrivateCommandEvent(data) {
@@ -1735,7 +1766,7 @@ void ZigbeePrivateCommandEvent(data) {
 }
 
 void ZigbeePrivateLEDeffectStopEvent(data) {
-    Integer ledNumber = Integer.parseInt(data[0],16)+1 //LED number is 0-based
+    Integer ledNumber = Integer.parseInt(data[0],16)+1 //internal LED number is 0-based
     String  ledStatus = ledNumber==17?"Stop All":ledNumber==256?"User Cleared":"Stop LED${ledNumber}"
     if (txtEnable) log.info "${device.displayName}: ledEffect: ${ledStatus}"
 	switch(ledNumber){
@@ -1813,7 +1844,7 @@ void logsOff() {
 //Functions to enhance text appearance
 String bold(s)      { return "<b>$s</b>" }
 String italic(s)    { return "<i>$s</i>" }
-String mark(s)      { return "<mark>$s</u>" }
+String mark(s)      { return "<mark>$s</mark>" }  // yellow background
 String strike(s)    { return "<s>$s</s>" }
 String underline(s) { return "<u>$s</u>" }
 
