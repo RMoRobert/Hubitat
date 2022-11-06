@@ -37,7 +37,7 @@ import java.security.MessageDigest
 @Field static final Map<String,Integer> colorNameMap = [
    "red": 0,
    "red-orange": 2,
-   "orange": 9,
+   "orange": 8,
    "yellow": 30,
    "chartreuse": 60,
    "green": 86,
@@ -45,7 +45,7 @@ import java.security.MessageDigest
    "cyan": 127,
    "azure": 155,
    "blue": 170,
-   "violet": 212,
+   "violet": 208,
    "magenta": 234,
    "rose": 254,
    "white": 255
@@ -104,7 +104,8 @@ metadata {
       command "setIndicator", [[name:"Color", type: "ENUM", constraints: ["red", "red-orange", "orange", "yellow", "green", "spring", "cyan", "azure", "blue", "violet", "magenta", "rose", "white"]],
                                [name:"Level", type: "ENUM", description: "Level, 0-100", constraints: [100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 1, 0]],
                                [name:"Effect", type: "ENUM", description: "Effect name from list", constraints: ["off", "solid", "chase", "fast blink", "slow blink", "pulse", "open/close",
-                                                       "small to big", "aurora", "clear"]],
+                                                       "small to big", "aurora", "slow falling", "medium falling", "fast falling", "slow rising", "medium rising", "fast rising", "medium blink",
+                                                       "slow chase", "fast chase", "fast siren", "slow siren", "clear"]],
                                [name: "Duration", type: "NUMBER", description: "Duration in seconds, 1-254 or 255 for indefinite"]]
 
       command "setLEDColor", [[name: "Color*", type: "ENUM", description: "Color name (from list)", constraints: ["red", "red-orange", "orange", "yellow", "chartreuse", "green", "spring", "cyan", "azure", "blue", "violet", "magenta", "rose", "white"]],

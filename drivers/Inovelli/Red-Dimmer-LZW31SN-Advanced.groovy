@@ -50,7 +50,7 @@ import java.util.concurrent.ConcurrentHashMap
 @Field static final Map<String,Short> colorNameMap = [
    "red": 1,
    "red-orange": 4,
-   "orange": 21,
+   "orange": 10,
    "yellow": 42,
    "chartreuse": 60,
    "green": 85,
@@ -58,7 +58,7 @@ import java.util.concurrent.ConcurrentHashMap
    "cyan": 127,
    "azure": 155,
    "blue": 170,
-   "violet": 212,
+   "violet": 208,
    "magenta": 234,
    "rose": 254,
    "white": 255
