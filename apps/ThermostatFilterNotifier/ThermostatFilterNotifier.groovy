@@ -12,8 +12,9 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *  Last modified: 2022-12-19
+ *  Last modified: 2022-12-21
  *  Changes:
+ *   2022-12-21: Fix runtime calcuation (was reversed)
  *   2022-12-20: Initial release
  *
  */
@@ -77,7 +78,7 @@ void operatingStateHandler(evt) {
    }
    else {
       Long endTime = now()
-      Long runtime = (state.startTime ?: 0) - endTime
+      Long runtime = endTime - (state.startTime ?: 0)
       if (logEnable == true) log.debug "Calculated runtime is $runtime ms"
       if (runtime < 0) {
          log.warn "Runtime was less than zero: $runtime; this runtime will be counted as 0 and not have an effect on the total"
