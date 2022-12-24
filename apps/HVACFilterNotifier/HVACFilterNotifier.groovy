@@ -1,7 +1,7 @@
 /**
- *  Thermostat Filter Notifier
- *  Description: Tracks thermostat runtime and can send notification when exceeds certain number of
- *               hours. Timer can be reset at any time.
+ *  HVAC Filter Notifier
+ *  Description: Tracks furnace or AC (based on thermostat) runtime and can send notification when exceeds
+ *               certain number of hours. Timer can be reset at any time.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -14,16 +14,17 @@
  *
  *  Last modified: 2022-12-21
  *  Changes:
+ *   2022-12-23: Rename to HVAC Filter Notifier
  *   2022-12-21: Fix runtime calcuation (was reversed)
  *   2022-12-20: Initial release
  *
  */
  
 definition(
-   name: "Thermostat Filter Notifier",
+   name: "HVAC Filter Notifier",
    namespace: "RMoRobert",
    author: "RMoRboert",
-   description: "Track thermostat runtime and get notified when time to change filter (based on preferences)",
+   description: "Track furnace/AC thermostat runtime and get notified when time to change filter (based on preferences)",
    category: "Convenience",
    iconUrl: "",
    iconX2Url: "",
