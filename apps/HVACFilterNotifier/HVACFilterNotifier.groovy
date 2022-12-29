@@ -12,8 +12,8 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *  Last modified: 2022-12-21
  *  Changes:
+ *   2022-12-28: Add lastReset to state (for info only at this time)
  *   2022-12-23: Rename to HVAC Filter Notifier
  *   2022-12-21: Fix runtime calcuation (was reversed)
  *   2022-12-20: Initial release
@@ -69,6 +69,7 @@ void updated() {
 void initialize() {
    log.debug "Initializing"
    subscribe(thermoDev, "thermostatOperatingState", "operatingStateHandler")
+   if (!state.lastReset) state.lastReset = new Date().format("yyyy-MM-dd HH:mm z", location.timeZone)
 }
 
 void operatingStateHandler(evt) {
@@ -89,7 +90,7 @@ void operatingStateHandler(evt) {
       if (logEnable == true) log.debug "Converted runtime is $runtimeHrs hr"
       state.totalRuntime = (state.totalRuntime ?: 0) + runtimeHrs
       if (logEnable == true) log.debug "New total runtime is ${state.totalRuntime} hr"
-      checkTotalRuntime()		
+      checkTotalRuntime()
    }
 }
 
@@ -109,6 +110,7 @@ void checkTotalRuntime() {
 void resetTotalRuntime() {
    if (logEnable == true) log.debug "resetTotalRuntime() -- resetting total runtime to 0"
    state.totalRuntime = 0.0
+   state.lastReset = new Date().format("yyyy-MM-dd HH:mm z", location.timeZone)
 }
 
 void appButtonHandler(String btn) {
