@@ -13,7 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *  Changes:
- *   2022-12-28: Add lastReset to state (for info only at this time)
+ *   2022-12-28: Add runtime and last reset to UI
  *   2022-12-23: Rename to HVAC Filter Notifier
  *   2022-12-21: Fix runtime calcuation (was reversed)
  *   2022-12-20: Initial release
@@ -34,29 +34,37 @@ definition(
 @groovy.transform.Field static final List<String> trackedStates = ["heating", "cooling", "fan only"]
 
 preferences {
-mainPage()  
+   mainPage()
 }
 
 def mainPage() {
-   page(name:"mainPage", title:"Settings", install: true, uninstall: true) {
-      section("Track this thermostat...") {
+   page(name:"mainPage", title:"HVAC Filter Notifier Configuration", install: true, uninstall: true) {
+      section(styleSection("Track this thermostat:")) {
          input name: "thermoDev", type: "capability.thermostat", title: "Select thermostat", multiple: false
       }
-      section("Send notification when...") {
-         input name: "runtimeHours", type: "number", title: "Hours of runtime exceeds", defaultValue: 200, required: true
-         input name:"notifyDevices", type: "capability.notification", title: "To this notification device", multiple: true
+      section(styleSection("Send notification when...")) {
+         input name: "runtimeHours", type: "number", title: "Hours of runtime exceeds:", defaultValue: 300, required: true
+         input name:"notifyDevices", type: "capability.notification", title: "To this notification device:", multiple: true
       }
-      section("Logging", hideable: true, hidden: true) {
+      section(styleSection("Statistics")) {
+         if (state.totalRuntime) {
+            paragraph """<span style="font-weight:bold">Current Total Runtime:</span> ${String.format("%.2f", state.totalRuntime)} hr"""
+         }
+         if (state.lastReset) {
+            String strLastReset = new Date(state.lastReset).format("yyyy-MM-dd HH:mm z", location.timeZone)
+            paragraph """<span style="font-weight:bold">Last Reset:</span> ${strLastReset}"""
+         }
+         paragraph "Use the button below to reset the total tracked runtime (e.g., after replacing the filter):"
+         input name: "btnReset", type: "button", title: "Reset Runtime", submitOnChange: true
+      }
+      section(styleSection("Name and Logging")) {
+         label title: "Customize installed app name:", required: true
          input "logEnable", "bool", title: "Enable debug logging"
-      }
-      section("Reset") {
-         paragraph "Use the button below to reset the total tracked runtime (e.g., after replacing the filter)"
-         input name: "btnReset", type: "button", title: "Reset Runtime"
       }
    }
 }
 
-   void installed() {
+void installed() {
    initialize()
 }
 
@@ -69,7 +77,7 @@ void updated() {
 void initialize() {
    log.debug "Initializing"
    subscribe(thermoDev, "thermostatOperatingState", "operatingStateHandler")
-   if (!state.lastReset) state.lastReset = new Date().format("yyyy-MM-dd HH:mm z", location.timeZone)
+   if (!state.lastReset) state.lastReset = now()
 }
 
 void operatingStateHandler(evt) {
@@ -110,7 +118,11 @@ void checkTotalRuntime() {
 void resetTotalRuntime() {
    if (logEnable == true) log.debug "resetTotalRuntime() -- resetting total runtime to 0"
    state.totalRuntime = 0.0
-   state.lastReset = new Date().format("yyyy-MM-dd HH:mm z", location.timeZone)
+   state.lastReset = now()
+}
+
+String styleSection(String sectionHeadingText) {
+   return """<div style="font-weight:bold; font-size: 120%">$sectionHeadingText</div>"""
 }
 
 void appButtonHandler(String btn) {
