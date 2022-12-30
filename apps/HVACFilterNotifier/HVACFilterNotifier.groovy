@@ -13,7 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *  Changes:
- *   2022-12-28: Add runtime and last reset to UI
+ *   2022-12-28: Add runtime and last reset to UIg
  *   2022-12-23: Rename to HVAC Filter Notifier
  *   2022-12-21: Fix runtime calcuation (was reversed)
  *   2022-12-20: Initial release
@@ -47,8 +47,9 @@ def mainPage() {
          input name:"notifyDevices", type: "capability.notification", title: "To this notification device:", multiple: true
       }
       section(styleSection("Statistics")) {
-         if (state.totalRuntime) {
+         if (state.totalRuntime != null) {
             paragraph """<span style="font-weight:bold">Current Total Runtime:</span> ${String.format("%.2f", state.totalRuntime)} hr"""
+            paragraph "<small>NOTE: Total is not updated until thermostat returns to idle (or other non-tracked state).</small>"
          }
          if (state.lastReset) {
             String strLastReset = new Date(state.lastReset).format("yyyy-MM-dd HH:mm z", location.timeZone)
