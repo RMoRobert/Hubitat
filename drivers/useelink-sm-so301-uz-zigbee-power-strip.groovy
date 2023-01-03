@@ -1,7 +1,7 @@
 /*
  * ==================  UseeLink SM-SO301-UZ Zigbee Power Strip Driver ====================
  *
- *  Copyright 2020 Robert Morris
+ *  Copyright 2020-2023 Robert Morris
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -14,9 +14,10 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-11-16
+ *  Last modified: 2023-01-02
  * 
  *  Changelog:
+ *  v1.1.1  - Fix typo
  *  v1.1    - Code formatting improvements and refactoring; more static typing
  *  v1.0.2  - Update on() and off() to use endpint 0xFF instead of iterating over all
  *  v1.0.1  - Ensure parent switch attribute gets set; child command fixes
@@ -104,7 +105,7 @@ void parse(String description) {
 
 // Updates parent "switch" to be "on" if any child is on, otherewise off
 private void updateSwitchFromChildStates() {
-   Sttring attribute = "switch"
+   String attribute = "switch"
    String value = "off"
    String descText = ""
    if (childDevices.any { it.currentValue('switch') == 'on' }) {
