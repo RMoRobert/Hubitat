@@ -342,6 +342,9 @@ void motionHandler(evt) {
                // dimmed, etc.) while stil respecting above settings
                performActiveAction()
             }
+            else {
+               logDebug "No on-type action performed because one or more restrictions in effect", 2
+            }
          }
       }
    }
@@ -719,7 +722,7 @@ void endGrace() {
 void startGrace() {
    logDebug "startGrace()", 2, "trace"
    state.inGrace = true
-   runIn(settings.graceSeconds, "scheduledGraceEndHandler")
+   runIn(settings.gracePeriod, "scheduledGraceEndHandler")
 }
 
 def modeChangeHandler(evt) {
