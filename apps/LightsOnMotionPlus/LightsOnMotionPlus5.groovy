@@ -4,7 +4,7 @@
  *  Add code for parent app first and then and child app (this). To use, install/create new
  *  instance of parent app.
  *
- *  Copyright 2018-2022 Robert Morris
+ *  Copyright 2018-2023 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2022-02-24
+ *  Last modified: 2023-01-16
  *
  *  Changelog:
  *
+ * 5.4.2 - Add way to view/edit saved device states; fix error when using grace period
  * 5.4.1 - Update rule lists to show Rule 5.x rules; dim/off rules do not run if no lights were dimmed/turned off; grace period not entered if no lights were turned off
  * 5.4   - Added option to use new (three-parameter) "Set Color Temperature" command (disabled by default, as many devices do not yet support this)
  * 5.3   - Added option to run Rule actions when lights turn off or dim; fixed incorrect inactivity delay calculation
@@ -52,6 +53,7 @@
 
 import groovy.transform.Field
 import hubitat.helper.RMUtils
+import com.hubitat.app.DeviceWrapper
 
 @Field static final List<Map<String,String>> activeActions = [
    [on: 'Turn on lights'],
@@ -69,7 +71,7 @@ import hubitat.helper.RMUtils
 
 definition(
    name: "Lights on Motion Plus (Child App) 5",
-   namespace: "RMoRobert",      
+   namespace: "RMoRobert",
    parent: "RMoRobert:Lights on Motion Plus",
    author: "Robert Morris",
    description: "Do not install directly. Install Lights on Motion Plus app, then create new automations using that app.",
@@ -80,9 +82,10 @@ definition(
 )
 
 preferences {
-   page name: "pageMain", content: "pageMain"
-   page name: "pagePerModeSettings", content: "pagePerModeSettings"
-   page name: "pageDeletePerMode", content: "pageDeletePerMode"
+   page name: "pageMain"
+   page name: "pagePerModeSettings"
+   page name: "pageDeletePerMode"
+   page name: "pageViewSavedStates"
 }
 
 def pageMain() {
@@ -103,7 +106,7 @@ def pageMain() {
          if (activeAction == "onScene") {
             input name: "scene", type: "device.CoCoHueScene", title: "Activate CoCoHue scene", required: true, submitOnChange: true
          }
-         else if (activeAction == "onColor") {                  
+         else if (activeAction == "onColor") {
             input name: "onColor.L", type: "number",
                title: "level", description: "0-100", range: "0..100", width: 2, required: false
             input name: "onColor.CT", type: "number",
@@ -217,6 +220,7 @@ def pageMain() {
          input name: "boolLegacyCT", type: "bool", title: "Use legacy (one-parameter) setColorTemperature() command (default: yes)", defaultValue: true
          input name: "doOn", type: "bool", title: "Send \"On\" command after \"Set Level\" or \"Set Color\" when restoring states (enable if devices use \"legacy\" prestaging preference)"
          //input name: "btnPrintModeIDs", type: "button", title: "Print mode IDs"
+         href name: "hrefViewSavedStates", page: "pageViewSavedStates", title: "View Captured States", description: "View or edit captured light states (for troubleshooting) - beta"
          input name: "btnClearCaptured", type: "button", title: "Clear all captured states"
       }
    }
@@ -317,6 +321,109 @@ def pageDeletePerMode() {
    }
 }
 
+def pageViewSavedStates() {
+   dynamicPage(name: "pageViewSavedStates", title: "View captured states", uninstall: false, nextPage: "pageMain") {
+      section("Non-Exception Modes") {
+         paragraph "NOTE: This page is currently view-only except for on/off and color mode for non-exception mode."
+         StringBuilder sb = new StringBuilder()
+         sb << "<style>.mdl-data-table tbody tr:hover{background-color:inherit} .tstat-col td,.tstat-col th { padding:8px 8px;text-align:center;font-size:12px} .tstat-col td {font-size:15px }" <<
+            "</style><div style='overflow-x:auto'><table class='mdl-data-table tstat-col' style=';border:2px solid black'>" <<
+            "<thead><tr style='border-bottom:2px solid black'><th style='border-right:2px solid black'>Device</th>" <<
+            "<th>Switch</th>" <<
+            "<th>Mode</th>" <<
+            "<th>CT</th>" <<
+            "<th>H</th>" <<
+            "<th>S</th>" <<
+            "<th>L</th></tr></thead>"
+         lights.each { DeviceWrapper dev ->
+            String devLink = "<a href='/device/edit/$dev.id' target='_blank' title='Open device detail page for $dev.displayName'>$dev.displayName</a>"
+            String modeTxt = state.capturedStates?.get(dev.id)?.get('colorMode') ?: "-"
+            String modeBtn = buttonLink("btnCap_ColorMode_${dev.id}", modeTxt)
+            String swTxt = state.capturedStates?.get(dev.id)?.get('switch') ?: "-"
+            String swBtn = buttonLink("btnCap_Switch_${dev.id}", swTxt)
+            String ctTxt = state.capturedStates?.get(dev.id)?.get('CT') ?: "-"
+            String ctBtn = buttonLink("btnCap_CT_${dev.id}", ctTxt)
+            String hueTxt = state.capturedStates?.get(dev.id)?.get('H') ?: "-"
+            String hueBtn = buttonLink("btnCap_H_${dev.id}", hueTxt)
+            String satTxt = state.capturedStates?.get(dev.id)?.get('S') ?: "-"
+            String satBtn = buttonLink("btnCap_S_${dev.id}", satTxt)
+            String lvlTxt = state.capturedStates?.get(dev.id)?.get('level') ?: "-"
+            String lvlBtn = buttonLink("btnCap_L_${dev.id}", lvlTxt)
+            sb << "<tr style='color:black'><td style='border-right:2px solid black'>$devLink</td>" <<
+               "<td title='Switch state for $dev.displayName'>$swBtn</td>" <<
+               "<td title='Color mode for $dev.displayName'>$modeBtn</td>" <<
+               "<td title='Color temperature for $dev.displayName'>$ctBtn</td>" <<
+               "<td title='Hue for $dev.displayName'>$hueBtn</td>" <<
+               "<td title='Saturation for $dev.displayName'>$satBtn</td>" <<
+               "<td title='Level for $dev.displayName'>$lvlBtn</td></tr>"
+         }
+         sb << "</table></div>"
+         paragraph sb.toString()
+         if (state.showSavedStateInput) {
+            input name: state.showSavedInput_name, type: "number", text: state.showSavedInput_text, width: 5
+            input name: state.showSavedInput_btnName, type: "button", text: "Hide", width: 5
+            paragraph "", width: 2
+         }
+      }
+      if (perMode) {
+         location.getModes().each { md ->
+            section("${md.name} Mode") {
+               StringBuilder sb = new StringBuilder()
+               if (!settings["boolRemember.${md.id}"]) {
+                  sb << "<div><strong>NOTE:</strong> ${md.name} mode states are shared with non-exception modes</div>"
+               }
+               sb << "<style>.mdl-data-table tbody tr:hover{background-color:inherit} .tstat-col td,.tstat-col th { padding:8px 8px;text-align:center;font-size:12px} .tstat-col td {font-size:15px }" <<
+                  "</style><div style='overflow-x:auto'><table class='mdl-data-table tstat-col' style=';border:2px solid black'>" <<
+                  "<thead><tr style='border-bottom:2px solid black'><th style='border-right:2px solid black'>Device</th>" <<
+                  "<th>Switch</th>" <<
+                  "<th>Mode</th>" <<
+                  "<th>CT</th>" <<
+                  "<th>H</th>" <<
+                  "<th>S</th>" <<
+                  "<th>L</th></tr></thead>"
+               List<DeviceWrapper> modeLights
+               if (settings["perMode"] && settings["perMode.${md.id}"] && settings["lights.override.${md.id}"]) {
+                  modeLights = settings["lights.${location.getCurrentMode().id}"]
+               }
+               else {
+                  modeLights = lights
+               }
+               String stateKey = "capturedStates"
+               if (settings["perMode"] && settings["boolRemember.${md.id}"]) stateKey += ".${md.id}"
+               modeLights.each { DeviceWrapper dev ->
+                  String devLink = "<a href='/device/edit/$dev.id' target='_blank' title='Open device detail page for $dev.displayName'>$dev.displayName</a>"
+                  String modeTxt = state."$stateKey"?.get(dev.id)?.get('colorMode') ?: "-"
+                  String modeBtn = buttonLink("btnCap_Mode_{$md.id}_ColorMode_${}_${dev.id}", modeTxt)
+                  String swTxt = state."$stateKey"?.get(dev.id)?.get('switch') ?: "-"
+                  String swBtn = buttonLink("btnCap_Mode_{$md.id}_Switch_${dev.id}", swTxt)
+                  String ctTxt = state."$stateKey"?.get(dev.id)?.get('CT') ?: "-"
+                  String ctBtn = buttonLink("btnCap_Mode_{$md.id}_CT_${dev.id}", ctTxt)
+                  String hueTxt = state."$stateKey"?.get(dev.id)?.get('H') ?: "-"
+                  String hueBtn = buttonLink("btnCap_Mode_{$md.id}_H_${dev.id}", hueTxt)
+                  String satTxt = state."$stateKey"?.get(dev.id)?.get('S') ?: "-"
+                  String satBtn = buttonLink("btnCap_Mode_{$md.id}_S_${dev.id}", satTxt)
+                  String lvlTxt = state."$stateKey"?.get(dev.id)?.get('level') ?: "-"
+                  String lvlBtn = buttonLink("btnCap_Mode_{$md.id}_L_${dev.id}", lvlTxt)
+                  sb << "<tr style='color:black'><td style='border-right:2px solid black'>$devLink</td>" <<
+                     "<td title='Switch state for $dev.displayName'>$swBtn</td>" <<
+                     "<td title='Color mode for $dev.displayName'>$modeBtn</td>" <<
+                     "<td title='Color temperature for $dev.displayName'>$ctBtn</td>" <<
+                     "<td title='Hue for $dev.displayName'>$hueBtn</td>" <<
+                     "<td title='Saturation for $dev.displayName'>$satBtn</td>" <<
+                     "<td title='Level for $dev.displayName'>$lvlBtn</td></tr>"
+               }
+               sb << "</table></div>"
+               paragraph sb.toString()
+            }
+         }
+      }
+   }
+}
+
+String buttonLink(String btnName, String linkText, color = "#1A77C9", font = 15) {
+	"<div class='form-group'><input type='hidden' name='${btnName}.type' value='button'></div><div><div class='submitOnChange' onclick='buttonClick(this)' style='color:$color;cursor:pointer;font-size:${font}px'>$linkText</div></div><input type='hidden' name='settings[$btnName]' value=''>"
+}
+
 void motionHandler(evt) {
    logDebug "motionHandler: ${evt.device} ${evt.value} (mode ${location.currentMode.name} [${location.currentMode.id}]) ===", 1, "trace"
    // Before we start, set isDimmed to false if no lights on (which could have happened if user or other app
@@ -374,7 +481,7 @@ void motionHandler(evt) {
 // includeExtraOffLights: include "additional lights to turn off"? (will choose per-mode or default set, depending on configuration)
 Boolean verifyNoneOn(Boolean includeExtraOffLights=false) {
    logDebug "verifyNoneOn($includeExtraOffLights)...", 2, "trace"
-   List<com.hubitat.app.DeviceWrapper> devsToCheck = []
+   List<DeviceWrapper> devsToCheck = []
    if (settings["perMode"] && settings["perMode.${location.getCurrentMode().id}"] && settings["lights.override.${location.getCurrentMode().id}"]) {
       devsToCheck = (settings["lights.${location.getCurrentMode().id}"]) 
    }
@@ -393,9 +500,9 @@ Boolean verifyNoneOn(Boolean includeExtraOffLights=false) {
    return !(devsToCheck.any { it.currentValue("switch") == "on"})
 }
 
-List<com.hubitat.app.DeviceWrapper> getDevicesToTurnOn() {
+List<DeviceWrapper> getDevicesToTurnOn() {
    logDebug "getDevicesToTurnOn()...", 2, "trace"
-   List<com.hubitat.app.DeviceWrapper> devsToOn = []
+   List<DeviceWrapper> devsToOn = []
    if (settings["perMode"] && settings["perMode.${location.getCurrentMode().id}"]) {
       if (settings["activeAction.${location.getCurrentMode().id}"] == "onScene") {
          devsToOn = [settings["scene.${location.getCurrentMode().id}"]]
@@ -418,9 +525,9 @@ List<com.hubitat.app.DeviceWrapper> getDevicesToTurnOn() {
 
 // Gets devices to dim or turn off; also can be used to get lights to restore
 // includeExtraOffLights: include "additional lights to turn off"? (will choose per-mode or default set, depending on configuration)
-List<com.hubitat.app.DeviceWrapper> getDevicesToTurnOff(Boolean includeExtraOffLights=true) {
+List<DeviceWrapper> getDevicesToTurnOff(Boolean includeExtraOffLights=true) {
    logDebug "getDevicesToTurnOff(includeExtraOffLights=$includeExtraOffLights)", 2, "trace"
-   List<com.hubitat.app.DeviceWrapper> devsToOff = []
+   List<DeviceWrapper> devsToOff = []
    if (settings["perMode"] && settings["perMode.${location.getCurrentMode().id}"] && settings["lights.override.${location.getCurrentMode().id}"]) {
       devsToOff = settings["lights.${location.getCurrentMode().id}"]
    }
@@ -645,7 +752,7 @@ Boolean isTimeOK() {
 void scheduledOffHandler() {
    logDebug "scheduledOffHandler", 2, "trace"
    if (!state.isDimmed) captureStates()
-   List<com.hubitat.app.DeviceWrapper> devsToTurnOff = getDevicesToTurnOff(true)
+   List<DeviceWrapper> devsToTurnOff = getDevicesToTurnOff(true)
    Boolean wereAnyOn = devsToTurnOff.any { it.currentValue("switch") == "on" }
    devsToTurnOff.each { it.off() }
    state.isDimmed = false
@@ -683,7 +790,7 @@ void scheduledDimHandler() {
       dimToLevel = settings["dimToLevel.${location.getCurrentMode().id}"]
    }
    settings["perMode"] && settings["perMode.${location.getCurrentMode().id}"]
-   List<com.hubitat.app.DeviceWrapper> devsToTurnOff = getDevicesToTurnOff(true)
+   List<DeviceWrapper> devsToTurnOff = getDevicesToTurnOff(true)
    Boolean dimmedAny = false
    devsToTurnOff.each {
       if (it.currentValue("switch") == 'on') {
@@ -808,7 +915,7 @@ void captureStates(Long modeID=location.getCurrentMode().id) {
       logDebug "  Configured to remember...", 2, "debug"
       String stateKey = "capturedStates"
       if (settings["perMode"] && settings["boolRemember.${modeID}"]) stateKey += ".${modeID}"
-      List<com.hubitat.app.DeviceWrapper> devsToCapture = getDevicesToTurnOff(true)
+      List<DeviceWrapper> devsToCapture = getDevicesToTurnOff(true)
       if (devsToCapture.any { it.currentValue("switch") == "on" }) {
          if (!(state."$stateKey")) state."$stateKey" = [:]
          devsToCapture.each {
@@ -841,7 +948,7 @@ void restoreStates() {
       logDebug "  Configured to remember states...", 2, "debug"
       String stateKey = "capturedStates"
       if (settings["perMode"] && settings["boolRemember.${location.getCurrentMode().id}"]) stateKey += ".${location.getCurrentMode().id}"
-      List<com.hubitat.app.DeviceWrapper> devsToRestore = getDevicesToTurnOff(state.isDimmed) // Get all devices if dimmed, on-only devices if not
+      List<DeviceWrapper> devsToRestore = getDevicesToTurnOff(state.isDimmed) // Get all devices if dimmed, on-only devices if not
       if (!(state."$stateKey")) stateKey = "capturedStates"  // Fall back to non-per-mode settings if can't find per-mode
       Boolean anySavedOn = false
       devsToRestore.each {
@@ -935,6 +1042,29 @@ void appButtonHandler(String btn) {
          break
       case 'btnClearCaptured':
          removeCapturedStates()
+         break
+      case { it.startsWith("btnCap_Switch_") }:
+         String strId = btn - "btnCap_Switch_"
+         def captSt = state.capturedStates?.get(strId)
+         if (state.capturedStates?.get(strId)?.get("switch") == "off") {
+            state.capturedStates[strId].switch = "on"
+         }
+         else {
+            state.capturedStates[strId].switch = "off"
+         }
+         break
+      case { it.startsWith("btnCap_ColorMode_") }:
+         String strId = btn - "btnCap_ColorMode_"
+         def captSt = state.capturedStates?.get(strId)
+         if (state.capturedStates?.get(strId)?.get("colorMode") == "CT") {
+            state.capturedStates[strId].colorMode = "RGB"
+         }
+         else if (state.capturedStates?.get(strId)?.get("colorMode") == "RGB") {
+            state.capturedStates[strId].colorMode = "CT"
+         }
+         break
+      case { it.startsWith("btnCap_CT_") }:
+         String strId = btn - "btnCap_CT_"
          break
       default:
          break
