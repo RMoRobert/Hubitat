@@ -829,7 +829,7 @@ void endGrace() {
 void startGrace() {
    logDebug "startGrace()", 2, "trace"
    state.inGrace = true
-   runIn(settings.gracePeriod, "scheduledGraceEndHandler")
+   runIn(settings.get("gracePeriod") ? settings.gracePeriod as Integer : 1, "scheduledGraceEndHandler")
 }
 
 def modeChangeHandler(evt) {
