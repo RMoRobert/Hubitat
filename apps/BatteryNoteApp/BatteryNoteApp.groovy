@@ -189,7 +189,8 @@ void addReplacementDateForDevice(String deviceId, String isoDate) {
       }
       replacementDates = new ArrayList<String>()
    }
-   replacementDates.add(0, isoDate)
+   replacementDates << isoDate
+   replacementDates = replacementDates.sort().reverse()
    if (replacementDates.size() > (historySize ?: 10)) {
       replacementDates = replacementDates.take(historySize as Integer)
    }
