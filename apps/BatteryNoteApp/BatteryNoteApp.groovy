@@ -90,13 +90,13 @@ def devicePage(Map params) {
    dynamicPage(name:"devicePage", title: dev.displayName, nextPage: "mainPage") {
       section(styleSection("Battery Type")) {
          if (isCustomBattery) {
-            input "batteryType_{dev.id}", "string", title: "Battery type:"
+            input "batteryType_${dev.id}", "string", title: "Battery type:"
          }
          else {
-            input "batteryType_{dev.id}", "enum", options: defaultBatteryTypes, title: "Battery type:"
+            input "batteryType_${dev.id}", "enum", options: defaultBatteryTypes, title: "Battery type:"
          }
-         input "isCustomBattery_{dev.id}", "bool", title: "Custom battery type?", submitOnChange: true
-         input "isRechargeable_{dev.id}", "bool", title: "Rechargeable?", submitOnChange: true
+         input "isCustomBattery_${dev.id}", "bool", title: "Custom battery type?", submitOnChange: true
+         input "isRechargeable_${dev.id}", "bool", title: "Rechargeable?", submitOnChange: true
       }
       section(styleSection("Add ${isRechargeable? 'Recharge' : 'Replacement'} Date")) {
          String dateText = isRechargeable ? "Add battery-recharged date" : "Add battery replacement date"
