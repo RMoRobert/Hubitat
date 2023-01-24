@@ -500,7 +500,7 @@ List<String> setLEDColor(value, level=null) {
    if (level != null) {
       cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: level.toInteger(), parameterNumber: 14, size: 1)))
    }
-   return delayBetween(cmds, 750)
+   return delayBetween(cmds, 300)
 }
 
 // Sets default LED color parameter to named color (from map) and level (Hubitat 0-100 style)
@@ -516,7 +516,7 @@ List<String> setLEDColor(String color, level) {
    if (level != null) {
       cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intLevel, parameterNumber: 14, size: 1)))
    }
-   return delayBetween(cmds, 750)
+   return delayBetween(cmds, 300)
 }
 
 // Sets "on" LED level parameter to value (0-10)
