@@ -16,10 +16,13 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2023-01-16
+ *  Last modified: 2023-01-24
  *
  *  Changelog:
  *
+ * 5.5   - Add ability to specify on or off for both "disable turning on" and "disable dimming/turning off" kill switches
+ *       - Legacy setColorTemperature calls removed, legacy prestating "send explicit on()" option removed
+ *       - NOTE: Users upgrading from earlier 5.x versions who used restriction switches will need to hit "Done" in each child app to reinitialize
  * 5.4.2 - Add way to view/edit saved device states; fix error when using grace period
  * 5.4.1 - Update rule lists to show Rule 5.x rules; dim/off rules do not run if no lights were dimmed/turned off; grace period not entered if no lights were turned off
  * 5.4   - Added option to use new (three-parameter) "Set Color Temperature" command (disabled by default, as many devices do not yet support this)
@@ -162,8 +165,13 @@ def pageMain() {
          paragraph "Coming soon: use button devices to perform actions for active/inactive (besides sensor)"
       }*/
       section("Restrictions") {
-         input name: "onKillSwitch", type: "capability.switch", title: "Switch(es) to disable turning on lights", multiple: true, submitOnChange: true
-         input name: "offKillSwitch", type: "capability.switch", title: "Switch(es) to disable turning off (or dimming) lights", multiple: true, submitOnChange: true
+         paragraph "Disable turning on lights when..."
+         input name: "onKillSwitch.on", type: "capability.switch", title: "Any of these switches are on", multiple: true
+         input name: "onKillSwitch.off", type: "capability.switch", title: "Any of these switches are off", multiple: true
+         paragraph "Disable turning off (or dimming) lights when..."
+         input name: "offKillSwitch.on", type: "capability.switch", title: "Any of these switches are on", multiple: true
+         input name: "offKillSwitch.off", type: "capability.switch", title: "Any of these switches are off", multiple: true
+         /*
          if (onKillSwitch || offKillSwitch) {
             input name: "killSwitchState", type: "enum", title: "Disable when switch(es) is (are)...", required: true,
                defaultValue: "on", options: ["on", "off"]
@@ -171,12 +179,13 @@ def pageMain() {
                paragraph "(Note: the specified portion[s] of the automation will be disabled if <em>any</em> selected switch is in the selected state.)"
             }
          }
+         */
          input name: "timeRestrict", type: "bool", title: "Use time restrictions", submitOnChange: true
          if (timeRestrict) {
             paragraph "Turn lights on only if between start time and end time"
             input name: "startTimeType", type: "enum", title: "Starting at", options: [[time: "Specific time"], [sunrise: "Sunrise"], [sunset: "Sunset" ]],
                defaultValue: 'time', width: 6, submitOnChange: true, required: true
-            if (startTimeType == 'time') {               
+            if (startTimeType == 'time') {
                input name: "startTime", type: "time", title: "Start time", width: 6, required: true
             }
             else if (startTimeType) {
@@ -187,7 +196,7 @@ def pageMain() {
             }
             input name: "endTimeType", type: "enum", title: "Ending at", options: [[time: "Specific time"], [sunrise: "Sunrise"], [sunset: "Sunset" ]],
                defaultValue: 'time', width: 6, submitOnChange: true,  required: true
-            if (endTimeType == 'time') {               
+            if (endTimeType == 'time') {
                input name: "endTime", type: "time", title: "End time", width: 6, required: true
             }
             else if (startTimeType) {
@@ -217,8 +226,6 @@ def pageMain() {
          input name: "dimRule", type: "enum", title: "Run these Rule actions after lights dim", options: (ruleList + rule5List), multiple: true
          input name: "offRule", type: "enum", title: "Run these Rule actions after lights turn off", options: (ruleList + rule5List), multiple: true
          input name: "noRestoreScene", type: "bool", title: 'Re-activate "Turn on and set scene" or "Turn on and set color..." settings instead of restoring saved state when motion detected during dim'
-         input name: "boolLegacyCT", type: "bool", title: "Use legacy (one-parameter) setColorTemperature() command (default: yes)", defaultValue: true
-         input name: "doOn", type: "bool", title: "Send \"On\" command after \"Set Level\" or \"Set Color\" when restoring states (enable if devices use \"legacy\" prestaging preference)"
          //input name: "btnPrintModeIDs", type: "button", title: "Print mode IDs"
          href name: "hrefViewSavedStates", page: "pageViewSavedStates", title: "View Captured States", description: "View or edit captured light states (for troubleshooting) - beta"
          input name: "btnClearCaptured", type: "button", title: "Clear all captured states"
@@ -421,7 +428,31 @@ def pageViewSavedStates() {
 }
 
 String buttonLink(String btnName, String linkText, color = "#1A77C9", font = 15) {
-	"<div class='form-group'><input type='hidden' name='${btnName}.type' value='button'></div><div><div class='submitOnChange' onclick='buttonClick(this)' style='color:$color;cursor:pointer;font-size:${font}px'>$linkText</div></div><input type='hidden' name='settings[$btnName]' value=''>"
+   "<div class='form-group'><input type='hidden' name='${btnName}.type' value='button'></div><div><div class='submitOnChange' onclick='buttonClick(this)' style='color:$color;cursor:pointer;font-size:${font}px'>$linkText</div></div><input type='hidden' name='settings[$btnName]' value=''>"
+}
+
+// Checks state of kill switches for "on" side of automations; returns true if should NOT restrict
+Boolean isOnKillSwitchOK() {
+   logDebug "isOnKillSwitchOK()", 2
+   Boolean isOK = true
+   if (settings["onKillSwitch.on"] == null && settings["onKillSwitch.on"].any { it.currentValue("switch") == "on" }) {
+      isOK = false
+   }
+   if (settings["onKillSwitch.off"] == null && settings["onKillSwitch.off"].any { it.currentValue("switch") == "off" }) {
+      isOK = false
+   }
+}
+
+// Checks state of kill switches for "off" or dim side of automations; returns true if should NOT restrict
+Boolean isOffKillSwitchOK() {
+   logDebug "isOffKillSwitchOK()", 2
+   Boolean isOK = true
+   if (settings["offKillSwitch.on"] == null && settings["offKillSwitch.on"].any { it.currentValue("switch") == "on" }) {
+      isOK = false
+   }
+   if (settings["offKillSwitch.off"] == null && settings["offKillSwitch.off"].any { it.currentValue("switch") == "off" }) {
+      isOK = false
+   }
 }
 
 void motionHandler(evt) {
@@ -442,8 +473,8 @@ void motionHandler(evt) {
          if ((settings["notIfOn"] == false) || state.isDimmed || state.inGrace || verifyNoneOn()) {
             // If dimmed or all restrictions OK, then perform active action
             if (state.isDimmed || state.inGrace ||
-                (isTimeOK() && isLuxOK()) &&
-                (settings["onKillSwitch"] == null || onKillSwitch.every {it.currentValue("switch") != (settings["killSwitchState"] ?: "on")})) {
+                (isTimeOK() && isLuxOK() && isOnKillSwitchOK()))
+            {
                // TODO: Change motionHandler or performActiveAciton to avoid unnecessary
                // actions (e.g., restoring lights if not really needed bc already on and not
                // dimmed, etc.) while stil respecting above settings
@@ -460,8 +491,7 @@ void motionHandler(evt) {
          if (!verifyNoneOn(true)) {
             logDebug "Motion inactive and at least one light on", 2, "debug"
             if ((settings["luxBehavior"] == "noOn" || isLuxOK()) &&
-                isTimeOK() &&
-                (settings["offKillSwitch"] == null || offKillSwitch.every { it.currentValue("switch") != (settings["killSwitchState"] ?: "on")}))
+                isTimeOK() && isOffKillSwitchOK())
             {
                performInactiveAction()
             }
@@ -595,13 +625,7 @@ void performActiveAction() {
                logDebug '  action is "ct"', 2, "debug"
                getDevicesToTurnOn().each {
                   if (settings["onColor.L${suffix}"]) {
-                     if (boolLegacyCT != false) {
-                        it.setColorTemperature(settings["onColor.CT${suffix}"])
-                        it.setLevel(settings["onColor.L${suffix}"]) 
-                     }
-                     else {
-                        it.setColorTemperature(settings["onColor.CT${suffix}"], settings["onColor.L${suffix}"])
-                     }
+                     it.setColorTemperature(settings["onColor.CT${suffix}"], settings["onColor.L${suffix}"])
                   }
                   else {
                      it.setColorTemperature(settings["onColor.CT${suffix}"])
@@ -622,7 +646,6 @@ void performActiveAction() {
                   if (settings["onColor.L${suffix}"] != null) getDevicesToTurnOn().each { it.setLevel(settings["onColor.L${suffix}"]) }
                }
             }
-            if (settings["doOn"]) getDevicesToTurnOn().each { it.on() }
          }
          state.isDimmed = false
          endGrace()
@@ -856,13 +879,7 @@ def modeChangeHandler(evt) {
                if (settings["onColor.CT${suffix}"]) {
                   getDevicesToTurnOn().each {
                      if (settings["onColor.L${suffix}"]) {
-                        if (boolLegacyCT != false) {
-                           it.setColorTemperature(settings["onColor.CT${suffix}"])
-                           it.setLevel(settings["onColor.L${suffix}"]) 
-                        }
-                        else {
-                           it.setColorTemperature(settings["onColor.CT${suffix}"], settings["onColor.L${suffix}"])
-                        }
+                        it.setColorTemperature(settings["onColor.CT${suffix}"], settings["onColor.L${suffix}"])
                      }
                      else {
                         it.setColorTemperature(settings["onColor.CT${suffix}"])
@@ -883,7 +900,6 @@ def modeChangeHandler(evt) {
                      if (settings["onColor.L${suffix}"] != null) getDevicesToTurnOn().each { it.setLevel(settings["onColor.L${suffix}"]) }
                   }
                }
-               //if (settings["doOn"]) getDevicesToTurnOn().each { it.on() } // shouldn't be needed since already on
                state.isDimmed = false
                endGrace()
                break
@@ -961,7 +977,6 @@ void restoreStates() {
                l = state."$stateKey"[it.id]?.level
                if (h != null && s != null && l != null) {
                   it.setColor([hue: h, saturation: s, level: l])
-                  if (settings["doOn"]) it.on()
                }
                else {
                   it.on()
@@ -969,19 +984,11 @@ void restoreStates() {
             }
             else {
                if (state."$stateKey"[it.id]?.colorMode == "CT") {
-                  if (boolLegacyCT != false) {
-                     it.setLevel(state."$stateKey"[it.id]?.level ?: 100)
-                     it.setColorTemperature(state."$stateKey"[it.id]?.CT ?: 2700)
-                  }
-                  else {
-                     it.setColorTemperature(state."$stateKey"[it.id]?.CT ?: 2700, state."$stateKey"[it.id]?.level ?: 100)
-                  }
-                  if (settings["doOn"]) it.on()
+                  it.setColorTemperature(state."$stateKey"[it.id]?.CT ?: 2700, state."$stateKey"[it.id]?.level ?: 100)
                }
                else {
                   if (it.hasCommand("setLevel")) {
                      it.setLevel(state."$stateKey"[it.id]?.level ?: 100)
-                     if (settings["doOn"]) it.on()
                   }
                   else {
                      it.on()
@@ -1097,13 +1104,37 @@ void initialize() {
       subscribe(location, "mode", modeChangeHandler)
       state.lastMode = location.getCurrentMode().id
    }
+   // START: Upgrade kill switch settings from 5.4.x and earlier apps:
+   if (settings.onKillSwitch != null) {
+      logDebug "updating v5.4 onKillSwitch setting to v5.5..."
+      if (settings.killSwitchState == "on" || settings.killSwitchState == null) {
+         app.updateSetting("onKillSwitch.on", [type: "capability.switch", value: settings.onKillSwitch])
+      }
+      else {
+         app.updateSetting("onKillSwitch.off", [type: "capability.switch", value: settings.onKillSwitch])
+      }
+      pauseExecution(100)
+      app.removeSetting("onKillSwitch")
+   }
+   if (settings.offKillSwitch != null) {
+      logDebug "updating v5.4 offKillSwitch setting to v5.5..."
+      if (settings.killSwitchState == "on" || settings.killSwitchState == null) {
+         app.updateSetting("offKillSwitch.on", [type: "capability.switch", value: settings.offKillSwitch])
+      }
+      else {
+         app.updateSetting("offKillSwitch.off", [type: "capability.switch", value: settings.offKillSwitch])
+      }
+      pauseExecution(100)
+      app.removeSetting("offKillSwitch")
+   }
+   // END: Upgrade kill switch settings
    logDebug "${app.label} initialized."
 }
 
 // Writes text to log.debug if level >= user's logLevel setting; can redirect to trace, info, or warn with type parameter
 void logDebug(String text, Integer level=1, String type='debug') {
    if (settings['logLevel'] != null && (settings['logLevel'] as Integer) >= level) {
-      if (type == 'debug') log.debug text      
+      if (type == 'debug') log.debug text
       else log."$type" text
    }
 }

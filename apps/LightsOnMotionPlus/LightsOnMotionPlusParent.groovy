@@ -16,7 +16,7 @@
  *  Add code for parent app (this) and then and child app. Install/create new instance of parent
  *  app only (do not use child app directly).
  *
- *  Copyright 2018-2020 Robert Morris
+ *  Copyright 2018-2023 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -28,10 +28,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2020-08-09
+ *  Last modified: 2023-01-24
  * 
  *  Changelog:
  * 
+ *  5.0.1 - Minor updates
  *  5.0   - Added ability to create 5.0 child apps; ensure parent is installed before child apps can be created
  *  3.0   - Initial release of v3 app
  *
@@ -44,7 +45,7 @@ definition(
   singleInstance: true,
   installOnOpen: true,
   description: "Turn lights on/off based on motion; optionally dim before turning off and remember/restore previous state of lights when motion resumes",
-  category: "Convenience",        
+  category: "Convenience",
   iconUrl: "",
   iconX2Url: "",
   iconX3Url: "",
@@ -67,20 +68,20 @@ preferences {
   }
 }
 
-def installed() {
-    log.debug "Installed with settings: ${settings}"
-    initialize()
+void installed() {
+   log.debug "Installed with settings: ${settings}"
+   initialize()
 }
 
-def updated() {
-    log.debug "Updated with settings: ${settings}"
-    unsubscribe()
-    initialize()
+void updated() {
+   log.debug "Updated with settings: ${settings}"
+   unsubscribe()
+   initialize()
 }
 
-def initialize() {
-    log.debug "Initializing; there are ${childApps.size()} child apps installed"
-    childApps.each {child ->
-        log.debug "  child app: ${child.label}"
-    }
+void initialize() {
+   log.debug "Initializing; there are ${childApps.size()} child apps installed"
+   childApps.each { child ->
+      log.debug "  child app: ${child.label}"
+   }
 }
