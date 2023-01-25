@@ -441,6 +441,7 @@ Boolean isOnKillSwitchOK() {
    if (settings["onKillSwitch.off"] == null && settings["onKillSwitch.off"].any { it.currentValue("switch") == "off" }) {
       isOK = false
    }
+   return isOK
 }
 
 // Checks state of kill switches for "off" or dim side of automations; returns true if should NOT restrict
@@ -453,6 +454,7 @@ Boolean isOffKillSwitchOK() {
    if (settings["offKillSwitch.off"] == null && settings["offKillSwitch.off"].any { it.currentValue("switch") == "off" }) {
       isOK = false
    }
+   return isOK
 }
 
 void motionHandler(evt) {
