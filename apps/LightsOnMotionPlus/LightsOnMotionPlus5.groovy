@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2023-01-24
+ *  Last modified: 2023-01-26
  *
  *  Changelog:
  *
+ * 5.5.1 - Always show option for saving exception modes into non-exception cache (regardless of selected actions); small UI cleanups
  * 5.5   - Add ability to specify on or off for both "disable turning on" and "disable dimming/turning off" kill switches
  *       - Legacy setColorTemperature calls removed, legacy prestating "send explicit on()" option removed
  *       - NOTE: Users upgrading from earlier 5.x versions who used restriction switches will need to hit "Done" in each child app to reinitialize
@@ -244,8 +245,8 @@ def pagePerModeSettings(Map params) {
       section("Exception") {
          input name: "perMode.${modeID}", type: "bool", title: "Configure exception for <strong>${modeName}</strong> mode? (if not configured, default/non-per-mode settings will be used)", submitOnChange: true
       }
-      section("Lights and Sensors") {
-         if (settings["perMode.${modeID}"]) {
+      if (settings["perMode.${modeID}"]) {
+         section("Lights and Sensors") {
             input name: "lights.override.${modeID}", type: "bool", title: "Override default light selection?", submitOnChange: true
             if (settings["lights.override.${modeID}"]) {
                input name: "lights.${modeID}", type: "capability.switch", title: "Choose lights to turn on/off/dim", multiple: true
@@ -276,8 +277,8 @@ def pagePerModeSettings(Map params) {
                if (settings["dimToLevel.override.${modeID}"]) { 
                   input name: "dimToLevel.${modeID}", type: "number", options: 1..99, title: "Dim to level", width: 6, defaultValue: 10
                }
-               input name: "boolRemember.${modeID}", type: "bool", title: "If light states captured (before dim/off), save to ${modeName} mode-specific cache (turn off to save to non-exception cache)", defaultValue: true
             }
+            input name: "boolRemember.${modeID}", type: "bool", title: "If light states captured (before dim/off), save to ${modeName} mode-specific cache (turn off to save to non-exception cache)", defaultValue: true
             if (settings["inactiveAction.${modeID}"] != ('no')) {
                input name: "inactiveMinutes.override.${modeID}", type: "bool", title: "Override non-per-mode \"minutes to wait after motion becomes inactive\" setting?", submitOnChange: true
                if (settings["inactiveMinutes.override.${modeID}"]) {
@@ -286,7 +287,7 @@ def pagePerModeSettings(Map params) {
                }
                input name: "offLights.${modeID}", type: "capability.switch", title: "Choose additional lights to dim or turn off (optional; will override non-exception \"additional off\" light(s) if selected)", multiple: true
             }
-         }      
+         }
       }
    }
 }
@@ -944,7 +945,7 @@ void captureStates(Long modeID=location.getCurrentMode().id) {
             }
             if (it.currentValue("colorMode") == "RGB") {
                state."$stateKey"[it.id].colorMode = "RGB"
-               state."$stateKey"[it.id].H = it.currentValue("hue")            
+               state."$stateKey"[it.id].H = it.currentValue("hue")
                state."$stateKey"[it.id].S = it.currentValue("saturation")
             }
             else if (it.hasAttribute("colorTemperature")) {
