@@ -20,7 +20,7 @@
  *
  *  Changelog:
  *
- * 5.5.1 - Always show option for saving exception modes into non-exception cache (regardless of selected actions); small UI cleanups
+ * 5.5.1 - Always show option for saving exception modes into non-exception cache (regardless of selected actions); fix for killswitches
  * 5.5   - Add ability to specify on or off for both "disable turning on" and "disable dimming/turning off" kill switches
  *       - Legacy setColorTemperature calls removed, legacy prestating "send explicit on()" option removed
  *       - NOTE: Users upgrading from earlier 5.x versions who used restriction switches will need to hit "Done" in each child app to reinitialize
@@ -436,10 +436,10 @@ String buttonLink(String btnName, String linkText, color = "#1A77C9", font = 15)
 Boolean isOnKillSwitchOK() {
    logDebug "isOnKillSwitchOK()", 2
    Boolean isOK = true
-   if (settings["onKillSwitch.on"] == null && settings["onKillSwitch.on"].any { it.currentValue("switch") == "on" }) {
+   if (settings["onKillSwitch.on"] != null && settings["onKillSwitch.on"].any { it.currentValue("switch") == "on" }) {
       isOK = false
    }
-   if (settings["onKillSwitch.off"] == null && settings["onKillSwitch.off"].any { it.currentValue("switch") == "off" }) {
+   if (settings["onKillSwitch.off"] != null && settings["onKillSwitch.off"].any { it.currentValue("switch") == "off" }) {
       isOK = false
    }
    return isOK
@@ -449,10 +449,10 @@ Boolean isOnKillSwitchOK() {
 Boolean isOffKillSwitchOK() {
    logDebug "isOffKillSwitchOK()", 2
    Boolean isOK = true
-   if (settings["offKillSwitch.on"] == null && settings["offKillSwitch.on"].any { it.currentValue("switch") == "on" }) {
+   if (settings["offKillSwitch.on"] != null && settings["offKillSwitch.on"].any { it.currentValue("switch") == "on" }) {
       isOK = false
    }
-   if (settings["offKillSwitch.off"] == null && settings["offKillSwitch.off"].any { it.currentValue("switch") == "off" }) {
+   if (settings["offKillSwitch.off"] != null && settings["offKillSwitch.off"].any { it.currentValue("switch") == "off" }) {
       isOK = false
    }
    return isOK

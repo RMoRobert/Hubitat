@@ -45,5 +45,10 @@ version 4 child app installed as long as you have v4 app instances in use.
 rewrite, but you can continue to use both child app versions at the same time indefinitely.) Again,
 DO upgrade the parent app; do NOT upgrade the child app (add as new).
 
+### Note for v5.x users upgrading to 5.5 from 5.4.x or newer:
+Open all 5.x child apps and hit "Done" if using the former "Switch(es) to disable turning on lights" or
+"Switch(es) to disable turning off (or dimming) lights" to update them to the new "Disable turning on lights when..."
+or "Disable turning off (or dimming) lights when..." options.
+
 ## Support
 See Hubitat Community thread for more details or support: https://community.hubitat.com/t/release-lights-on-motion-plus-dim-before-off-remember-individual-bulb-states-etc/7178 
