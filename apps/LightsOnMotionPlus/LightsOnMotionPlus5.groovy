@@ -16,7 +16,7 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2023-01-26
+ *  Last modified: 2023-01-
  *
  *  Changelog:
  *
@@ -442,6 +442,7 @@ Boolean isOnKillSwitchOK() {
    if (settings["onKillSwitch.off"] != null && settings["onKillSwitch.off"].any { it.currentValue("switch") == "off" }) {
       isOK = false
    }
+   logDebug "isOK in isOnKillSwitchOK: $isOK", 2
    return isOK
 }
 
@@ -455,6 +456,7 @@ Boolean isOffKillSwitchOK() {
    if (settings["offKillSwitch.off"] != null && settings["offKillSwitch.off"].any { it.currentValue("switch") == "off" }) {
       isOK = false
    }
+   logDebug "isOK in isOffKillSwitchOK: $isOK", 2
    return isOK
 }
 
@@ -732,12 +734,12 @@ Integer getInactiveDelay() {
 
 // Returns true if configured lux restrictions are OK (or not set), otherwise false
 Boolean isLuxOK() {
-   Boolean isOK = true
+   Boolean luxOK = true
    if (settings["luxRestrict"] && settings["luxSensor"] != null) {
-      isOK = luxSensor.currentValue("illuminance") <= (settings["luxNumber"] ?: 0)
+      luxOK = luxSensor.currentValue("illuminance") <= (settings["luxNumber"] ?: 0)
    }
-   logDebug "isOK = $isOK", 2, "trace"
-   return isOK
+   logDebug "luxOK = $luxOK", 2, "trace"
+   return luxOK
 }
 
 // Returns true if configured time restrictions are currently OK (or not set), otherwise false
