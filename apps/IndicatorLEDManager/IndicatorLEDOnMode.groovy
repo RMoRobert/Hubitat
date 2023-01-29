@@ -1,7 +1,7 @@
 /**
  * ==========================  Innovelli Mode LED ==========================
  *
- *  Copyright 2021 Robert Morris
+ *  Copyright 2021-2023 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -13,10 +13,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2023-01-23
+ *  Last modified: 2023-01-28
  * 
  *  Changelog:
  *
+ * 1.3   - Add fan LED command for LZW36 device, add ability to override "off" fan LED level
  * 1.2   - Add separate options for on/off levels, add purple
  * 1.1   - Added metering option
  * 1.0   - Initial public release
@@ -65,17 +66,17 @@ preferences {
 
 def pageMain() {
    dynamicPage(name: "pageMain", title: "Inovelli Mode LED Manager", install: true, uninstall: true) {
-      section("App Name") {
+      section(styleSection("App Name")) {
          label title: "Name this Indicator LED Manager - Mode app:", required: true
       }
 
-      section("Devices") {
-         input name: "innoDevs", type: "capability.switch", title: "Inovelli Red Series switches/dimmers",
+      section(styleSection("Devices")) {
+         input name: "innoDevs", type: "capability.switch", title: "Inovelli switches/dimmers with LED bars",
             multiple: true
       }
 
-      section("Modes") {
-         location.getModes().each { mode ->
+      section(styleSection("Modes")) {
+         location.getModes().sort().each { mode ->
             input name: "color.${mode.id}", type: "enum", title: "Color for <strong>${mode.name}</strong> mode:",
                options: colorNameList, width: 4
             input name: "level.${mode.id}", type: "number", title: "Level (when on)", description: "0-100 (100 if not specified)",
@@ -86,6 +87,8 @@ def pageMain() {
          input name: "otherModeBehavior", type: "enum", title: "If color not specified for mode above, then...",
             options: [["default": "Use default color/level (specified below)"], ["no": "Do not change color"]],
             defaultValue: "no", submitOnChange: true
+         input name: "overrideFanOffLevel", type: "number", title: "Override level for fan off LED?",
+            range: "0..100", description: "optional; will use off level above if not specified"
          if (otherModeBehavior == "default") {
             input name: "color.default", type: "enum", title: "Default color if color not specified for mode:",
                options: colorNameList, width: 4, required: true
@@ -97,13 +100,13 @@ def pageMain() {
          input name: "btnSave", type: "button", title: "Save", submitOnChange: true
       }
 
-      section("Commands") {
-         paragraph "This app will attempt commands in the following order and stop after the first is reached:"
-         paragraph "<ul><li>setLEDColor(color, level)</li><li>setLightLEDColor(color, level)</li></ul>"
-         paragraph "Also: <ul><li>setOffLEDLevel(level)</li><li>setLightOffLEDLevel(clevel)</li></ul>"
+      section(styleSection("Commands")) {
+         paragraph "This app will attempt commands in the following order (stopping at the first group where commands match):"
+         paragraph "For on/default: <ul><li>setLEDColor(color, level)</li><li>setLightLEDColor(color, level), setFanLEDColor(color, level)</li></ul>"
+         paragraph "For off: <ul><li>setOffLEDLevel(level)</li><li>setLightOffLEDLevel(level), setFanOffLEDLevel(level)</li></ul>"
       }
 
-      section("Test") {
+      section(styleSection("Test")) {
          input name: "btnTest", type: "button", title: "Test Settings (run as if mode just changed to current)",
             submitOnChange: true, width: 6
             location.getModes().each { mode ->
@@ -112,7 +115,7 @@ def pageMain() {
          }
       }
 
-      section("Logging, Metering") {
+      section(styleSection("Logging, Metering")) {
          input name: "msDelay", type: "number", title: "Command metering (delay between commands), in milliseconds",
             range:"1..10000", description: "(optional) examples: 50 or 200"
          input name: "logEnable", type: "bool", title: "Enable debug logging"
@@ -160,6 +163,16 @@ void modeChangeHandler(evt=null, Long overrideModeId=null) {
             if (settings.msDelay) {
                pauseExecution(settings.msDelay as Integer)
             }
+            if (dev.hasCommand("setFanLEDColor")) {
+               if (logEnable) log.trace "sending setFanLEDColor($color, $level)"
+               dev.setFanLEDColor(color, level)
+               if (settings.msDelay) {
+                  pauseExecution(settings.msDelay as Integer)
+               }
+            }
+            else {
+               if (logEnable) "found setLightLEDColor but not setFanLEDColor"
+            }
          }
          else {
             if (logEnable) log.warn "No matching command found for setting color and on level for ${dev.displayName}"
@@ -179,6 +192,23 @@ void modeChangeHandler(evt=null, Long overrideModeId=null) {
                dev.setLightOffLEDLevel(offLevel)
                if (settings.msDelay) {
                   pauseExecution(settings.msDelay as Integer)
+               }
+               if (dev.hasCommand("setFanOffLEDLevel")) {
+                  if (logEnable) log.trace "sending setFanOffLEDLevel($offLevel)"
+                  Integer fanOffLevel = offLevel
+                  if (settings.overrideFanOffLevel != null) {
+                     fanOffLevel = settings.overrideFanOffLevel
+                     if (fanOffLevel > 0 && fanOffLevel < 10) fanOffLevel  = 10
+                     fanOffLevel = Math.round(fanOffLevel/10) as Integer
+                     if (logEnable) "overriding fan off level as $fanOffLevel"
+                  }
+                  dev.setFanOffLEDLevel(fanOffLevel)
+                  if (settings.msDelay) {
+                     pauseExecution(settings.msDelay as Integer)
+                  }
+               }
+               else {
+                  if (logEnable) "found setLightOffLEDLevel but not setFanOffLEDLevel"
                }
             }
             else {
@@ -208,6 +238,10 @@ void appButtonHandler(btn) {
       default:
          break
    }
+}
+
+String styleSection(String sectionHeadingText) {
+   return """<span style="font-weight:bold; font-size: 115%">$sectionHeadingText</span>"""
 }
 
 //=========================================================================
