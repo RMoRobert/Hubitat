@@ -4,8 +4,8 @@ This app is primarily designed to periodically check the "Last Acvtivity At" dat
 activity has not happened within your specified timeframe. For example, you could select a few motion sensors
 and configure Device Activity Check to notify you if they have not generated activity within the last
 so many hours as a way to tell if they may have stopped working due to network issues, battery health,
-or other problems. This app also supports checking the "presence" attribute of devices
-(some drivers report "not present" if the driver suspects they have gone offline), the "battery" attribute
+or other problems. This app also supports checking the "deviceHealth" attribute of devices
+(a custom attribute used by some devices; ensure the driver supports this, as most do not), the "battery" attribute
 (below a certain level), or any combination of these.
 
 For "Last Activity At" monitoring, you will need to have a good feel for how long you are willing to wait before
@@ -18,9 +18,9 @@ but what Device Activity Check really looks at is the "Last Activity At" data yo
 device page. Devices must report "Last Activity At" to be usable with "Last Acitivty At" monitoring. (Alternatively,
 the attribute-based monitoring types simply the attribute at the time of report.)
 
-For "presence" devices, the driver should report "present" if the device is online and "not present" if the device
-is offline. While arguably non-standard, a few popular community drivers do this for some Zigbee devices (e.g.,
-the Xiaomi drivers by Markus and some repeater drivers).
+For "deviceHealth" devices, the driver should report "online" if the device is online and "offline" if the device
+is believed to not be healthy on the network. This is not a standard attribute, but a few community drivers have
+used it.
 
 NOTE: Device Activity check does not "monitor" or subscribe to device events per se. It checks device states at the specified
 time and/or when the specified switch (likely virtual; this was intended to make the sending of reports be automated
@@ -38,6 +38,6 @@ https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceActivityCh
 
 2. Create a new instance of the app under "Apps" > "Add User App." Choose "Device Activity Check," and follow the instructions.
 
-If you do not know how to add custom app code to Hubitat, consult <a  href="https://docs.hubitat.com/index.php?title=How_to_Install_Custom_Apps">the
+If you do not know how to add custom app code to Hubitat, consult <a  href="https://docs2.hubitat.com/en/how-to/install-custom-apps">the
 first five steps of the Hubitat support document on custom app installation</a> and consider whether using custom code
 is a good choice for you.

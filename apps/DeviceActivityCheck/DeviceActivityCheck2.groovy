@@ -2,7 +2,7 @@
  * ==========================  Device Activity Check ==========================
  *  Platform: Hubitat Elevation
  *
- *  Copyright 2022 Robert Morris
+ *  Copyright 2023 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -17,6 +17,8 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 2.1.0 (2023-02-05) - Add healthStatus attribute option
+ *                    - Add buttons as trigger for running report; add battery notes and snooze options for devices
  * 2.0.1 (2022-06-19) - Fix for error on platform 2.3.2 (thanks to @jtp10181 for spotting the issue)
  * 2.0   (2022-01-02) - Improved reports for non-activity-based methods (shows attribute value);
  *                      Filter device-selection list based on detection method
@@ -48,11 +50,17 @@ import com.hubitat.app.DeviceWrapper
 @Field static final List<String> dateFormatOptions = ['MMM d, yyyy, h:mm a', 'E, MMM d, yyyy, h:mm a', 'E dd MMM yyyy, h:mm a', 'dd MMM yyyy, h:mm a',
                                         'dd MMM yyyy HH:mm', 'E MMM dd HH:mm', 'yyyy-MM-dd HH:mm z']
 @Field static final Integer formatListIfMoreItemsThan = 4
+@Field static final Integer defaultSnoozeDuration = 48
 
 // Activity detection types
 @Field static final String sACTIVITY = "activity"
+@Field static final String sHEALTH_STATUS = "healthStatus"
 @Field static final String sPRESENCE = "presence"
 @Field static final String sBATTERY = "battery"
+
+// Other
+@Field static final String sSNOOZE_EMOJI = "&#x1F532;"    // black square box
+@Field static final String sUNSNOOZE_EMOJI = "&#x2611;&#xFE0F;"  // ballot box w/ check
 
 definition(
    name: "Device Activity Check",
@@ -88,8 +96,7 @@ Map pageMain() {
       state.remove("currGroupDispNum")
       app.removeSetting("debugLogging") // from 1.1.0 and earlier; can probably remove in future
       
-      String strSectionTitle = (state.groups.size() > 1) ? "Device Groups" : "Devices"
-      section(styleSection(strSectionTitle)) {
+      section(styleSection("Devices to Monitor")) {
          groups.eachWithIndex { realGroupNum, groupIndex ->
             String timeout = getDeviceGroupInactivityThresholdString(realGroupNum)
             String strTitle = (state.groups.size() > 1) ? "Group ${groupIndex+1} Devices (inactivity threshold: $timeout):" : "Devices (inactivity threshold: $timeout):"
@@ -108,7 +115,15 @@ Map pageMain() {
          input name: "notificationDevice", type: "capability.notification", title: "Send notification with list of inactive devices to this device:", multiple: true
          input name: "notificationTime", type: "time", title: "Daily at this time:"
          paragraph "Or any time this switch is turned on:"
-         input name: "notificationSwitch", type: "capability.switch", title: "Switch", description: "Optional - Click to set"
+         input name: "notificationSwitch", type: "capability.switch", title: "Switch turned on:", description: "Optional - Click to set"
+         //paragraph " ", width: 6
+         paragraph "Or any time this button is pushed:"
+         input name: "notificationButton", type: "capability.pushableButton", title: "Button device:", description: "Optional - Click to set",
+            width: (settings["notificationButton"] != null) ? 6 : 12, submitOnChange: true
+         if (settings["notificationButton"]) {
+            input name: "notificationButtonNumber", type: "number", title: "button number", width: 3
+            input name: "notificationButtonEvent", type: "enum", options: ["pushed", "held", "released", "doubleTapped"], title: "event", width: 3
+         }
          // v2 always shows:
          //input name: "includeTime", type: "bool", title: "Include last acitivty time in notifications ", defaultValue: true, submitOnChange: true
          // Would be nice to consider for future:
@@ -119,10 +134,10 @@ Map pageMain() {
             timeFormatOptions << ["$it": "${currDate.format(it, location.timeZone)}"]
          }
          input name: "timeFormat", type: "enum", options: timeFormatOptions, title: "Date/time format for notifications:",
-            defaultValue: defaultDateTimeFormat, submitOnChange: true
+            defaultValue: defaultDateTimeFormat, submitOnChange: true, width: 6
          input name: "timeFormatForReports", type: "enum",  options: timeFormatOptions,
             title: 'Date/time format for "View current report" page',
-            defaultva: defaultDateTimeFormat
+            defaultValue: defaultDateTimeFormat, width: 6
       }
 
       section(styleSection("View/Test Report")) {
@@ -131,13 +146,15 @@ Map pageMain() {
                title: "View current report",
                description: "Evaluate all devices now according to the criteria above, and display a report of \"inactive\" devices.")
          paragraph "The \"Test Notification Now\" button will send a notification to your selected device(s) if there is inactivity to report. This a manual method to trigger the same report the above options would also create:"
-         input name: "btnTestNotification", type: "button", title: "Test Notification Now"
+         input name: "btnTestNotification", type: "button", title: "Test Notification Now", width: 11
+         input name: "btnSave", type: "button", title: "Update", width: 1, submitOnChange: true
       }
       
       section("Advanced Options", hideable: true, hidden: true) {
          label title: "Customize installed app name:", required: true
          input name: "includeHubName", type: "bool", title: "Include hub name in notifications (${location.name})"
          input name: "modes", type: "mode", title: "Only send notifications if mode is", multiple: true, required: false
+         input name: "snoozeDuration", type: "number", title: 'Number of hours to remove deivce freom report with "snooze"', defaultValue: defaultSnoozeDuration
          input name: "boolIncludeDisabled", type: "bool", title: "Include disabled devices in report"
          input name: "debugLevel", type: "enum", title: "Debug logging level:", options: [[0: "Logs off"], [1: "Debug logging"], [2: "Verbose logging"]],
             defaultValue: 0
@@ -170,6 +187,9 @@ Map pageDeviceGroup(params) {
       section(styleSection("Choose Devices")) {
          String capabilityFilter
          switch (settings["group${groupNum}.inactivityMethod"]) {
+            case sHEALTH_STATUS:
+               capabilityFilter = "capability.*"
+               break
             case sPRESENCE:
                capabilityFilter = "capability.presenceSensor"
                break
@@ -183,7 +203,7 @@ Map pageDeviceGroup(params) {
       }
       section(styleSection("Inactivity Threshold")) {
          input name: "group${groupNum}.inactivityMethod", title: "Inactivity detection method:", type: "enum",
-            options: [[(sACTIVITY): "\"Last Activity\" timestamp"], [(sPRESENCE): "\"Presence\" attribute"], [(sBATTERY): "Battery level"]],
+            options: [[(sACTIVITY): "\"Last Activity At\" timestamp"], [(sBATTERY): "Battery level"], [(sHEALTH_STATUS): "\"healthStatus\" attribute"], [(sPRESENCE): "\"presence\" attribute (deprecated)"]],
             defaultValue: sACTIVITY, required: true, submitOnChange: true
          if (settings["group${groupNum}.inactivityMethod"] == sACTIVITY || settings["group${groupNum}.inactivityMethod"] == null) {
             paragraph "Consider above devices inactive if they have not had activity within..."
@@ -203,6 +223,15 @@ Map pageDeviceGroup(params) {
          else if (settings["group${groupNum}.inactivityMethod"] == sBATTERY) {
             input name: "group${groupNum}.batteryLevel", type: "number", title: "Include in report if battery level is less than:",
                range: "1..100"
+         }
+         else if (settings["group${groupNum}.inactivityMethod"] == sHEALTH_STATUS) {
+            paragraph "Devices will be considered inactive if the value of the \"healthStatus\" attribute is \"offline\" at the time " +
+               "of evaluation. Note that if your report is configured to display the \"Last Activity\" date, this date/time may not " +
+               "necessarily correspond to actual device communication, depending on how the device driver works."
+            if (settings["group${groupNum}.devices"]?.any { !(it.hasAttribute("healthStatus")) }) {
+               paragraph "<strong>Warning: the following devices do not report a \"healthStatus\" attribute. De-select them or verify the correct driver or inactivity " +
+                  """detection method:</strong> ${settings["group${groupNum}.devices"]?.findAll { !(it.hasAttribute("healthStatus")) }.join(", ")}"""
+            }
          }
          else if (settings["group${groupNum}.inactivityMethod"] == sPRESENCE) {
             paragraph "Devices will be considered inactive if the value of the \"presence\" attribute is \"not present\" at the time " +
@@ -270,12 +299,21 @@ Map pageViewReport() {
    dynamicPage(name: "pageViewReport", title: "Device Activity Check", uninstall: false, install: false, nextPage: "pageMain") {
       if (inactiveDeviceMap) {
          section(styleSection("Inactive Device Report")) {
-            paragraph "<strong>Device</strong>", width: 6
+            paragraph "<strong>Device</strong>", width: 5
             paragraph "<strong>Status/Last Activity</strong>", width: 6
+            paragraph "<strong>Snooze?</strong>", width: 1
             Boolean doFormatting = inactiveDeviceMap.size() > formatListIfMoreItemsThan
             inactiveDeviceMap.eachWithIndex { DeviceWrapper dev, List<String> states, index ->
-               paragraph(doFormatting ? """<a href="/device/edit/${dev.id}">${styleListItem(dev.displayName, index)}</a>""" : """<a href="/device/edit/${dev.id}">${dev.displayName}</a>""", width: 6)
+               paragraph(doFormatting ? """<a href="/device/edit/${dev.id}">${styleListItem(dev.displayName, index)}</a>""" : """<a href="/device/edit/${dev.id}">${dev.displayName}</a>""", width: 5)
                paragraph(doFormatting ? "${styleListItem(states.join(', '), index)}" : states.join(', '), width: 6)
+               if (checkIfSnoozed(dev.id)) {
+                  //input name: "btnUnsnooze_${dev.id}", type: "button", title: "Y", width: 1, submitOnChange: true
+                  paragraph emojiButtonLink("btnUnsnooze_${dev.id}", sUNSNOOZE_EMOJI, "click/tap to un-snooze"), width: 1
+               }
+               else {
+                  //input name: "btnSnooze_${dev.id}", type: "button", title: "N", width: 1, submitOnChange: true
+                  paragraph emojiButtonLink("btnSnooze_${dev.id}", sSNOOZE_EMOJI, "snooze for ${snoozeDuration ?: defaultSnoozeDuration} hr"), width: 1
+               }
             }
          }
          List<DeviceWrapper> toRefreshDevices = []
@@ -300,6 +338,9 @@ Map pageViewReport() {
                refreshSummarySB <<  "</details>"
                paragraph refreshSummarySB.toString()
             }
+         }
+         section("Help", hideable: true, hidden: true) {
+            paragraph "<dl><dt>What is \"snooze\"?</dt><dd>Snoozing will remove the device from notifications for the specified time period (configurable on the main app page)</dd></dl>"
          }
       }
       else {
@@ -344,6 +385,13 @@ List<DeviceWrapper> getInactiveDevices(Integer groupNum, Boolean onlyDevicesToBe
             }
          }
          break
+      case sHEALTH_STATUS:
+         groupDevs.each { DeviceWrapper dev ->
+            if (dev.currentValue("healthStatus") == "offline") {
+               inactiveDevices << dev
+            }
+         }
+         break
       case sPRESENCE:
          groupDevs.each { DeviceWrapper dev ->
             if (dev.currentValue("presence") == "not present") {
@@ -379,29 +427,37 @@ Map<DeviceWrapper,List<String>> getInactiveDeviceMap(Boolean isReportPage=false)
       List<DeviceWrapper> inactiveDevicesInGroup = getInactiveDevices(groupNum, false)
       inactiveDevicesInGroup.each { DeviceWrapper inactiveDev ->
          // Get status (last activity, battery, presence)
-         String strStatus
-         switch (detectionMethod) {
-            case sACTIVITY:
-               String timeFormat = isReportPage ? settings.timeFormatForReports : settings.timeFormat
-               if (!timeFormat) timeFormat = defaultDateTimeFormat
-               strStatus = inactiveDev.getLastActivity()?.format(timeFormat, location.timeZone)
-               if (!strStatus) strStatus = "No activity reported"
-               break
-            case sPRESENCE:
-               strStatus = "not present"
-               break
-            case sBATTERY:
-               strStatus = "${inactiveDev.currentValue('battery')}% battery"
-               break
-            default:
-               strStatus = "unknown"
-         }
-         // Now, either put in Map or add to list of already-existing status(es) for that device:
-         if (inactiveDeviceMap[inactiveDev]) {
-            inactiveDeviceMap[inactiveDev] << strStatus
+         if (!checkIfSnoozed(inactiveDev.id) || isReportPage) {
+            String strStatus
+            switch (detectionMethod) {
+               case sACTIVITY:
+                  String timeFormat = isReportPage ? settings.timeFormatForReports : settings.timeFormat
+                  if (!timeFormat) timeFormat = defaultDateTimeFormat
+                  strStatus = inactiveDev.getLastActivity()?.format(timeFormat, location.timeZone)
+                  if (!strStatus) strStatus = "No activity reported"
+                  break
+               case sHEALTH_STATUS:
+                  strStatus = "offline"
+                  break
+               case sPRESENCE:
+                  strStatus = "not present"
+                  break
+               case sBATTERY:
+                  strStatus = "${inactiveDev.currentValue('battery')}% battery"
+                  break
+               default:
+                  strStatus = "unknown"
+            }
+            // Now, either put in Map or add to list of already-existing status(es) for that device:
+            if (inactiveDeviceMap[inactiveDev]) {
+               inactiveDeviceMap[inactiveDev] << strStatus
+            }
+            else {
+               inactiveDeviceMap[inactiveDev] = [strStatus]
+            }
          }
          else {
-            inactiveDeviceMap[inactiveDev] = [strStatus]
+            // nothing -- not report page and device snoozed
          }
       }
    }
@@ -469,6 +525,9 @@ String getDeviceGroupInactivityThresholdString(groupNum) {
       Integer level = settings["group${groupNum}.batteryLevel"] ?: 0
       thresholdString = "if battery < $level"
    }
+   else if (settings["group${groupNum}.inactivityMethod"] == sHEALTH_STATUS) {
+      thresholdString = "if offline"
+   }
    else if (settings["group${groupNum}.inactivityMethod"] == sPRESENCE) {
       thresholdString = "if not present"
    }
@@ -503,15 +562,16 @@ String daysHoursMinutesToString(Long days, Long hours, Long minutes) {
    return "${d ? strD : ''}${d && (h || m) ? ', ' : ''}${h ? strH : ''}${(h && m) ? ', ' : ''}${m || !(h || d) ? strM : ''}"
 }
 
-String styleSection(String sectionHeadingText) {
-   return """<div style="font-weight:bold; font-size: 120%">$sectionHeadingText</div>"""
-}
+
 
 void switchHandler(evt) {
-   if (evt.value == "on") {
-      logDebug("Switch turned on; running report")
-      sendInactiveNotification()
-   }
+   logDebug("Switch turned on; running report")
+   sendInactiveNotification()
+}
+
+void buttonHandler(evt) {
+   logDebug("Button ${evt.value}; running report")
+   sendInactiveNotification()
 }
 
 // Sends notification with list of inactive devices to selected notification device(s)
@@ -582,10 +642,68 @@ void verifyAndLogMissingCapabilities() {
    }
 }
 
+// Returns true if snoozed, false if not
+Boolean checkIfSnoozed(String deviceId) {
+   logDebug "checkIfSnoozed($deviceId)"
+   Long snoozedUntil = state.snoozedDevices?.get(deviceId)
+   log.trace "snoozedDevices = ${state.snoozedDevices}"
+   if (snoozedUntil) {
+      logDebug "Found snooze date..."
+      Boolean stillSnoozed = snoozedUntil >= now()
+      if (stillSnoozed) {
+         logDebug "Still snoozed."
+         return true
+      }
+      else {
+         logDebug "No longer snoozed."
+         state.snoozedDevices?.remove(deviceId)
+         return false
+      }
+   }
+   else {
+      logDebug "Not snoozed", "trace"
+      return false
+   }
+}
+
+void snoozeDevice(String deviceId) {
+   logDebug "snoozeDevice($deviceId)"
+   Long snoozeUntil = now() + (snoozeDuration ?: defaultSnoozeDuration)*86400
+   if (!(state.snoozedDevices)) {
+      Map<String,Long> snoozedDevs = [(deviceId) : snoozeUntil]
+      state.snoozedDevices = snoozedDevs
+   }
+   else {
+      state.snoozedDevices[deviceId] = snoozeUntil
+   }
+}
+
+void unsnoozeDevice(String deviceId) {
+   logDebug "unsnoozeDevice($deviceId)"
+   state.snoozedDevices?.remove(deviceId)
+}
+
 void scheduleHandler() {
    logDebug("At scheduled; running report")
    sendInactiveNotification()
 }
+
+//=========================================================================
+// Styling Methods
+//=========================================================================
+
+String styleSection(String sectionHeadingText) {
+   return """<div style="font-weight:bold; font-size: 120%">$sectionHeadingText</div>"""
+}
+
+String buttonLink(String btnName, String linkText, color = "#1A77C9", font = 15) {
+   "<div class='form-group'><input type='hidden' name='${btnName}.type' value='button'></div><div><div class='submitOnChange' onclick='buttonClick(this)' style='color:$color;cursor:pointer;font-size:${font}px'>$linkText</div></div><input type='hidden' name='settings[$btnName]' value=''>"
+}
+
+String emojiButtonLink(String btnName, String linkText, String titleText, color = "#1A77C9", font = 17) {
+   "<div class='form-group'><input type='hidden' name='${btnName}.type' value='button'></div><div><div class='submitOnChange' onclick='buttonClick(this)' style='color:$color;cursor:pointer;font-size:${font}px' title='$titleText'>$linkText</div></div><input type='hidden' name='settings[$btnName]' value=''>"
+}
+
 
 //=========================================================================
 // App Methods
@@ -609,8 +727,9 @@ void initialize() {
       log.debug "Debug logging is enabled for ${app.label}. It will remain enabled until manually disabled."
    }
    unsubscribe()
-   if (settings["notificationTime"]) schedule(settings["notificationTime"], scheduleHandler)	
-   if (settings["notificationSwitch"]) subscribe(settings["notificationSwitch"], "switch", switchHandler)
+   if (settings["notificationTime"]) schedule(settings["notificationTime"], scheduleHandler)
+   if (settings["notificationSwitch"]) subscribe(settings["notificationSwitch"], "switch.on", "switchHandler")
+   if (settings["notificationButton"]) subscribe(settings["notificationButton"], "${settings.notificationButtonEvent}.${settings.notificationButtonNumber}", "buttonHandler")
 }
 
 Boolean isModeOK() {
@@ -634,6 +753,16 @@ void appButtonHandler(String btn) {
          break
       case "btnPerformRefreshes":
          performRefreshes()
+         break
+      case { it.startsWith("btnSnooze_") }:
+         snoozeDevice(btn - "btnSnooze_")
+         break
+      case { it.startsWith("btnUnsnooze_") }:
+         unsnoozeDevice(btn - "btnUnsnooze_")
+         break
+      case "btnSave":
+         pauseExecution(100)
+         initialize()
          break
       default:
          log.warn "Unhandled button press: $btn"
