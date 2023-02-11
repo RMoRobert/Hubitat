@@ -17,7 +17,8 @@
  *  Author: Robert Morris
  *
  * Changelog:
- * 2.1.0 (2023-02-05) - Add healthStatus attribute option
+ * 2.1.1 (2023-02-11) - Remove accidental extra logging
+ * 2.1   (2023-02-05) - Add healthStatus attribute option
  *                    - Add buttons as trigger for running report; add battery notes and snooze options for devices
  * 2.0.1 (2022-06-19) - Fix for error on platform 2.3.2 (thanks to @jtp10181 for spotting the issue)
  * 2.0   (2022-01-02) - Improved reports for non-activity-based methods (shows attribute value);
@@ -646,7 +647,6 @@ void verifyAndLogMissingCapabilities() {
 Boolean checkIfSnoozed(String deviceId) {
    logDebug "checkIfSnoozed($deviceId)"
    Long snoozedUntil = state.snoozedDevices?.get(deviceId)
-   log.trace "snoozedDevices = ${state.snoozedDevices}"
    if (snoozedUntil) {
       logDebug "Found snooze date..."
       Boolean stillSnoozed = snoozedUntil >= now()
