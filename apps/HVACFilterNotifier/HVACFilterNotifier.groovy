@@ -1,8 +1,10 @@
 /**
  *  HVAC Filter Notifier
+ *
  *  Description: Tracks furnace or AC (based on thermostat) runtime and can send notification when exceeds
  *               certain number of hours. Timer can be reset at any time.
  *
+ *  Copyright © 2022-2023 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -13,6 +15,8 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *  Changes:
+ *   2023-02-12: Avoid reset with initialize()
+ *   2023-01-28: Add "snooze" option
  *   2022-12-28: Add runtime and last reset to UIg
  *   2022-12-23: Rename to HVAC Filter Notifier
  *   2022-12-21: Fix runtime calcuation (was reversed)
@@ -31,7 +35,11 @@ definition(
    iconX3Url: ""
 )
 
-@groovy.transform.Field static final List<String> trackedStates = ["heating", "cooling", "fan only"]
+import groovy.transform.Field
+import com.hubitat.app.DeviceWrapper
+
+@Field static final List<String> trackedStates = ["heating", "cooling", "fan only"]
+@Field static final Long MILLISECONDS_PER_HOUR = 3600000
 
 preferences {
    mainPage()
@@ -44,7 +52,19 @@ def mainPage() {
       }
       section(styleSection("Send notification when...")) {
          input name: "runtimeHours", type: "number", title: "Hours of runtime exceeds:", defaultValue: 300, required: true
-         input name:"notifyDevices", type: "capability.notification", title: "To this notification device:", multiple: true
+         input name: "notifyDevices", type: "capability.notification", title: "To this notification device:", multiple: true
+         input name: "btnSnooze_12", type: "button", title: "Snooze for 12 hr", width: 3
+         input name: "btnSnooze_24", type: "button", title: "Snooze for 1 day", width: 3
+         input name: "btnSnooze_48", type: "button", title: "Snooze for 2 days", width: 3
+         input name: "btnSnooze_168", type: "button", title: "Snooze for 1 week", width: 3
+         if (state.snoozeUntil > 0 && state.snoozeUntil > now()) {
+            String strSnoozeEnd = new Date(state.snoozeUntil).format("YYYY-MM-dd HH:mm z")
+            paragraph "<strong>Snoozing notifications until:</strong> ${strSnoozeEnd}", width: 6
+            input name: "btnSnooze_Cancel", type: "button", title: "Cancel Snooze", width: 6
+         }
+         else {
+            if (state.snoozeUntil != null) state.remove("snoozeUntil")
+         }
       }
       section(styleSection("Statistics")) {
          if (state.totalRuntime != null) {
@@ -78,7 +98,7 @@ void updated() {
 void initialize() {
    log.debug "Initializing"
    subscribe(thermoDev, "thermostatOperatingState", "operatingStateHandler")
-   if (!state.lastReset) state.lastReset = now()
+   if (state.lastReset == null) state.lastReset = now()
 }
 
 void operatingStateHandler(evt) {
@@ -95,7 +115,7 @@ void operatingStateHandler(evt) {
          log.warn "Runtime was less than zero: $runtime; this runtime will be counted as 0 and not have an effect on the total"
          runtime = 0
       }
-      Double runtimeHrs = (runtime as Double) / 3600000
+      Double runtimeHrs = (runtime as Double) / MILLISECONDS_PER_HOUR
       if (logEnable == true) log.debug "Converted runtime is $runtimeHrs hr"
       state.totalRuntime = (state.totalRuntime ?: 0) + runtimeHrs
       if (logEnable == true) log.debug "New total runtime is ${state.totalRuntime} hr"
@@ -106,9 +126,22 @@ void operatingStateHandler(evt) {
 // Checks total runtime, sends notification if exceeds
 void checkTotalRuntime() {
    if (state.totalRuntime > runtimeHours) {
-      if (logEnable == true) log.debug "Total runtime of ${state.totalRuntime} is greater than $runtimeHours; sending notification"
-      notifyDevices?.each {
-         it.deviceNotification "${thermoDev.displayName} exceeds ${state.totalRuntime as Integer} hours. Replace filter."
+      if (logEnable == true) log.debug "Total runtime of ${state.totalRuntime} is greater than $runtimeHours; preparing notification"
+      Boolean isOKToSend = true
+      if (state.snoozeUntil > 0) {
+         if (now() < state.snoozeUntil) {
+            if (logEnable == true) log.debug "Not sending notification; snoozed until ${state.snoozeUntil}"
+            isOKToSend = false
+         }
+         else {
+            if (logEnable == true) log.debug "Past snooze time; removing snooze state"
+            state.remove("snoozeUntil")
+         }
+      }
+      if (isOKToSend) {
+         notifyDevices?.each { DeviceWrapper notifDev ->
+            notifDev.deviceNotification "${thermoDev.displayName} of ${state.totalRuntime as Integer} hr exceeds ${runtimeHours} hr. Replace filter."
+         }
       }
    }
    else {
@@ -132,7 +165,16 @@ void appButtonHandler(String btn) {
       case "btnReset":
          resetTotalRuntime()
          break
+      case "btnSnooze_Cancel":
+         state.remove("snoozeUntil")
+         break
+      case { it.startsWith("btnSnooze_") }:
+         String strHours = btn - "btnSnooze_"
+         Long msToAdd = Long.parseLong(strHours) * MILLISECONDS_PER_HOUR
+         state.snoozeUntil = now() + msToAdd
+         if (logEnable) "snoozing until ${state.snoozeUntil}"
+         break
       default:
          log.warn "Unhandled button: $btn"
    }
-   }
+}
