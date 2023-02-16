@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 2.1.2 (2023-02-15) - Fix snooze time calcuations
  * 2.1.1 (2023-02-11) - Remove accidental extra logging
  * 2.1   (2023-02-05) - Add healthStatus attribute option
  *                    - Add buttons as trigger for running report; add battery notes and snooze options for devices
@@ -668,7 +669,7 @@ Boolean checkIfSnoozed(String deviceId) {
 
 void snoozeDevice(String deviceId) {
    logDebug "snoozeDevice($deviceId)"
-   Long snoozeUntil = now() + (snoozeDuration ?: defaultSnoozeDuration)*86400
+   Long snoozeUntil = now() + (snoozeDuration ?: defaultSnoozeDuration)*3_600_000
    if (!(state.snoozedDevices)) {
       Map<String,Long> snoozedDevs = [(deviceId) : snoozeUntil]
       state.snoozedDevices = snoozedDevs
