@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 3.1   (2023-02-25) - Add power meteter
  * 3.0.1 (2022-04-23) - Added optional volume parameter for speech command
  * 3.0   (2022-04-19) - Added ability to check "custom" devices (additional capabilities/attributes besides the pre-provided options)
  * 2.6   (2020-12-17) - Added options to turn switches off/on if devices are/aren't in expected states
@@ -35,6 +36,7 @@ import groovy.transform.Field
    waterSensor: [displayName: "water sensor", attribute: "water", type: "string", values: ["wet", "dry"]],
    windowShade: [displayName: "window shade", attribute: "windowShade", type: "string", values: ["closed", "open", "unknown"]],
    windowBlind: [displayName: "window blind", attribute: "windowBlind", type: "string", values: ["closed", "open", "unknown"]],
+   powerMeter: [displayName: "power reading", attribute: "power", type: "integer"],
    presenceSensor: [displayName: "presence", attribute: "presence", type: "string", values: ["present", "not present"]],
    illuminanceMeasurement: [displayName: "illuminance sensor", attribute: "illuminance", type: "integer"],
    switchLevel: [displayName: "dimmer level", attribute: "level", type: "integer"],

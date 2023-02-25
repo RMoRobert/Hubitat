@@ -15,7 +15,7 @@ https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceStatusAnno
 
 2. Create a new instance of the app under "Apps" > "Add User App." Choose "Device Status Announcer," and follow the instructions.
 
-If you do not know how to add custom app code to Hubitat, consult <a  href="https://docs.hubitat.com/index.php?title=How_to_Install_Custom_Apps">the
+If you do not know how to add custom app code to Hubitat, consult <a  href="https://docs2.hubitat.com/en/how-to/install-custom-apps">the
 first five steps of the Hubitat support document on custom app installation</a> and consider whether using custom code
 is a good choice for you.
 
