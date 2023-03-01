@@ -2,7 +2,7 @@
  * ==========================  Device Status Announcer ==========================
  *  Platform: Hubitat Elevation
  *
- *  Copyright 2022 Robert Morris
+ *  Copyright 2023 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 3.1.1 (2023-02-02) - Remove inadvertent logging even when disabled
  * 3.1   (2023-02-25) - Add power meteter
  * 3.0.1 (2022-04-23) - Added optional volume parameter for speech command
  * 3.0   (2022-04-19) - Added ability to check "custom" devices (additional capabilities/attributes besides the pre-provided options)
@@ -376,9 +377,6 @@ String getDeviceStatusReport() {
                String isOrIsnt = settings."customDeviceGroup_${groupNum}_isOrIsnt"
                List<String> values = settings."customDeviceGroup_${groupNum}_stateString"
                devs.each { com.hubitat.app.DeviceWrapper d ->
-                  log.trace "dev = $d"
-                  log.trace "isOrIsnt = $isOrIsnt"
-                  log.trace "values = $values"
                   if (isOrIsnt == "is not") {
                      if (!(values.contains(d.currentValue(attribute)))) {
                        statusReportList << """${d.displayName} ${customDeviceCapabilities."$capability"?.displayName} is ${d.currentValue(attribute)}"""
