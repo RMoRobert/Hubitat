@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *  Changes:
+ *   2023-03-19: Add device list sorting and filtering options
  *   2023-01-18: Initial release
  *
  */
@@ -27,6 +28,7 @@ import com.hubitat.app.DeviceWrapper
 @Field static final String strDefaultFilter = "capability.battery"
 @Field static final String strAll = "capability.*"
 
+// Battery sizes
 @Field static final List<String> defaultBatteryTypes = ["CR123A", "CR2", "CR2032", "CR2450", "CR2477", "CR1632", "A", "AA", "AAA", "AAAA", "1/2 AA", "9V"]
 
 definition(
@@ -53,6 +55,8 @@ def mainPage() {
       app.removeSetting(sName)
    }
    dynamicPage(name:"mainPage", title:"Battery Note App", install: true, uninstall: true) {
+      List<Map> allRooms = getRooms()
+      List<Map> roomList = allRooms.collect { [(it.id): it.name] }
       section(styleSection("Select devices")) {
          input "isFilter", "bool", title: "Use custom device list filter?", submitOnChange: true, width: 8
          if (isFilter) {
@@ -66,7 +70,32 @@ def mainPage() {
       }
       section(styleSection("Individual Devices")) {
          paragraph "To make a change on a single device at a time, select the device from the list below."
-         devices.each { DeviceWrapper dev ->
+         input "showRoom", "enum", title: "Filter list by room", submitOnChange: true, width: 6,
+            options: roomList.sort { m1, m2 -> m1.value <=> m2.value }, defaultValue: ""
+         input "sortBy", "enum", title: "Sort by", submitOnChange: true, width: 6,
+            options: [["dispName": "Display name"],["batt": "Battery level (low to high)"],["lastAct": "Last activity at (oldest first)"]],
+            defaultValue: "dispName"
+         // Filter list (or not) according to options:
+         List<DeviceWrapper> filteredDevices
+         if (showRoom != null && showRoom != "") {
+            filteredDevices = devices.findAll { DeviceWrapper d -> d.roomId == (showRoom as Long) }
+         }
+         else {
+            filteredDevices = devices
+         }
+         // Sort list according to options
+         switch(settings["sortBy"]) {
+            case "batt":
+               filteredDevices?.sort { DeviceWrapper d -> d.currentValue("battery") }
+               break
+            case "lastAct":
+               filteredDevices?.sort { DeviceWrapper d -> d.getLastActivity() }
+               break
+            default: // including display name
+               filteredDevices?.sort { DeviceWrapper d -> d.displayName }
+         }
+         // Display list:
+         filteredDevices.each { DeviceWrapper dev ->
             href name: "hrefDevicePage", page: "devicePage", title: dev.displayName, description: "", params: ["deviceId": dev.id]
          }
       }
