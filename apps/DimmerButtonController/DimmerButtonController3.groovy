@@ -61,6 +61,7 @@ import com.hubitat.app.DeviceWrapper
 
 @Field static final Map<String,Map> actionMap = [
    "on": [displayName: "Turn on and set dimmers/bulbs or activate scene", "multiPresses": true],
+   "onOnly": [displayName: "Turn on", "multiPresses": true],
    "bri": [displayName: "Dim up", "multiPresses": false],
    "dim": [displayName: "Dim down", "multiPresses": false],
    "offLastScene": [displayName: "Turn off last used scene", "multiPresses": false],
@@ -70,6 +71,7 @@ import com.hubitat.app.DeviceWrapper
 
 // Match the above actionMap keys:
 @Field static final String sON = "on"
+@Field static final String sON_ONLY = "onOnly"
 @Field static final String sBRI = "bri"
 @Field static final String sDIM = "dim"
 @Field static final String sOFF_LAST_SCENE = "offLastScene"
@@ -284,6 +286,9 @@ def pageButtonConfig(params) {
                case sON:
                   makeTurnOnSection(btnNum, action, multiPresses)
                   break
+               case sON_ONLY:
+                  makeTurnOnOnlySection()
+                  break
                case sSCENE:
                   makeTurnOnSceneSection(params.btnNum, params.action, params.multiPresses)
                   break
@@ -382,6 +387,9 @@ String getButtonConfigDescription(btnNum, String action, Boolean multiPresses) {
             }
          }
       }
+   }
+   else if (settings[actionSettingName] == sON_ONLY) {
+      sbDesc << "\nTurn on"
    }
    else if (settings[actionSettingName] == sOFF_SCENE) {
       String scOffSettingName = "btn${btnNum}.${action}.Press${pressNum}.OffScene"
@@ -543,6 +551,12 @@ def makeTurnOffSceneSection(btnNum, strAction = sPUSHED, multiPresses = false) {
 def makeTurnOffSection() {
    section {
       paragraph "Turn off all selected lights."
+   }
+}
+
+def makeTurnOnOnlySection() {
+   section {
+      paragraph "Turn on all selected lights."
    }
 }
 
@@ -715,6 +729,30 @@ void buttonHandler(evt) {
          }
          incrementPressNum(btnNum, action)
          runIn(pressNumResetDelay, "resetPressNum", [data: [btnNum: btnNum, action: [action]]])
+         break
+      case sON_ONLY:
+         logDebug "Action \"turn on\" specified for button ${btnNum} ${action}"
+         try {
+            List<DeviceWrapper> devices = (settings['boolGroup'] && settings['group']) ? group : dimmers
+            devices.on()
+            offDevices?.on()
+            if (settings['boolDblCmd']) {
+               pauseExecution(settings.meterDelay ?: 200)
+               devices.each { DeviceWrapper dev ->
+                  dev.on()
+                  if (settings.meterDelay) pauseExecution(settings.meterDelay)
+               }
+               pauseExecution(settings.meterDelay ?: 200)
+               offDevices?.each { DeviceWrapper dev ->
+                  dev.on()
+                  if (settings.meterDelay) pauseExecution(settings.meterDelay)
+               }
+            }
+         } catch (e) {
+            log.error "Error when running \"on\" action: ${e}"
+         } finally {
+            resetAllPressNums()
+         }
          break
       case sOFF_LAST_SCENE:
          if (atomicState.lastScene) {   
