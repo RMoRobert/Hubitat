@@ -156,7 +156,7 @@ Map pageMain() {
          label title: "Customize installed app name:", required: true
          input name: "includeHubName", type: "bool", title: "Include hub name in notifications (${location.name})"
          input name: "modes", type: "mode", title: "Only send notifications if mode is", multiple: true, required: false
-         input name: "snoozeDuration", type: "number", title: 'Number of hours to remove deivce freom report with "snooze"', defaultValue: defaultSnoozeDuration
+         input name: "snoozeDuration", type: "number", title: 'Number of hours to remove device from report with "snooze"', defaultValue: defaultSnoozeDuration
          input name: "boolIncludeDisabled", type: "bool", title: "Include disabled devices in report"
          input name: "debugLevel", type: "enum", title: "Debug logging level:", options: [[0: "Logs off"], [1: "Debug logging"], [2: "Verbose logging"]],
             defaultValue: 0
