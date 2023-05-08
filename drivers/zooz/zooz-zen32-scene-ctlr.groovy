@@ -1,7 +1,7 @@
 /*
  * ===================== Zooz Scene Controller (ZEN32) Driver =====================
  *
- *  Copyright 2022 Robert Morris
+ *  Copyright 2023 Robert Morris
  *  
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -36,6 +36,7 @@
  *
  * 
  *  Changelog:
+ *  v2.0.1  (2023-05-07): Superivsion response fix
  *  v2.0    (2022-02-20): Add Indicator command class support (thanks to @jtp10181); requires ZEN32 firmware 10.10 or greater
  *  v1.0.1  (2021-04-23): Fix typo in BasicGet; pad firmware subversion with 0 as needed
  *  v1.0    (2021-04-01): Initial Release   
@@ -166,6 +167,9 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd){
    if (encapCmd) {
       zwaveEvent(encapCmd)
    }
+   sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(
+         zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID, reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0)
+      ), hubitat.device.Protocol.ZWAVE))
 }
 
 void zwaveEvent(hubitat.zwave.commands.versionv2.VersionReport cmd) {
@@ -408,7 +412,7 @@ List<String> setIndicator(Number ledNumber=0, String mode="on", Number lengthOfO
       cmds << zwaveSecureEncap(zwave.indicatorV3.indicatorSet(value: 0xFF, indicatorCount: 3, indicatorValues: [
             [indicatorId: indId, propertyId: 0x03, value: lenOnOff], // This property is used to set the duration (in tenth of seconds) of an on/off period
             [indicatorId: indId, propertyId: 0x04, value: numOnOff], // This property is used to set the number of on/off periods to run
-            [indicatorId: indId, propertyId: 0x05, value: lenOn] // This property is used to set the length of the on time during an on/off period; it allows asymmetric on/off  periods
+            [indicatorId: indId, propertyId: 0x05, value: lenOn] // This property is used to set the length of the on time during an on/off period; it allows asymmetric on/off periods
          ]))
    }
    else {
