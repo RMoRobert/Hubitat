@@ -1,7 +1,7 @@
 /*
  * ===================== Advanced Inovelli Red Series Fan + Light Switch (LZW36) Driver =====================
  *
- *  Copyright 2020-2021 Robert Morris
+ *  Copyright 2020-2023 Robert Morris
  *  Portions based on code from Inovelli and Hubitat
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.1.1 (2023-05-07) - Improved multichannel Supervision response
  *  v1.1.0 (2021-03-26) - Updates for Hubitat 2.2.6 (button commands, supported fan speeds)
  *                        Additional fixes (final fix?) for child/parent switch attributes reflecting in parent
  *  v1.0.6 (2021-01-13) - Fix for parent device "switch" attribute not matching expected states
@@ -258,12 +259,21 @@ void zwaveEvent(hubitat.zwave.commands.securityv1.SecurityMessageEncapsulation c
       zwaveEvent(encapCmd)
    }
 }
-
-void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd, ep=null){
-    hubitat.zwave.Command encapCmd = cmd.encapsulatedCommand(commandClassVersions)
-    if (encapCmd) {
-        zwaveEvent(encapCmd, ep)
-    }
+void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd, ep = 0) {
+   if (enableDebug) log.debug "Supervision Get - SessionID: ${cmd.sessionID}, CC: ${cmd.commandClassIdentifier}, Command: ${cmd.commandIdentifier}"
+   hubitat.zwave.Command encapCmd = cmd.encapsulatedCommand(commandClassVersions)
+   if (encapsulatedencapCmdCommand) {
+      zwaveEvent(encapCmd, ep)
+   }
+   if (ep > 0) {
+      sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(zwave.multiChannelV4.multiChannelCmdEncap(sourceEndPoint: 0, bitAddress: 0, res01: 0, destinationEndPoint: ep)
+      .encapsulate(zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID, reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0)).format()),
+      hubitat.device.Protocol.ZWAVE))
+   } else {
+   sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(
+      zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID, reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0).format()
+      ), hubitat.device.Protocol.ZWAVE))
+   }
 }
 
 void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd, ep = null) {
