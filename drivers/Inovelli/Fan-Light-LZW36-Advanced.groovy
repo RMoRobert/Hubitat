@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.1.2 (2023-05-28) - Add explicit lifeline association (multichannel), fix typo in Supervision response
  *  v1.1.1 (2023-05-07) - Improved multichannel Supervision response
  *  v1.1.0 (2021-03-26) - Updates for Hubitat 2.2.6 (button commands, supported fan speeds)
  *                        Additional fixes (final fix?) for child/parent switch attributes reflecting in parent
@@ -259,21 +260,19 @@ void zwaveEvent(hubitat.zwave.commands.securityv1.SecurityMessageEncapsulation c
       zwaveEvent(encapCmd)
    }
 }
+
 void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd, ep = 0) {
-   if (enableDebug) log.debug "Supervision Get - SessionID: ${cmd.sessionID}, CC: ${cmd.commandClassIdentifier}, Command: ${cmd.commandIdentifier}"
-   hubitat.zwave.Command encapCmd = cmd.encapsulatedCommand(commandClassVersions)
-   if (encapsulatedencapCmdCommand) {
-      zwaveEvent(encapCmd, ep)
-   }
-   if (ep > 0) {
-      sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(zwave.multiChannelV4.multiChannelCmdEncap(sourceEndPoint: 0, bitAddress: 0, res01: 0, destinationEndPoint: ep)
-      .encapsulate(zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID, reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0)).format()),
-      hubitat.device.Protocol.ZWAVE))
-   } else {
-   sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(
-      zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID, reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0).format()
-      ), hubitat.device.Protocol.ZWAVE))
-   }
+    if (enableDebug) log.debug "Supervision Get - SessionID: ${cmd.sessionID}, CC: ${cmd.commandClassIdentifier}, Command: ${cmd.commandIdentifier}"
+    hubitat.zwave.Command encapsulatedCommand = cmd.encapsulatedCommand(CMD_CLASS_VERS)
+    if (encapsulatedCommand) {
+      if (enableDebug) log.debug "encapsulatedCommand = $encapsulatedCommand, ep = $ep"
+        zwaveEvent(encapsulatedCommand, ep)
+    }
+    if (ep > 0) {
+        sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(zwave.multiChannelV4.multiChannelCmdEncap(sourceEndPoint: 0, bitAddress: 0, res01: 0, destinationEndPoint: ep).encapsulate(zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID, reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0)).format()), hubitat.device.Protocol.ZWAVE))
+    } else {
+        sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID, reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0).format()), hubitat.device.Protocol.ZWAVE))
+    }
 }
 
 void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd, ep = null) {
@@ -725,9 +724,12 @@ List<String> initialize() {
    getChildDevice("${device.id}-2").sendEvent([name: "supportedFanSpeeds", value: fanSpeeds])
    cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
    cmds << zwaveSecureEncap(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 1))
+   cmds << zwaveSecureEncap(zwave.associationV2.associationRemove(groupingIdentifier: 1, nodeId: []))
+   cmds << zwaveSecureEncap(zwave.multiChannelAssociationV2.multiChannelAssociationSet(groupingIdentifier: 1, nodeId: [0,zwaveHubNodeId,0]))
+   cmds << zwaveSecureEncap(zwave.multiChannelAssociationV2.multiChannelAssociationGet(groupingIdentifier: 1))
    //cmds << zwaveSecureEncap(zwave.protectionV2.protectionSet(localProtectionState: settings["disableLocal"] ? 1 : 0,
    //                                          rfProtectionState: settings["disableRemote"] ? 1 : 0))
-   return delayBetween(cmds, 250)
+   return delayBetween(cmds, 300)
 }
 
 void logsOff() {
