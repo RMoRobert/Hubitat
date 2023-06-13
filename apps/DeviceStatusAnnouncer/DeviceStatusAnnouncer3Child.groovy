@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 3.2   (2023-06-13) - Add support for hub variables in notification/speech and prepend/append text
  * 3.1.1 (2023-02-02) - Remove inadvertent logging even when disabled
  * 3.1   (2023-02-25) - Add power meteter
  * 3.0.1 (2022-04-23) - Added optional volume parameter for speech command
@@ -43,6 +44,8 @@ import groovy.transform.Field
    switchLevel: [displayName: "dimmer level", attribute: "level", type: "integer"],
    battery: [displayName: "battery level", attribute: "battery", type: "integer"]
 ]
+
+@Field static final String hubVarRegEx = '%(.*?)%'
 
 definition(
    name: "Device Status Announcer Child 3",
@@ -85,6 +88,7 @@ Map pageMain() {
             paragraph "(heating and cooling setpoints will be evaluated only when thermostat in heating or cooling mode, respectively)"
          }
       }
+      
       section(styleSection("Custom Devices")) {
          paragraph "Custom device groups allow you to announce/notify based on states beyond those offered above."
          state.customDeviceGroups?.each { Integer groupNum ->
@@ -139,6 +143,7 @@ Map pageMain() {
             defaultValue: ""
          input name: "appendText", type: "text", title: "Text to append to announcements/notifications (optional)",
             defaultValue: ""
+         paragraph "<small>NOTE: Hub variables can be used in any of the above text by using the <code>%variable-name%</code> format.</small>"
          input name: "goodSwitches", type: "capability.switch", title: "Turn this switch on if all devices are OK when announcement or notification is requested", multiple: true
          input name: "badSwitches", type: "capability.switch", title: "Turn this switch on if any devices are not OK when announcement or notification is requested", multiple: true
          paragraph "The above switches will also be turned off if the stated condition is no longer true when an annoucement or notification is requested."
@@ -436,15 +441,54 @@ String getDeviceStatusReport() {
       statusReport = statusReportList.join(", ")
    }
    if (statusReport) {
-      if (settings["prependText"]) statusReport = settings["prependText"] + statusReport
-      if (settings["appendText"]) statusReport = statusReport + settings["appendText"]
+      if (settings["prependText"]) statusReport = replaceVariablesInText(settings["prependText"]) + statusReport
+      if (settings["appendText"]) statusReport = statusReport + replaceVariablesInText(settings["appendText"])
       statusReport += "."
    }
    logDebug "Device status list: $statusReportList"
    return statusReport
 }
 
+String replaceVariablesInText(String text) {
+   String newText = text
+   text.findAll(hubVarRegEx).each { String hubVarWithPct ->
+      String hubVarName = hubVarWithPct.replaceAll("%", "")
+      String hubVarValue = getGlobalVar(hubVarName)?.value ?: ""
+      newText = newText.replaceAll(hubVarWithPct, hubVarValue)
+   }
+   return newText
+}
 
+String registerHubVariables() {
+   if (settings["allGoodSpeech"]) {
+      registerHubVariablesFromText(settings["allGoodSpeech"])
+   }
+   if (settings["allGoodNotification"]) {
+      registerHubVariablesFromText(settings["allGoodNotification"])
+   }
+   if (settings["prependText"]) {
+      registerHubVariablesFromText(settings["prependText"])
+   }
+   if (settings["appendText"]) {
+      registerHubVariablesFromText(settings["appendText"])
+   }
+}
+
+String registerHubVariablesFromText(String text) {
+   List<String> varNames = []
+   text.findAll(hubVarRegEx).each { String hubVarWithPct ->
+      String hubVarName = hubVarWithPct.replaceAll("%", "")
+      varNames << hubVarName
+   }
+   addInUseGlobalVar(varNames)
+}
+
+void renameVariable(String oldName, String newName) {
+   if (settings.allGoodSpeech) app.updateSetting("allGoodSpeech", [type: "text", value: settings.allGoodSpeech.replaceAll("%${oldName}%", "%${newName}%")])
+   if (settings.allGoodNotification) app.updateSetting("allGoodNotification", [type: "text", value: settings.allGoodNotification.replaceAll("%${oldName}%", "%${newName}%")])
+   if (settings.prependText) app.updateSetting("prependText", [type: "text", value: settings.prependText.replaceAll("%${oldName}%", "%${newName}%")])
+   if (settings.appendText) app.updateSetting("appendText", [type: "text", value: settings.appendText.replaceAll("%${oldName}%", "%${newName}%")])
+}
 
 /** Sends notification and/or TTS announcement with list of devices in undesired state unless none and not configured to send/speak if none
  *  Also, turn on switches if configured
@@ -461,8 +505,8 @@ void doNotificationOrAnnouncement() {
       settings["goodSwitches"]?.each { it.on() }
       settings["badSwitches"]?.each { it.off() }
    }
-   if (!notificationText && allGoodNotification) notificationText = allGoodNotification
-   if (!speechText && allGoodSpeech) speechText = allGoodSpeech
+   if (!notificationText && allGoodNotification) notificationText = replaceVariablesInText(allGoodNotification)
+   if (!speechText && allGoodSpeech) speechText = replaceVariablesInText(allGoodSpeech)
    if (isModeOK()) {
       if (notificationText) {
          logDebug "Sending notification for undesired devices: \"${notificationText}\""
@@ -594,6 +638,8 @@ void initialize() {
       log.debug "Debug logging is enabled for ${app.label}. It will remain enabled until manually disabled."
    }
    unsubscribe()
+   removeAllInUseGlobalVar()
+   registerHubVariables()
    if (settings["notificationTime"]) schedule(settings["notificationTime"], scheduleHandler) 
    if (settings["announcementSwitch"]) subscribe(settings["announcementSwitch"], "switch", switchHandler)
    if (settings["sensorAway"]) subscribe(settings["sensorAway"], "presence", presenceAwayHandler)
@@ -603,6 +649,6 @@ void initialize() {
   */
 void logDebug(string) {
    if (settings["debugLogging"] != false) {
-        log.debug string
-    }
+      log.debug string
+   }
 }

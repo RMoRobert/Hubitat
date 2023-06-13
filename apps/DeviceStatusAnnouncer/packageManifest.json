@@ -2,9 +2,9 @@
 	"packageName": "Device Status Announcer",
 	"minimumHEVersion": "2.2.6",
 	"author": "Robert Morris",
-	"dateReleased": "2023-02-28",
+	"dateReleased": "2023-06-13",
 	"licenseFile": "",
-	"releaseNotes": "Version 3.1.1.: Remove inadvertent logging for custom groups when logging disabled\n\nVersion 3.1: Added power meter as \"custom\" attribute that can be monitored\nVersion 3.0.1.: Optional volume parameter added.\nVersion 3.0: Addition of custom attribute checking (e.g., switches and many sensors)\n\nVersion 2.6: Added ability to turn on/off switches when devices are/aren't in desired states.\n\nPrevious releases:\nAdded thermostat support and name grouping for contact sensors and locks.\n\nNOTE FOR 1.X UPGRADERS: New parent/child app structure; 1.x users should uninstall first and will require manual re-creation. v2 adds additional options for device notification/TTS text and triggers.",
+	"releaseNotes": "Version 3.2: Added ability to use hub variables as part of text to speak, notification text, and text to prepend/append.\n\nVersion 3.1.1.: Remove inadvertent logging for custom groups when logging disabled\n\nVersion 3.1: Added power meter as \"custom\" attribute that can be monitored\nVersion 3.0.1.: Optional volume parameter added.\nVersion 3.0: Addition of custom attribute checking (e.g., switches and many sensors)\n\nVersion 2.6: Added ability to turn on/off switches when devices are/aren't in desired states.\n\nPrevious releases:\nAdded thermostat support and name grouping for contact sensors and locks.\n\nNOTE FOR 1.X UPGRADERS: New parent/child app structure; 1.x users should uninstall first and will require manual re-creation. v2 adds additional options for device notification/TTS text and triggers.",
 	"apps" : [
 		{
 			"id": "425a08652-8725-4028-9bd3-1ec9e0e0ce90",
@@ -22,7 +22,7 @@
 			"namespace": "RMoRobert",
 			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceStatusAnnouncer/DeviceStatusAnnouncer3Child.groovy",
 			"required": true,
-			"version": "3.1.1",
+			"version": "3.2.0",
 			"oauth": false
 		}
 	]
