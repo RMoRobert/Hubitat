@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.1.3 (2023-07-04) - Update importUrl
  *  v1.1.2 (2023-05-28) - Add explicit lifeline association (multichannel), fix typo in Supervision response
  *  v1.1.1 (2023-05-07) - Improved multichannel Supervision response
  *  v1.1.0 (2021-03-26) - Updates for Hubitat 2.2.6 (button commands, supported fan speeds)
@@ -163,7 +164,7 @@ import groovy.transform.Field
     ]
  
 metadata {
-   definition(name: "Advanced Inovelli Fan + Light Switch (LZW36)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Fan-Light-LZW36-Advanced.groovy") {      
+   definition(name: "Advanced Inovelli Fan + Light Switch (LZW36)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://github.com/RMoRobert/Hubitat/blob/master/drivers/Inovelli/lzw36-fan-light.groovy") {
       capability "Actuator"
       capability "Configuration"
       capability "Switch"

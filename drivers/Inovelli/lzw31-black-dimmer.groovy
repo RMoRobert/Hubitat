@@ -1,7 +1,7 @@
 /*
  * ===================== Inovelli Black Series Dimmer (LZW31) Driver =====================
  *
- *  Copyright 2022 Robert Morris
+ *  Copyright 2023 Robert Morris
  *  Portions based on code from Inovelli and Hubitat
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v2.3.1    (2023-07-04) - Update importUrl
  *  v2.3.0    (2022-01-31) - Complete re-write, update for S2/C-7 (see forum for previous details)
  */
 
@@ -99,7 +100,7 @@ import java.util.concurrent.ConcurrentHashMap
 @Field static ConcurrentHashMap<Long, Short> sessionIDs = [:]
 
 metadata {
-   definition (name: "Advanced Inovelli Black Series Dimmer (LZW31)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Black-Dimmer-LZW31-Advanced.groovy") {
+   definition (name: "Advanced Inovelli Black Series Dimmer (LZW31)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/lzw31-black-dimmer.groovy") {
       capability "Actuator"
       capability "Switch"
       capability "SwitchLevel"

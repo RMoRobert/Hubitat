@@ -1,7 +1,7 @@
 /*
  * ===================== Inovelli Red Series Dimmer (LZW31-SN) Driver =====================
  *
- *  Copyright 2022 Robert Morris
+ *  Copyright 2023 Robert Morris
  *  Portions based on code from Inovelli and Hubitat
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v2.3.2  (2022-07-04) - Update importUrl
  *  v2.3.1  (2022-11-06) - Add "clear" as LED effect for Blue compatibility (sets parameter to 0)
  *  v2.3.0  (2021-11-07) - Added new preferences for newer firmware versions; update for new Hubitat button and flash capabilities;
  *                         Added target 1 firmware reports to device data (as firmwareTarget1)
@@ -28,7 +29,7 @@
  *                         NOTE: See forum thread for details; not 100% compatible with 1.x. Recommend renaming
  *                               and keeping old driver while converting. Old child devs not supported, and
  *                               some custom commands are different.
- *  v1.0    (2020-01-19) - Initial Release   
+ *  v1.0    (2020-01-19) - Initial Release
  */
 
 import groovy.transform.Field
@@ -123,7 +124,7 @@ import java.util.concurrent.ConcurrentHashMap
 @Field static ConcurrentHashMap<Long, Short> sessionIDs = [:]
 
 metadata {
-   definition (name: "Advanced Inovelli Red Series Dimmer (LZW31-SN)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/Red-Dimmer-LZW31SN-Advanced.groovy") {
+   definition (name: "Advanced Inovelli Red Series Dimmer (LZW31-SN)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/lzw31sn-red-dimmer.groovy") {
       capability "Actuator"
       capability "Switch"
       capability "SwitchLevel"
