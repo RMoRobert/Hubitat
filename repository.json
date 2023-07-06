@@ -38,6 +38,13 @@
          "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/LightsOnMotionPlus/packageManifest.json",
          "description": "Turn on/off lights with motion; optionally dim before turning off. Per-mode configuration and other settings available.",
          "tags": ["Lights & Switches", "Motion Control"]
+      },
+      {
+         "name": "One Switch at a Time",
+         "category": "Convenience",
+         "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/OneSwitchAtATime/packageManifest.json",
+         "description": "Allows you to select a group of switches and have others turned off when one is turned on (so only one can be on at a time)",
+         "tags": ["Lights & Switches", "Tools & Utilities"]
       }
    ]
 }

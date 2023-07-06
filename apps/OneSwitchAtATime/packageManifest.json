@@ -1,0 +1,29 @@
+{
+	"packageName": "One Switch at a Time",
+	"minimumHEVersion": "2.2.6",
+	"author": "Robert Morris",
+	"dateReleased": "2023-07-06",
+	"licenseFile": "",
+	"releaseNotes": "Initial release",
+	"apps" : [
+		{
+			"id": "38856951-595f-42a8-8874-f07bf031a1d8",
+			"name": "One Switch at a Time",
+			"namespace": "RMoRobert",
+			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/OneSwitchAtATime/OneSwitchAtATime-Parent.groovy",
+			"required": true,
+			"version": "1.0.0",
+			"primary": true,
+			"oauth": false
+		},
+		{
+			"id": "586521e2-7462-4368-8bd2-2f4ae0fc6f20",
+			"name": "One Switch at a Time Child",
+			"namespace": "RMoRobert",
+			"location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/OneSwitchAtATime/OneSwitchAtATime-1-Child.groovy",
+			"required": true,
+			"version": "1.0.0",
+			"oauth": false
+		}
+	]
+}
