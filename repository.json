@@ -49,7 +49,7 @@
       {
          "name": "Zooz ZEN34 (Remote) Community Driver",
          "category": "Control",
-         "location": "zooz-zen34-remote-hpmManifest.json",
+         "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/zooz/zooz-zen34-remote-hpmManifest.json",
          "description": "Community driver supporting all features (including multi-taps) on the Zooz ZEN34 remote",
          "tags": ["Lights & Switches", "Buttons"]
       }
