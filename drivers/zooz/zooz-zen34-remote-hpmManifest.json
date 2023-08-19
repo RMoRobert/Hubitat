@@ -11,9 +11,9 @@
          "id": "f5dca9d1-bf06-4917-b1a2-64c489088751",
          "name": "Zooz ZEN34 Remote",
          "namespace": "RMoRobert",
-         "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonControllerParent.groovy",
+         "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/zooz/zooz-zen34-remote.groovy",
          "required": true,
-         "version": "3.0.0",
+         "version": "2021.07.29",
          "primary": true,
          "oauth": false
       }
