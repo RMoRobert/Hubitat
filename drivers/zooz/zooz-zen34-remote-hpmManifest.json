@@ -1,0 +1,21 @@
+{
+   "packageName": "Zooz ZEN34 (Remote) Driver",
+   "minimumHEVersion": "2.3.1",
+   "author": "Robert Morris",
+   "dateReleased": "2023-08-16",
+   "licenseFile": "",
+   "documentationLink": "https://community.hubitat.com/t/release-zooz-zen34/123044",
+   "releaseNotes": "Initial release. See Hubitat Community forum thread for discussion, etc.",
+   "drivers" : [
+      {
+         "id": "f5dca9d1-bf06-4917-b1a2-64c489088751",
+         "name": "Zooz ZEN34 Remote",
+         "namespace": "RMoRobert",
+         "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DimmerButtonController/DimmerButtonControllerParent.groovy",
+         "required": true,
+         "version": "3.0.0",
+         "primary": true,
+         "oauth": false
+      }
+   ]
+}
