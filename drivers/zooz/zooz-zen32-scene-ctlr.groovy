@@ -37,7 +37,7 @@
  * 
  *  Changelog:
  *  v2.1    (2023-09-19): Update for firmware 10.40 (700-series) and hardware 2.0. Recommended for use with
- *                        harware v2 (800LR) or original hardware with 10.40+ firmware only.
+ *                        hardware v2 (800LR) or original hardware with 10.40+ firmware only.
  *  v2.0.1  (2023-05-07): Superivsion response fix
  *  v2.0    (2022-02-20): Add Indicator command class support (thanks to @jtp10181); requires ZEN32 firmware 10.10 or greater
  *  v1.0.1  (2021-04-23): Fix typo in BasicGet; pad firmware subversion with 0 as needed
@@ -74,7 +74,7 @@ import groovy.transform.Field
    "cyan": 6
 ]
 
-// LED/button number to parameter value mappings (for LED color parmeters):
+// LED/button number to parameter value mappings (for LED color parameters):
 @Field static Map<Integer,Integer> ledIndicatorParams = [1: 2, 2: 3, 3: 4, 4: 5, 5: 1]
 @Field static Map<Integer,Integer> ledColorParams = [1: 7, 2: 8, 3: 9, 4: 10, 5: 6]
 @Field static Map<Integer,Integer> ledBrightnessParams = [1: 12, 2: 13, 3: 14, 4: 15, 5: 11]
@@ -83,14 +83,14 @@ import groovy.transform.Field
 @Field static Map<Integer,Short> indicatorLEDNumberMap = [0:0x50, 5:0x43, 1:0x44, 2:0x45, 3:0x46, 4:0x47]
 
 @Field static final Map zwaveParameters = [
-   16: [input: [name: "param.16", type: "number", title: "[16] Automtically turn relay off after ... minutes (0=disable auto-off; default)", range: 0..65535],
+   16: [input: [name: "param.16", type: "number", title: "[16] Automatically turn relay off after ... minutes (0=disable auto-off; default)", range: 0..65535],
       size: 4],
-   17: [input: [name: "param.17", type: "number", title: "[17] Automtically turn relay on after ... minutes (0=disable auto-on; default)", range: 0..65535],
+   17: [input: [name: "param.17", type: "number", title: "[17] Automatically turn relay on after ... minutes (0=disable auto-on; default)", range: 0..65535],
       size: 4],
    18: [input: [name: "param.18", type: "enum", title: "[18] State on power restore (relay and buttons)",
        options: [[2: "Off"], [1: "On"], [0: "Previous state (default)"]]],
       size: 1],
-   19: [input: [name: "param.19", type: "enum", title: "[19] Local (phyiscal) and Z-Wave control/smart bulb mode",
+   19: [input: [name: "param.19", type: "enum", title: "[19] Local (physical) and Z-Wave control/smart bulb mode",
        options: [[0: "Disable local control, enable Z-Wave"], [1: "Enable local and Z-Wave control (default)"], [2: "Disable local and Z-Wave control"]]],
       size: 1],
    20: [input: [name: "param.20", type: "enum", title: "[20] Behavior of relay reports if local and/or Z-Wave control disabled (scene/button events are always sent)",
@@ -148,9 +148,8 @@ metadata {
                          [name:"lengthOfOnPeriod", type: "NUMBER", description: "On period length in tenths of seconds (e.g., 8 = 0.8 seconds; can be used to create asymmetric on/off periods)", constraints: 1..254],
                         ]
 
-      fingerprint mfr:"027A", prod:"7000", deviceId:"A008", inClusters:"0x5E,0x25,0x70,0x20,0x5B,0x85,0x8E,0x59,0x55,0x86,0x72,0x5A,0x73,0x87,0x9F,0x6C,0x7A" 
-      fingerprint mfr:"027A", prod:"7000", model: "A008"
-      fingerprint mfr:"027A", prod:"BB00", model: "BB08"
+      fingerprint mfr:"027A", prod:"7000", deviceId:"A008", inClusters:"0x5E,0x25,0x70,0x20,0x5B,0x85,0x8E,0x59,0x55,0x86,0x72,0x5A,0x73,0x87,0x9F,0x6C,0x7A"
+      fingerprint mfr:"027A", prod:"BB00", deviceId:"BB08", inClusters:"0x00,0x00" //Must include fake invalid cluster if not known
    }
 
    preferences {
@@ -188,8 +187,8 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd){
 }
 
 void zwaveEvent(hubitat.zwave.commands.versionv2.VersionReport cmd) {
-   if (logEnable) log.debug "VersionReport: ${cmd}"
-   device.updateDataValue("firmwareVersion", """${cmd.firmware0Version}.${String.format("%02d", cmd.firmware0SubVersion)}""")
+   if (enableDebug) log.debug "VersionReport: ${cmd}"
+   device.updateDataValue("firmwareVersion", "${cmd.firmware0Version}.${String.format("%02d", cmd.firmware0SubVersion)}")
    device.updateDataValue("protocolVersion", "${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion}")
    device.updateDataValue("hardwareVersion", "${cmd.hardwareVersion}")
 }
@@ -375,12 +374,6 @@ List<String> updated() {
    return delayBetween(cmds, 200)
 }
 
-command "setLED", [[name:"ledNumber", type: "NUMBER", description: "LED/button number (1-5, 5=large/relay button)", constraints: 1..5],
-                         [name:"colorName", type: "ENUM", description: "Color name (white, blue, green, red)", constraints: ["white", "blue", "green", "red"]],
-                         [name:"brightness", type: "ENUM", description: "Brightness level (100, 60, or 30%; will round to nearest; 0 for off)", constraints: [100,60,30,0]],
-                        ] 
-
-
 List<String> setLED(Number ledNumber, String colorName, brightness) {
    if (enableDebug) log.debug "setLED(Number $ledNumber, String $colorName, Object $brightness)"
    Integer intColor = colorNameMap[colorName?.toLowerCase()] ?: 0
@@ -422,7 +415,7 @@ List<String> setIndicator(Number ledNumber=0, String mode="on", Number lengthOfO
       Short lenOnOff = lengthOfOnOffPeriods != null ? lengthOfOnOffPeriods as Short : 0
       Short numOnOff = numberOfOnOffPeriods != null ? numberOfOnOffPeriods as Short : 0
       Short lenOn = lengthOfOnPeriod != null ? lengthOfOnPeriod as Short : 0
-      log.trace "lenOnOff = $lenOnOff, numOnOff=$numOnOff, lenOn=$lenOn, indId=$indId "
+      if (enableDebug) log.debug "lenOnOff = $lenOnOff, numOnOff=$numOnOff, lenOn=$lenOn, indId=$indId"
       cmds << zwaveSecureEncap(zwave.indicatorV3.indicatorSet(value: 0xFF, indicatorCount: 3, indicatorValues: [
             [indicatorId: indId, propertyId: 0x03, value: lenOnOff], // This property is used to set the duration (in tenth of seconds) of an on/off period
             [indicatorId: indId, propertyId: 0x04, value: numOnOff], // This property is used to set the number of on/off periods to run
