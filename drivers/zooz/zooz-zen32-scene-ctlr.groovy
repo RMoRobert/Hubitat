@@ -131,6 +131,7 @@ metadata {
       capability "PushableButton"
       capability "HoldableButton"
       capability "ReleasableButton"
+      capability "DoubleTapableButton"
 
       command "refresh"
 
@@ -251,6 +252,14 @@ void zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification c
       String descriptionText = "${device.displayName} button ${btnNum} was ${btnAction}"
       if (enableDesc) log.info "${descriptionText}"
       sendEvent(name: "${btnAction}", value: "${btnNum}", descriptionText: descriptionText, isStateChange: true, type: "physical")
+
+      if (cmd.keyAttributes as Integer == 3) {
+         btnNum = btnBaseNum
+         btnAction = "doubleTapped"
+         descriptionText = "${device.displayName} button ${btnNum} was ${btnAction}"
+         if (enableDesc) log.info "${descriptionText}"
+         sendEvent(name: "${btnAction}", value: "${btnNum}", descriptionText: descriptionText, isStateChange: true, type: "physical")
+      }
    }
 }
 
@@ -309,6 +318,10 @@ void hold(btnNum) {
 
 void release(btnNum) {
    sendEvent(name: "released", value: btnNum, isStateChange: true, type: "digital")
+}
+
+void doubleTap(btnNum) {
+   sendEvent(name: "doubleTapped", value: btnNum, isStateChange: true, type: "digital")
 }
 
 void installed(){
