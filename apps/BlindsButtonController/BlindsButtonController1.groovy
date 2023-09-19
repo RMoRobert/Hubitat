@@ -9,7 +9,7 @@
  *  Add code for parent app (this) and then and child app. Install/create new instance of parent
  *  app only (do not use child app directly).
  *
- *  Copyright 2021 Robert Morris
+ *  Copyright 2023 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -25,6 +25,7 @@
  *
  *
  * Changelog:
+ * 1.0.1  (2023-09-18) - Fix for stop level/position change
  * 1.0    (2021-05-10) - Initial release
  *
  */ 
@@ -41,6 +42,7 @@ import groovy.transform.Field
 @Field static final String sUP = "up"
 @Field static final String sDOWN = "down"
 @Field static final String sTO_POSITION = "toPosition"
+@Field static final String sSTOP_LEVEL_CHANGE = "StopLevelChange"
 
 @Field static final Map<String,Map> eventMap = [
    "pushed": [capability:"PushableButton", userAction: "push", multiPresses: false],
@@ -382,7 +384,7 @@ def makeAdjustSection(Integer btnNum, String strAction = sPUSHED, String directi
    }
    if (settings[rampSettingName]) {
       String releaseSettingName = "btn${btnNum}.released.Action"
-      app.updateSetting(releaseSettingName, [type:"string", value: "StopLevelChange"])
+      app.updateSetting(releaseSettingName, [type:"string", value: sSTOP_LEVEL_CHANGE])
    } else {
       String releaseSettingName = "btn${btnNum}.released.Action"
       app.removeSetting(releaseSettingName)
@@ -428,7 +430,7 @@ void buttonHandler(com.hubitat.hub.domain.Event evt) {
          break
       case sUP:
       case sDOWN:
-         logDebug "Action \"${sUP}\" specified for button ${btnNum} ${action} press ${pressNum}"
+         logDebug "Action \"${sUP}\" or \"${sDOWN}\" or  specified for button ${btnNum} ${action} press ${pressNum}"
          String levelChangeSettingName = "btn${btnNum}.${action}.UseStartLevelChange"
          if (lastLevel[app.id] == null) lastLevel[app.id] = [:]
          if (settings[levelChangeSettingName]) {
@@ -478,6 +480,12 @@ void buttonHandler(com.hubitat.hub.domain.Event evt) {
                runIn(settings.travelTime != null ? settings.travelTime as Long : 30, "uncacheLevel", [data: [deviceId: dev.id], overwrite: false])
             }
          }
+         break
+      case sSTOP_LEVEL_CHANGE:
+         logDebug("Action ${sSTOP_LEVEL_CHANGE} specified for button  ${btnNum} ${action} press ${pressNum}")
+         settings["devices.switchLevel"]?.stopLevelChange()
+         settings["devices.windowBlind"]?.stopPositionChange()
+         settings["devices.windowShade"]?.stopPositionChange()
          break
       case sTO_POSITION:
          Integer pressNum = getPressNum(btnNum, action)
@@ -725,8 +733,8 @@ void hubRestartHandler(evt) {
   * other log level (e.g., "info") if desired
   */
 void logDebug(string, level="debug") {
-   if (settings["debugLogging"] && level=="debug") {
-      log.debug striung
+   if (settings["logEnable"] && level=="debug") {
+      log.debug string
    }
    else if (settings["debugLogging"]) {
       log."$level"(string)
