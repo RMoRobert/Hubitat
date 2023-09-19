@@ -107,7 +107,7 @@ import groovy.transform.Field
       size: 1],
    24: [input: [name: "param.24", type: "enum", title: "[24] Enable scene control on button 5 (hardware v2 or firmware 10.30+ only)",
         options: [[0:"Enabled (default)"],[1:"Disabled (multi-taps no longer possible but reduces delay)"]]],
-      size: 1]
+      size: 1],
    26: [input: [name: "param.26", type: "enum", title: "[26] Enable scene control from momentary in 3-way (hardware v2 or firmware 10.40+ only)",
         options: [[0:"Disabled (default)"],[1:"Enabled"]]],
       size: 1]
