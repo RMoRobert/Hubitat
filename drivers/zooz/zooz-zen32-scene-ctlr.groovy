@@ -36,6 +36,8 @@
  *
  * 
  *  Changelog:
+ *  v2.1    (2023-09-19): Update for firmware 10.40 (700-series) and hardware 2.0. Recommended for use with
+ *                        harware v2 (800LR) or original hardware with 10.40+ firmware only.
  *  v2.0.1  (2023-05-07): Superivsion response fix
  *  v2.0    (2022-02-20): Add Indicator command class support (thanks to @jtp10181); requires ZEN32 firmware 10.10 or greater
  *  v1.0.1  (2021-04-23): Fix typo in BasicGet; pad firmware subversion with 0 as needed
@@ -66,7 +68,10 @@ import groovy.transform.Field
    "white": 0,
    "blue": 1,
    "green": 2,
-   "red": 3
+   "red": 3,
+   "magenta": 4,
+   "yellow": 5,
+   "cyan": 6
 ]
 
 // LED/button number to parameter value mappings (for LED color parmeters):
@@ -93,6 +98,18 @@ import groovy.transform.Field
       size: 1],
    21: [input: [name: "param.21", type: "enum", title: "[21] 3-way switch type",
         options: [[0:"Mechanical (connected 3-way turns on/off) (default)"],[1:"Momentary (connected 3-way toggles on/off)"]]],
+      size: 1],
+   22: [input: [name: "param.22", type: "enum", title: "[22] Disable Z-Wave programming (except reset and scenes) on button 5",
+        options: [[0:"Enabled (default)"],[1:"Disabled (allows triple-tap w/o activating exclusion mode)"]]],
+      size: 1],
+   23: [input: [name: "param.23", type: "enum", title: "[23] Flash LED indicators when parameters adjusted (hardware v2 or firmware 10.20+ only)",
+        options: [[0:"Flash (default)"],[1:"Don't Flash (recommended if using setLED() command)"]]],
+      size: 1],
+   24: [input: [name: "param.24", type: "enum", title: "[24] Enable scene control on button 5 (hardware v2 or firmware 10.30+ only)",
+        options: [[0:"Enabled (default)"],[1:"Disabled (multi-taps no longer possible but reduces delay)"]]],
+      size: 1]
+   26: [input: [name: "param.26", type: "enum", title: "[26] Enable scene control from momentary in 3-way (hardware v2 or firmware 10.40+ only)",
+        options: [[0:"Disabled (default)"],[1:"Enabled"]]],
       size: 1]
 ]
 
@@ -120,7 +137,7 @@ metadata {
       command "setConfigParameter", [[name:"Parameter Number*", type: "NUMBER"], [name:"Value*", type: "NUMBER"], [name:"Size*", type: "NUMBER"]]
 
       command "setLED", [[name:"ledNumber", type: "NUMBER", description: "LED/button number (1-5, 5=large/relay button)", constraints: 1..5],
-                         [name:"colorName", type: "ENUM", description: "Color name (white, blue, green, red)", constraints: ["white", "blue", "green", "red"]],
+                         [name:"colorName", type: "ENUM", description: "Color name (white, blue, green, red [all versions]; also magenta, yellow, cyan on hardare v2 or FW10.40+)", constraints: ["white", "blue", "green", "red", "magenta", "yellow", "cyan"]],
                          [name:"brightness", type: "NUMBER", description: "Brightness level (100, 60, or 30%; will round to nearest; 0 for off)", constraints: [100,60,30,0]],
                         ]
 
@@ -131,11 +148,9 @@ metadata {
                          [name:"lengthOfOnPeriod", type: "NUMBER", description: "On period length in tenths of seconds (e.g., 8 = 0.8 seconds; can be used to create asymmetric on/off periods)", constraints: 1..254],
                         ]
 
-      // Uncomment if switching from another driver and need to "clean up" things--will expose command in UI:
-      //command "clearChildDevsAndState"
-
       fingerprint mfr:"027A", prod:"7000", deviceId:"A008", inClusters:"0x5E,0x25,0x70,0x20,0x5B,0x85,0x8E,0x59,0x55,0x86,0x72,0x5A,0x73,0x87,0x9F,0x6C,0x7A" 
       fingerprint mfr:"027A", prod:"7000", model: "A008"
+      fingerprint mfr:"027A", prod:"BB00", model: "BB08"
    }
 
    preferences {
@@ -399,7 +414,6 @@ List<String> setLED(Number ledNumber, String colorName, brightness) {
    return delayBetween(cmds, 500)
 }
 
-// List<String> indicatorSet(String mode, Number ledNumber=0, String indSettings=null) {
 List<String> setIndicator(Number ledNumber=0, String mode="on", Number lengthOfOnOffPeriods=null, Number numberOfOnOffPeriods=null, Number lengthOfOnPeriod=null) {
    if (enableDebug) log.debug "setIndicator($ledNumber, $mode, $lengthOfOnOffPeriods, $numberOfOnOffPeriods, $lengthOfOnPeriod)"
    Short indId = indicatorLEDNumberMap[ledNumber as Integer] ?: 0
@@ -425,7 +439,6 @@ List<String> setIndicator(Number ledNumber=0, String mode="on", Number lengthOfO
    return delayBetween(cmds, 300)
 }
 
-
 // Custom command (for apps/users)
 String setConfigParameter(number, value, size) {
    return zwaveSecureEncap(setParameter(number, value, size.toInteger()))
@@ -435,11 +448,4 @@ String setConfigParameter(number, value, size) {
 String setParameter(number, value, size) {
    if (enableDebug) log.debug "setParameter(number: $number, value: $value, size: $size)"
    return zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: number, size: size))
-}
-
-void clearChildDevsAndState() {
-   state.clear()
-   getChildDevices()?.each {
-      deleteChildDevice(it.deviceNetworkId)
-   }
 }
