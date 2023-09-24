@@ -216,56 +216,6 @@ void zwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) 
    setStoredConfigParamValue(cmd.parameterNumber, cmd.scaledConfigurationValue)
 }
 
-void OLDzwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) {
-   if (enableDebug) log.debug "ConfigurationReport: ${cmd}"
-
-   //Find LED Number for certian parameters
-   def ledIndic = ledIndicatorParams.find{ cmd.parameterNumber == it.value }
-   def ledColor = ledColorParams.find{ cmd.parameterNumber == it.value }
-   def ledBright = ledBrightnessParams.find{ cmd.parameterNumber == it.value }
-   def val = cmd.scaledConfigurationValue
-   Integer ledNum
-   Integer slot
-
-   if (ledIndic) {
-      slot = 0
-      ledNum = ledIndic.key
-      switch (val) {
-         case 0: val = "on when off"; break
-         case 1: val = "on when on"; break
-         case 2: val = "off"; break
-         case 3: val = "on"; break
-      }
-   }
-   else if (ledColor) {
-      slot = 1
-      ledNum = ledColor.key
-      //val = colorNameMap.find{ val == it.value }.key
-      val = colorNameMap[val as Integer] ?: "unknown"
-   }
-   else if (ledBright) {
-      slot = 2
-      ledNum = ledBright.key
-      switch (val) {
-         case 0: val = "100%"; break
-         case 1: val = "60%"; break
-         case 2: val = "30%"; break
-      }
-   }
-   
-   if (ledNum) {
-      if (state.settingsLED != null && state.settingsLED["$ledNum"] != null) {
-         if (enableDesc && state.settingsLED["$ledNum"][slot] != val) {
-            log.info "${device.displayName} LED #${ledNum} set to ${val}"
-         }
-         state.settingsLED["$ledNum"][slot] = val
-      }
-   }
-   else {
-      if (enableDesc) log.info "${device.displayName} parameter '${cmd.parameterNumber}', size '${cmd.size}', is set to '${cmd.scaledConfigurationValue}'"
-   }
-}
-
 void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd) {
    if (enableDebug) log.debug "BasicReport:  ${cmd}"
    String value = (cmd.value ? "on" : "off")
