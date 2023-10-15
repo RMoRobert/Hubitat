@@ -823,7 +823,7 @@ String setConfigParameter(number, value, size) {
 }
 
 String setParameter(number, value, size) {
-   if (enableDebug) log.debug "setParameter(number: $number, value: $value, size: $size)a"
+   if (enableDebug) log.debug "setParameter(number: $number, value: $value, size: $size)"
    return zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: number.toInteger(), size: size.toInteger()))
 }
 
@@ -913,9 +913,11 @@ List<String> setFanLEDColor(String color, level) {
    intLevel = Math.round(intLevel/10)
    if (intLevel < 0) intLevel = 0
    else if (intLevel > 10) intLevel = 10
-   List<String> cmds = []   
+   List<String> cmds = []
+   if (enableDebug) log.trace "setting parameter 20 to $intColor"
    cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intColor, parameterNumber: 20, size: 2)))
    if (level != null) {
+      if (enableDebug) log.trace "setting parameter 21 to $intLevel"
       cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intLevel, parameterNumber: 21, size: 1)))
    }
    return delayBetween(cmds, 750)
@@ -932,7 +934,7 @@ String setFanOnLEDLevel(value) {
 
 // Sets fan "off" LED level parameter to value (0-100, scaled in method to 0-10)
 String setFanOffLEDLevel(value) {
-   if (enableDebug) log.debug "setOffLEDLevel($value)"
+   if (enableDebug) log.debug "setFanOffLEDLevel($value)"
    Double dblLevel = value.toDouble()
    Integer scaledIntValue = Math.round(dblLevel/10)
    if (scaledIntValue == 0 && dblLevel > 0.01) scaledIntValue = 1
@@ -961,6 +963,7 @@ List<String> setLightLEDColor(String color, level) {
    List<String> cmds = []   
    cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intColor, parameterNumber: 18, size: 2)))
    if (level != null) {
+      if (enableDebug) log.debug "Setting parameter 19 to $intLevel"
       cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intLevel, parameterNumber: 19, size: 1)))
    }
    return delayBetween(cmds, 750)
@@ -977,7 +980,7 @@ String setLightOnLEDLevel(value) {
 
 // Sets light "off" LED level parameter to value (0-100)
 String setLightOffLEDLevel(value) {
-   if (enableDebug) log.debug "setOffLEDLevel($value)"
+   if (enableDebug) log.debug "setLightOffLEDLevel($value)"
    Double dblLevel = value.toDouble()
    Integer scaledIntValue = Math.round(dblLevel/10)
    if (scaledIntValue == 0 && dblLevel > 0.01) scaledIntValue = 1

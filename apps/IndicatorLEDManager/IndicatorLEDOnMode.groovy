@@ -207,8 +207,8 @@ void modeChangeHandler(evt=null, Long overrideModeId=null) {
                   Integer fanOffLevel = offLevel
                   if (settings.overrideFanOffLevel != null) {
                      fanOffLevel = settings.overrideFanOffLevel
-                     if (fanOffLevel > 0 && fanOffLevel < 10) fanOffLevel  = 10
-                     fanOffLevel = Math.round(fanOffLevel/10) as Integer
+                     // if (fanOffLevel > 0 && fanOffLevel < 10) fanOffLevel  = 10
+                     // fanOffLevel = Math.round(fanOffLevel/10) as Integer
                      if (logEnable) "overriding fan off level as $fanOffLevel"
                   }
                   dev.setFanOffLEDLevel(fanOffLevel)
