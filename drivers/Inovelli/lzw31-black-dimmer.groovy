@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v2.4      (2023-10-14) - Update LED levels to match gen 3 Red, 0-100
  *  v2.3.1    (2023-07-04) - Update importUrl
  *  v2.3.0    (2022-01-31) - Complete re-write, update for S2/C-7 (see forum for previous details)
  */
@@ -114,11 +115,11 @@ metadata {
 
       command "refresh"
       command "setConfigParameter", [[name:"Parameter Number*", type: "NUMBER"], [name:"Value*", type: "NUMBER"], [name:"Size*", type: "NUMBER"]]
-      command "setLEDColor", [[name: "Color*", type: "NUMBER", description: "Inovelli format, 0-255"], [name: "Level", type: "NUMBER", description: "Inovelli format, 0-10"]]
+      //command "setLEDColor", [[name: "Color*", type: "NUMBER", description: "Inovelli format, 0-255"], [name: "Level", type: "NUMBER", description: "Inovelli format, 0-10"]]
       command "setLEDColor", [[name: "Color*", type: "ENUM", description: "Color name (from list)", constraints: ["red", "red-orange", "orange", "yellow", "chartreuse", "green", "spring", "cyan", "azure", "blue", "violet", "magenta", "rose", "white"]],
                               [name:"Level", type: "ENUM", description: "Level, 0-100", constraints: [100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0]]]
-      command "setOnLEDLevel", [[name:"Level*", type: "ENUM", description: "Brightess (0-10, 0=off)", constraints: 0..10]]
-      command "setOffLEDLevel", [[name:"Level*", type: "ENUM", description: "Brightess (0-10, 0=off)", constraints: 0..10]]
+      command "setOnLEDLevel", [[name:"Level*", type: "ENUM", description: "Brightess (0-100, 0=off)", constraints: 0..100]]
+      command "setOffLEDLevel", [[name:"Level*", type: "ENUM", description: "Brightess (0-100, 0=off)", constraints: 0..100]]
 
       // Uncomment if switching from another driver and need to "clean up" things--will expose command in UI:
       //command "clearChildDevsAndState"
@@ -493,44 +494,52 @@ List<String> updated() {
    return delayBetween(cmds, 200)
 }
 
-// Sets default LED color parameter to value (0-255) and level (0-10)
-List<String> setLEDColor(value, level=null) {
-   if (enableDebug) log.debug "setLEDColor(Object $value, Object $level)"
-   List<String> cmds = []   
-   cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: 13, size: 2)))
-   if (level != null) {
-      cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: level.toInteger(), parameterNumber: 14, size: 1)))
-   }
-   return delayBetween(cmds, 300)
-}
+// // Sets default LED color parameter to value (0-255) and level (0-10)
+// List<String> setLEDColor(value, level=null) {
+//    if (enableDebug) log.debug "setLEDColor(Object $value, Object $level)"
+//    List<String> cmds = []   
+//    cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: 13, size: 2)))
+//    if (level != null) {
+//       cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: level.toInteger(), parameterNumber: 14, size: 1)))
+//    }
+//    return delayBetween(cmds, 300)
+// }
 
-// Sets default LED color parameter to named color (from map) and level (Hubitat 0-100 style)
-List<String> setLEDColor(String color, level) {
+// Sets default LED color parameter to named color (from map) and level (0-100, scaled in method to Inovelli 0-10 format)
+List<String> setLEDColor(String color, level=null) {
    if (enableDebug) log.debug "setLEDColor(String $color, Object $level)"
    Integer intColor = colorNameMap[color?.toLowerCase()] ?: 170
-   Integer intLevel = level as Integer
-   intLevel = Math.round(intLevel/10)
-   if (intLevel < 0) intLevel = 0
-   else if (intLevel > 10) intLevel = 10
+   Double dblLevel = level.toDouble()
+   Integer scaledIntLevel = Math.round(dblLevel/10)
+   if (dblLevel >= 0.1 && scaledIntLevel == 0) scaledIntLevel = 1
+   if (scaledIntLevel < 0) scaledIntLevel = 0 
+   else if (scaledIntLevel > 10) scaledIntLevel = 10
    List<String> cmds = []   
    cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intColor, parameterNumber: 13, size: 2)))
    if (level != null) {
-      cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intLevel, parameterNumber: 14, size: 1)))
+      cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: scaledIntLevel, parameterNumber: 14, size: 1)))
    }
-   return delayBetween(cmds, 300)
+   return delayBetween(cmds, 750)
 }
 
-// Sets "on" LED level parameter to value (0-10)
+// Sets "on" LED level parameter to value (0-100)
 String setOnLEDLevel(value) {
    if (enableDebug) log.debug "setOnLEDLevel($value)"
-   return setParameter(14, value, 1)
+   Double dblLevel = value.toDouble()
+   Integer scaledIntLevel = Math.round(dblLevel/10)
+   if (dblLevel >= 0.1 && scaledIntLevel == 0) scaledIntLevel = 1
+   return setParameter(14, scaledIntLevel, 1)
 }
 
-// Sets "off" LED level parameter to value (0-10)
+// Sets "off" LED level parameter to value (0-100)
 String setOffLEDLevel(value) {
    if (enableDebug) log.debug "setOffLEDLevel($value)"
+   Double dblLevel = value.toDouble()
+   Integer scaledIntLevel = Math.round(dblLevel/10)
+   if (dblLevel >= 0.1 && scaledIntLevel == 0) scaledIntLevel = 1
    return setParameter(15, value, 1)
 }
+
 
 // Custom command (for apps/users)
 String setConfigParameter(number, value, size) {

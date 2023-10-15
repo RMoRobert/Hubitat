@@ -13,10 +13,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2023-01-28
+ *  Last modified: 2023-10-14
  * 
  *  Changelog:
- *
+ * 1.4.1 - Fix for setOnLEDLevel()
+ * 1.4   - Move color to names and level to standard 0-100 (update drivers if needed to match!)
  * 1.3   - Add fan LED command for LZW36 device, add ability to override "off" fan LED level
  * 1.2   - Add separate options for on/off levels, add purple
  * 1.1   - Added metering option
@@ -127,14 +128,15 @@ void modeChangeHandler(evt=null, Long overrideModeId=null) {
    if (logEnable) log.debug "modeChangeHandler(evt=$evt, overrideModeId=$overrideModeId)"
    Long modeId =  (overrideModeId == null) ? location.getCurrentMode().id : overrideModeId
    if (logEnable) log.trace "Mode is ${location.getCurrentMode()} (ID = $modeId)"
-   Integer color = colorNameMap.(settings["color.${modeId}"])
+   //Integer intColor = colorNameMap.(settings["color.${modeId}"])
+   String color = settings["color.${modeId}"]
    Integer level = (settings["level.${modeId}"] != null) ? settings["level.${modeId}"] : 100
    Integer offLevel = settings["level.off.${modeId}"]
    // Scale 0-100 to Inovelli 0-10:
-   if (level > 0 && level < 10) level  = 10
-   if (offLevel > 0 && offLevel < 10) level  = 10
-   level = Math.round(level/10) as Integer
-   if (offLevel != null) offLevel = Math.round(offLevel/10) as Integer
+   //if (level > 0 && level < 10) level  = 10
+   //if (offLevel > 0 && offLevel < 10) level  = 10
+   //level = Math.round(level/10) as Integer
+   //if (offLevel != null) offLevel = Math.round(offLevel/10) as Integer
    if (color == null) {
       if (settings["otherModeBehavior"] == "default") {
          if (logEnable) log.trace "No color specified for this mode; using default color"
@@ -147,7 +149,7 @@ void modeChangeHandler(evt=null, Long overrideModeId=null) {
    // Now, if still null, is configured not to set, so can ignore
    if (color != null) {
       // "On" LED level and LED color:
-      if (logEnable) log.trace "Changing color: color = $color, scaled level = $level"
+      if (logEnable) log.trace "Changing color: color = $color, level = $level"
       innoDevs?.each { dev ->
          if (logEnable) log.trace "Setting color for ${dev.displayName}"
          if (dev.hasCommand("setLEDColor")) {
@@ -156,6 +158,13 @@ void modeChangeHandler(evt=null, Long overrideModeId=null) {
             if (settings.msDelay) {
                pauseExecution(settings.msDelay as Integer)
             }
+         }
+         else if (dev.hasCommand("setOnLEDLevel")) {
+               if (logEnable) log.trace "sending setOnLEDLevel($onLevel)"
+               dev.setOnLEDLevel(level)
+               if (settings.msDelay) {
+                  pauseExecution(settings.msDelay as Integer)
+               }
          }
          else if (dev.hasCommand("setLightLEDColor")) {
             if (logEnable) log.trace "sending setLightLEDColor($color, $level)"
@@ -179,7 +188,7 @@ void modeChangeHandler(evt=null, Long overrideModeId=null) {
          }
          // "Off" LED level:
          if (offLevel != null) {
-            if (logEnable) log.trace "Setting color for ${dev.displayName}"
+            if (logEnable) log.trace "Setting level for ${dev.displayName}"
             if (dev.hasCommand("setOffLEDLevel")) {
                if (logEnable) log.trace "sending setOffLEDLevel($offLevel)"
                dev.setOffLEDLevel(offLevel)
