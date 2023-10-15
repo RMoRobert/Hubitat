@@ -494,29 +494,17 @@ List<String> updated() {
    return delayBetween(cmds, 200)
 }
 
-// // Sets default LED color parameter to value (0-255) and level (0-10)
-// List<String> setLEDColor(value, level=null) {
-//    if (enableDebug) log.debug "setLEDColor(Object $value, Object $level)"
-//    List<String> cmds = []   
-//    cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: value.toInteger(), parameterNumber: 13, size: 2)))
-//    if (level != null) {
-//       cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: level.toInteger(), parameterNumber: 14, size: 1)))
-//    }
-//    return delayBetween(cmds, 300)
-// }
-
-// Sets default LED color parameter to named color (from map) and level (0-100, scaled in method to Inovelli 0-10 format)
 List<String> setLEDColor(String color, level=null) {
    if (enableDebug) log.debug "setLEDColor(String $color, Object $level)"
    Integer intColor = colorNameMap[color?.toLowerCase()] ?: 170
-   Double dblLevel = level.toDouble()
-   Integer scaledIntLevel = Math.round(dblLevel/10)
-   if (dblLevel >= 0.1 && scaledIntLevel == 0) scaledIntLevel = 1
-   if (scaledIntLevel < 0) scaledIntLevel = 0 
-   else if (scaledIntLevel > 10) scaledIntLevel = 10
-   List<String> cmds = []   
+   List<String> cmds = []
    cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intColor, parameterNumber: 13, size: 2)))
    if (level != null) {
+      Double dblLevel = level.toDouble()
+      Integer scaledIntLevel = Math.round(dblLevel/10)
+      if (dblLevel >= 0.1 && scaledIntLevel == 0) scaledIntLevel = 1
+      if (scaledIntLevel < 0) scaledIntLevel = 0
+      else if (scaledIntLevel > 10) scaledIntLevel = 10
       cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: scaledIntLevel, parameterNumber: 14, size: 1)))
    }
    return delayBetween(cmds, 750)

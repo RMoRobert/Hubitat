@@ -909,14 +909,14 @@ String setLightIndicator(String color, level, String effect, BigDecimal duration
 List<String> setFanLEDColor(String color, level) {
    if (enableDebug) log.debug "setLEDColor(String $color, Object $level)"
    Integer intColor = colorNameMap[color?.toLowerCase()] ?: 170
-   Integer intLevel = level as Integer
-   intLevel = Math.round(intLevel/10)
-   if (intLevel < 0) intLevel = 0
-   else if (intLevel > 10) intLevel = 10
    List<String> cmds = []
    if (enableDebug) log.trace "setting parameter 20 to $intColor"
    cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intColor, parameterNumber: 20, size: 2)))
    if (level != null) {
+      Integer intLevel = level as Integer
+      intLevel = Math.round(intLevel/10)
+      if (intLevel < 0) intLevel = 0
+      else if (intLevel > 10) intLevel = 10
       if (enableDebug) log.trace "setting parameter 21 to $intLevel"
       cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intLevel, parameterNumber: 21, size: 1)))
    }
@@ -956,13 +956,13 @@ String setFanOffLEDLevel(value) {
 List<String> setLightLEDColor(String color, level) {
    if (enableDebug) log.debug "setLEDColor(String $color, Object $level)"
    Integer intColor = colorNameMap[color?.toLowerCase()] ?: 170
-   Integer intLevel = level as Integer
-   intLevel = Math.round(intLevel/10)
-   if (intLevel < 0) intLevel = 0
-   else if (intLevel > 10) intLevel = 10
    List<String> cmds = []   
    cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intColor, parameterNumber: 18, size: 2)))
    if (level != null) {
+      Integer intLevel = level as Integer
+      intLevel = Math.round(intLevel/10)
+      if (intLevel < 0) intLevel = 0
+      else if (intLevel > 10) intLevel = 10
       if (enableDebug) log.debug "Setting parameter 19 to $intLevel"
       cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intLevel, parameterNumber: 19, size: 1)))
    }
