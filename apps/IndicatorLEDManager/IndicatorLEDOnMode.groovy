@@ -103,7 +103,7 @@ def pageMain() {
 
       section(styleSection("Commands")) {
          paragraph "This app will attempt commands in the following order (stopping at the first group where commands match):"
-         paragraph "For on/default: <ul><li>setLEDColor(color, level)</li><li>setLightLEDColor(color, level), setFanLEDColor(color, level)</li></ul>"
+         paragraph "For on/default: <ul><li>setLEDColor(color, level) and (if present) setOnLEDLevel</li><li>setLightLEDColor(color, level), setFanLEDColor(color, level)</li></ul>"
          paragraph "For off: <ul><li>setOffLEDLevel(level)</li><li>setLightOffLEDLevel(level), setFanOffLEDLevel(level)</li></ul>"
       }
 
@@ -152,15 +152,19 @@ void modeChangeHandler(evt=null, Long overrideModeId=null) {
       if (logEnable) log.trace "Changing color: color = $color, level = $level"
       innoDevs?.each { dev ->
          if (logEnable) log.trace "Setting color for ${dev.displayName}"
-         if (dev.hasCommand("setLEDColor")) {
+         if (dev.hasCommand("setLEDColor") && !(dev.hasCommand("setOnLEDLevel"))) {
             if (logEnable) log.trace "sending setLEDColor($color, $level)"
             dev.setLEDColor(color, level)
             if (settings.msDelay) {
                pauseExecution(settings.msDelay as Integer)
             }
          }
-         else if (dev.hasCommand("setOnLEDLevel")) {
+         else if (dev.hasCommand("setLEDColor") && dev.hasCommand("setOnLEDLevel")) {
                if (logEnable) log.trace "sending setOnLEDLevel($onLevel)"
+               dev.setLEDColor(color)
+               if (settings.msDelay) {
+                  pauseExecution(settings.msDelay as Integer)
+               }
                dev.setOnLEDLevel(level)
                if (settings.msDelay) {
                   pauseExecution(settings.msDelay as Integer)
