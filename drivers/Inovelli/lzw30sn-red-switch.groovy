@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v2.4.1  (2023-11-19) - Update color names to match dimmer
  *  v2.4    (2023-10-14) - Change LED level scale to 0-100 to match Blue and gen 3 (and scale as needed)
  *  v2.3.3  (2023-07-04) - Update importURL
  *  v2.3.2  (2022-11-06) - Add "clear" as LED effect for Blue compatibility (sets parameter to 0)
@@ -48,7 +49,7 @@ import java.util.concurrent.ConcurrentHashMap
 @Field static final Map<String,Short> colorNameMap = [
    "red": 1,
    "red-orange": 4,
-   "orange": 21,
+   "orange": 10,
    "yellow": 42,
    "chartreuse": 60,
    "green": 85,
@@ -56,7 +57,7 @@ import java.util.concurrent.ConcurrentHashMap
    "cyan": 127,
    "azure": 155,
    "blue": 170,
-   "violet": 212,
+   "violet": 208,
    "magenta": 234,
    "rose": 254,
    "white": 255
