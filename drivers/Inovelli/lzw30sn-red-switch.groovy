@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v2.4.2  (2023-12-03) - Fix setOffLEDLevel level scaling
  *  v2.4.1  (2023-11-19) - Update color names to match dimmer
  *  v2.4    (2023-10-14) - Change LED level scale to 0-100 to match Blue and gen 3 (and scale as needed)
  *  v2.3.3  (2023-07-04) - Update importURL
@@ -527,7 +528,7 @@ String setOffLEDLevel(value) {
    Double dblLevel = value.toDouble()
    Integer scaledIntLevel = Math.round(dblLevel/10)
    if (dblLevel >= 0.1 && scaledIntLevel == 0) scaledIntLevel = 1
-   return setParameter(7, value, 1)
+   return setParameter(7, scaledIntLevel, 1)
 }
 
 // Custom command (for apps/users)
