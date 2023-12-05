@@ -36,6 +36,7 @@
  *
  * 
  *  Changelog:
+ *  v2.2.1  (2023-12-04): Fix for parameter 18 swapped values (power restore state)
  *  v2.2    (2023-09-23): Enhancements for some commands and preferences with changes thanks to @jtp10181
  *  v2.1    (2023-09-19): Update for firmware 10.40 (700-series) and hardware 2.0. Recommended for use with
  *                        hardware v2 (800LR) or original hardware with 10.40+ firmware only.
@@ -89,7 +90,7 @@ import groovy.transform.Field
    17: [input: [name: "param.17", type: "number", title: "[17] Automatically turn relay on after ... minutes (0=disable auto-on; default)", range: 0..65535],
       size: 4],
    18: [input: [name: "param.18", type: "enum", title: "[18] State on power restore (relay and buttons)",
-       options: [[2: "Off"], [1: "On"], [0: "Previous state (default)"]]],
+       options: [[1: "Off"], [2: "On"], [0: "Previous state (default)"]]],
       size: 1],
    19: [input: [name: "param.19", type: "enum", title: "[19] Local (physical) and Z-Wave control/smart bulb mode",
        options: [[0: "Disable local control, enable Z-Wave"], [1: "Enable local and Z-Wave control (default)"], [2: "Disable local and Z-Wave control"]]],
