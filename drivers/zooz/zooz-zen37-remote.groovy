@@ -104,7 +104,7 @@ metadata {
       //                            [name: "Action*", type:"ENUM", constraints: ["Add", "Remove"]],
       //                            [name:"Multi-channel Endpoint", type:"NUMBER", description: "Currently not implemented"]] 
 
-      fingerprint mfr: "027A", prod: "7000", deviceId: "F001", inClusters: "0x5E,0x9F,0x55,0x70,0x5B,0x80,0x8E,0x59,0x85,0x84,0x86,0x6C,0x73,0x71,0x72,0x87,0x7A,0x5A"
+      fingerprint mfr:"027A", prod:"7000", deviceId:"F003", inClusters:"0x5E,0x9F,0x55,0x6C"
    }
 
    preferences {
