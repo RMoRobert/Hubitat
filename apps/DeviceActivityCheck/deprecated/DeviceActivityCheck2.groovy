@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 2.3   (2023-12-14) - Add search for device list
  * 2.2   (2023-05-27) - Add OAuth endpoints to view reports locally or via cloud (not "officially" released but can be used if don't want 3.x now)
  * 2.1.2 (2023-02-15) - Fix snooze time calcuations
  * 2.1.1 (2023-02-11) - Remove accidental extra logging
@@ -100,13 +101,6 @@ Map pageMain() {
       state.remove("currGroupDispNum")
       app.removeSetting("debugLogging") // from 1.1.0 and earlier; can probably remove in future
 
-      if (!(state.accessToken)) {
-         section(styleSection("Enable OAuth")) {
-            paragraph 'OAuth is not enabled. Please enable OAuth for this app in "Apps Code" per the installation instructions (new in version 2.2) if ' +
-            'you wish to use local or cloud report endpoints. Then, re-open the app and select "Done."'
-         }
-      }
-      
       section(styleSection("Devices to Monitor")) {
          groups.eachWithIndex { realGroupNum, groupIndex ->
             String timeout = getDeviceGroupInactivityThresholdString(realGroupNum)
@@ -167,6 +161,14 @@ Map pageMain() {
             paragraph """<ul><li><a href="${getLocalPathWithToken("/dac/report") + "&isLocal=true"}">LAN Link</a></li><li><a href="${getCloudPathWithToken("/dac/report")}">Cloud Link</a></li></ul>"""
          }
       }
+      else {
+         section(styleSection("Report Pages")) {
+            paragraph 'OAuth is not enabled. Please enable OAuth for this app in "Apps Code" per the ' +
+            '<a href="https://github.com/RMoRobert/Hubitat/tree/master/apps/DeviceActivityCheck">installation instructions</a> (new in version ' +
+            '2.2 and 2.3) if you wish to use local or cloud report endpoints to view reports without using the app. Then, re-open the app and select "Done."'
+         }
+      }
+      
       
       section("Advanced Options", hideable: true, hidden: true) {
          label title: "Customize installed app name:", required: true
@@ -217,7 +219,7 @@ Map pageDeviceGroup(params) {
             default: // will catch default/inactivity method:
                capabilityFilter = "capability.*"
          }
-         input name: "group${groupNum}.devices", type: capabilityFilter, multiple: true, title: "Select devices to monitor", submitOnChange: true
+         input name: "group${groupNum}.devices", type: capabilityFilter, multiple: true, title: "Select devices to monitor", showFilter: true, submitOnChange: true
       }
       section(styleSection("Inactivity Threshold")) {
          input name: "group${groupNum}.inactivityMethod", title: "Inactivity detection method:", type: "enum",

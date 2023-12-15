@@ -17,6 +17,8 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 2.3   (2023-12-14) - Add search for device list
+ * 2.2   (2023-05-27) - Add OAuth endpoints to view reports locally or via cloud (not "officially" released but can be used if don't want 3.x now)
  * 2.1.2 (2023-02-15) - Fix snooze time calcuations
  * 2.1.1 (2023-02-11) - Remove accidental extra logging
  * 2.1   (2023-02-05) - Add healthStatus attribute option
@@ -46,6 +48,7 @@
  */
 
 import groovy.transform.Field
+import groovy.xml.MarkupBuilder
 import com.hubitat.app.DeviceWrapper
 
 @Field static final String defaultDateTimeFormat = 'MMM d, yyyy, h:mm a'
@@ -68,7 +71,7 @@ definition(
    name: "Device Activity Check",
    namespace: "RMoRobert",
    author: "Robert Morris",
-   description: "Identify devices without recent activity that may have stopped working or \"fallen off\" your network",
+   description: "Identify devices without recent activity (or select other methods) that may have stopped working or \"fallen off\" your network",
    category: "Convenience",
    iconUrl: "",
    iconX2Url: "",
@@ -97,7 +100,7 @@ Map pageMain() {
       state.remove("currGroupNum")
       state.remove("currGroupDispNum")
       app.removeSetting("debugLogging") // from 1.1.0 and earlier; can probably remove in future
-      
+
       section(styleSection("Devices to Monitor")) {
          groups.eachWithIndex { realGroupNum, groupIndex ->
             String timeout = getDeviceGroupInactivityThresholdString(realGroupNum)
@@ -151,6 +154,21 @@ Map pageMain() {
          input name: "btnTestNotification", type: "button", title: "Test Notification Now", width: 11
          input name: "btnSave", type: "button", title: "Update", width: 1, submitOnChange: true
       }
+
+      if (state.accessToken) {
+         section(styleSection("Report Pages")) {
+            paragraph "To access reports from your LAN or the cloud (without needing to use the regular hub interface), use one of the links below:"
+            paragraph """<ul><li><a href="${getLocalPathWithToken("/dac/report") + "&isLocal=true"}">LAN Link</a></li><li><a href="${getCloudPathWithToken("/dac/report")}">Cloud Link</a></li></ul>"""
+         }
+      }
+      else {
+         section(styleSection("Report Pages")) {
+            paragraph 'OAuth is not enabled. Please enable OAuth for this app in "Apps Code" per the ' +
+            '<a href="https://github.com/RMoRobert/Hubitat/tree/master/apps/DeviceActivityCheck">installation instructions</a> (new in version ' +
+            '2.2 and 2.3) if you wish to use local or cloud report endpoints to view reports without using the app. Then, re-open the app and select "Done."'
+         }
+      }
+      
       
       section("Advanced Options", hideable: true, hidden: true) {
          label title: "Customize installed app name:", required: true
@@ -201,7 +219,7 @@ Map pageDeviceGroup(params) {
             default: // will catch default/inactivity method:
                capabilityFilter = "capability.*"
          }
-         input name: "group${groupNum}.devices", type: capabilityFilter, multiple: true, title: "Select devices to monitor", submitOnChange: true
+         input name: "group${groupNum}.devices", type: capabilityFilter, multiple: true, title: "Select devices to monitor", showFilter: true, submitOnChange: true
       }
       section(styleSection("Inactivity Threshold")) {
          input name: "group${groupNum}.inactivityMethod", title: "Inactivity detection method:", type: "enum",
@@ -727,6 +745,7 @@ void initialize() {
    if (settings["debugLevel"] && settings["debugLevel"].toInteger() != 0) {
       log.debug "Debug logging is enabled for ${app.label}. It will remain enabled until manually disabled."
    }
+   initializeAppEndpoint()
    unsubscribe()
    if (settings["notificationTime"]) schedule(settings["notificationTime"], scheduleHandler)
    if (settings["notificationSwitch"]) subscribe(settings["notificationSwitch"], "switch.on", "switchHandler")
@@ -770,6 +789,27 @@ void appButtonHandler(String btn) {
    }
 }
 
+//=========================================================================
+// Other Methods
+//=========================================================================
+
+/**
+ * Intended to be called the first time app is run or if user requests reset of tokens
+ */
+private void initializeAppEndpoint(Boolean forceNewAccessToken=false) {
+   logDebug "initializeAppEndpoint()"
+   if (!state.accessToken || forceNewAccessToken) {
+      try {
+         log.debug "Creating access token..."
+         createAccessToken()
+      } 
+      catch(Exception ex) {
+         log.warn "Failed to generate access token: $ex"
+         state.remove("accessToken")
+      }
+   }
+}
+
 /** Writes to log.debug by default if debug logging setting enabled; can specify
   * other log level (e.g., "info") if desired
   */
@@ -782,3 +822,135 @@ void logDebug(String str, String level="debug") {
         if (settings["debugLevel"] != null && (settings["debugLevel"].toInteger()) >= 1) log."$level"(str)
    }
 }
+
+//=========================================================================
+// HTTP Endpoint Methods/Handlers and Fields
+//=========================================================================
+
+mappings {
+   path("/dac/report") {action: [GET: "handleHttpReport"]}
+   path("/dac/toggleSnooze") {action: [POST: "handleHttpToggleSnooze"]}
+}
+
+Map handleHttpReport() {
+   logDebug "handleHttpReport", "trace"
+   Boolean isLocal = params.isLocal == "true" || params.isLocal == true
+   render contentType: "text/html", status: 200, data: createReportHTML(isLocal)
+}
+
+Map handleHttpToggleSnooze() {
+   logDebug "handleHttpToggleSnooze(); params = $params", "trace"
+   String deviceId = request?.JSON?.deviceId
+   Map<String,String> returnJSON
+   if (deviceId != null) {
+      if (checkIfSnoozed(deviceId)) {
+         unsnoozeDevice(deviceId)
+         returnJSON = [status: "unsnoozed"]
+      }
+      else {
+         snoozeDevice(deviceId)
+         returnJSON = [status: "snoozed"]
+      }
+   }
+   else {
+      logDebug "received snooze request with no device ID"
+      returnJSON = [status: "error"]
+   }
+   returnJSON
+}
+
+String getLocalPathWithToken(String forPath) {
+   return getFullLocalApiServerUrl() + forPath + "?access_token=${state.accessToken}"
+}
+
+String getCloudPathWithToken(String forPath) {
+   return getFullApiServerUrl() + forPath + "?access_token=${state.accessToken}"
+}
+
+String createReportHTML(Boolean isLocal=true) {
+   StringWriter swriter = new StringWriter()
+   MarkupBuilder markup = new groovy.xml.MarkupBuilder(swriter)
+   Map<DeviceWrapper,List<String>> inactiveDeviceMap = getInactiveDeviceMap(true)
+   if (inactiveDeviceMap) inactiveDeviceMap = inactiveDeviceMap.sort { it.key.displayName }
+   swriter.write "<!DOCTYPE html>\n<html><head>\n"
+   new MarkupBuilder(swriter).title("Device Activity Check - ${location.name}")
+   swriter.write "\n<style>$reportCSS</style>\n<script>$tableSortJS\n$toggleSnoozeJS</script>\n</head>\n"
+   new MarkupBuilder(swriter).body {
+      header {
+         h1("Inactive Device Report")
+         div(role: "doc-subtitle", app.name)
+         p(location.name)
+      }
+      table(id: "reportTable") {
+         tr(class: "header") {
+            th(onclick: "sortTable(0);", "Device")
+            th(onclick: "sortTable(1);", "Status/Last Activity")
+            th(onclick: "sortTable(2);", "Snooze")
+         }
+         inactiveDeviceMap.each { DeviceWrapper dev, List<String> states ->
+            tr {
+               if (isLocal) {
+                  td { a(href: "/device/edit/${dev.id}", dev.displayName) }
+               }
+               else {
+                  td(dev.displayName)
+               }
+               td(states.join(', '))
+               td {
+                  if (checkIfSnoozed(dev.id)) {
+                     // using uppercase to avoid collision with Hubitat method...
+                     INPUT(type: "checkbox", id: "snoozebox_dev_${dev.id}", value: "snoozebox_dev_${dev.id}",
+                        onclick: "toggleSnooze(${dev.id})", checked: true)
+                     label(for: "snoozebox_dev_${dev.id}", hidden: true, "Is snoozed?")
+                  }
+                  else {
+                     INPUT(type: "checkbox", id: "snoozebox_dev_${dev.id}", value: "snoozebox_dev_${dev.id}",
+                        onclick: "toggleSnooze(${dev.id})")
+                     label(for: "snoozebox_dev_${dev.id}", hidden: true, "Is snoozed?")
+                  }
+               }
+            }
+         }
+      }
+   }
+   swriter.write("</html>")
+   return  swriter.toString()
+}
+
+@Field static final String reportCSS =
+"""
+h1,header>p{padding-top:.25em}[role=doc-subtitle],h1,header>p{margin-top:0;margin-bottom:0}body{font-family:Helvetica,Arial,sans-serif}h1{padding-bottom:.1em}[role=doc-subtitle]{padding-top:.1em;padding-bottom:.5em}header>p{padding-bottom:1.5em;font-size:85%}#reportTable{border-collapse:collapse;width:100%}#reportTable td,#reportTable th{border:1px solid #ddd;padding:.5em}#reportTable th{cursor:pointer;padding-top:.66em;padding-bottom:.66em;text-align:left;background-color:#8cba00;color:#fff}#reportTable tr:nth-child(2n){background-color:#f2f2f2}#reportTable tr:hover{background-color:#ddd}
+"""
+
+String getToggleSnoozeJS() {
+   """
+   async function toggleSnooze(deviceId) {
+      event.preventDefault();
+      const req = new Request(`../dac/toggleSnooze?access_token=${state.accessToken}`, {
+         method: 'POST',
+         mode: 'cors',
+         redirect: 'follow',
+         headers: {
+            "Content-Type": "application/json"
+         },
+         body: JSON.stringify({ deviceId: +`\${deviceId}` })
+      });
+      const response = await fetch(req);
+      const jsonData = await response.json();
+      const devChkbox = document.getElementById(`snoozebox_dev_\${deviceId}`);
+      if (jsonData?.status == "snoozed") {
+         devChkbox.checked = true;
+      }
+      else if (jsonData?.status == "unsnoozed") {
+         devChkbox.checked = false;
+      }
+      else {
+         console.log("error setting snooze status");
+      }
+   }
+   """
+}
+
+@Field static final String tableSortJS = """
+function sortTable(e){var r,a,n,o,t,s,T,i,L=0;for(r=document.getElementById("reportTable"),n=!0,i="asc";n;){for(o=1,n=!1,a=r.rows;o<a.length-1;o++)if(T=!1,t=a[o].getElementsByTagName("TD")[e],s=a[o+1].getElementsByTagName("TD")[e],"asc"==i){if(t.innerHTML.toLowerCase()>s.innerHTML.toLowerCase()){T=!0;break}}else if("desc"==i&&t.innerHTML.toLowerCase()<s.innerHTML.toLowerCase()){T=!0;break}T?(a[o].parentNode.insertBefore(a[o+1],a[o]),n=!0,L++):0==L&&"asc"==i&&(i="desc",n=!0)}};
+"""

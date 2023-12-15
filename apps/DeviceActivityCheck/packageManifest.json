@@ -1,18 +1,18 @@
 {
    "packageName": "Device Activity Check",
-   "minimumHEVersion": "2.2.6",
+   "minimumHEVersion": "2.3.5",
    "author": "Robert Morris",
-   "dateReleased": "2023-02-15",
+   "dateReleased": "2023-12-14",
    "licenseFile": "",
-   "releaseNotes": "*Version 2.1.2: Fix for snooze time calcuations\n\n*Version 2.1.1: Remove accidental extra logging\n\n* Version 2.1: Add \"snooze\" feature for devices in report; add buttons as additional report trigger mechanism; add \"deviceHealth\" attribute as option\n\n* Version 2.0.1: Fix for platform version 2.3.2. \n* Version 2.0: Improved reports for non-activity-based methods (shows attribute value), filter device-selection list based on detection method, new date format options for report vs. notification, improved refresh behavior (if option selected)\n\n* Version 1.5.1 - Filter device list when different detection methods are chosen\n\n* Version 1.5 - Added battery level as a report/notification option\n\n* Version 1.4.7 - Fix for missing dates on some reports\n\n* Version 1.4.6 - Fix spurious warning in logs when using presence detection and refresh\n\nVersion 1.4.5 - Additional refinements to 'refresh' behavior if configured; fix for inactivity thresholds >24 hours\n\n* Version 1.4.4 - Fix for hours/minutes display when calculating total time for threshold (cosmetic issue only)\nVersion 1.4.3: Fix for possible Null Pointer Exception when checking presence-based devices.\nVersion 1.4.2: Fix for refresh not working with inactive devices before notification or report.\n\nVersion 1.4: Added links to device pages on hub report/test page; improved refresh behavior.\nVersion 1.3: Added ability to refresh devices before sending notification, choose multiple notification devices, and added default date/time formatting for reprot page\n\nPrevious releases:\n * Added ability to monitor presence instead of just device activity\n * Added ability to ignore disabled devices (on by default)",
+   "releaseNotes": "*Version 2.3: Add search box to device list. Users ugrading from 2.1 or older will likely want to enable OAuth. See GitHub or Communtiy thread for more details.\n*Version 2.2: Add local and cloud OAuth endpoints for reports\n\n*Version 2.1.2: Fix for snooze time calcuations\n\n*Version 2.1.1: Remove accidental extra logging\n\n* Version 2.1: Add \"snooze\" feature for devices in report; add buttons as additional report trigger mechanism; add \"deviceHealth\" attribute as option\n\n* Version 2.0.1: Fix for platform version 2.3.2. \n* Version 2.0: Improved reports for non-activity-based methods (shows attribute value), filter device-selection list based on detection method, new date format options for report vs. notification, improved refresh behavior (if option selected)\n\n* Version 1.5.1 - Filter device list when different detection methods are chosen\n\n* Version 1.5 - Added battery level as a report/notification option\n\n* Version 1.4.7 - Fix for missing dates on some reports\n\n* Version 1.4.6 - Fix spurious warning in logs when using presence detection and refresh\n\nVersion 1.4.5 - Additional refinements to 'refresh' behavior if configured; fix for inactivity thresholds >24 hours\n\n* Version 1.4.4 - Fix for hours/minutes display when calculating total time for threshold (cosmetic issue only)\nVersion 1.4.3: Fix for possible Null Pointer Exception when checking presence-based devices.\nVersion 1.4.2: Fix for refresh not working with inactive devices before notification or report.\n\nVersion 1.4: Added links to device pages on hub report/test page; improved refresh behavior.\nVersion 1.3: Added ability to refresh devices before sending notification, choose multiple notification devices, and added default date/time formatting for reprot page\n\nPrevious releases:\n * Added ability to monitor presence instead of just device activity\n * Added ability to ignore disabled devices (on by default)",
    "apps": [{
          "id": "2fd4ad8d-ac71-4dd1-892d-d169b7a9753b",
          "name": "Device Activity Check",
          "namespace": "RMoRobert",
          "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceActivityCheck/DeviceActivityCheck2.groovy",
          "required": true,
-         "version": "2.1.2",
+         "version": "2.3.0",
          "primary": true,
-         "oauth": false
+         "oauth": true
       }]
 }
