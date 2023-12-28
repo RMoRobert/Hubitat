@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 3.2.1 (2023-12-28) - Add option to use hub variable for TTS speak level
  * 3.2   (2023-06-13) - Add support for hub variables in notification/speech and prepend/append text
  * 3.1.1 (2023-02-02) - Remove inadvertent logging even when disabled
  * 3.1   (2023-02-25) - Add power meteter
@@ -158,8 +159,15 @@ Map pageMain() {
          input name: "btnTestNotification", type: "button", title: "Test Announcement/Notification Now", submitOnChange: true
       }
       
-      section("Advanced Options", hideable: true, hidden: true) {
-         input name: "ttsVolume", type: "number", title: "Specify volume for \"Speak\" command (optional)"
+      section("Advanced Options", hideable: true, hidden: !(settings.ttsVolumeUseVariable == true)) {
+         if (ttsVolumeUseVariable == true) {
+            List<String> vars =  getGlobalVarsByType("integer")?.collect { it.key } ?: []
+            input name: "ttsVolumeVariable", type: "enum", title: "Specify volume for \"Speak\" command:", width: 6, options: vars
+         }
+         else {
+            input name: "ttsVolume", type: "number", title: "Specify volume for \"Speak\" command (optional)", width: 6
+         }
+         input name: "ttsVolumeUseVariable", type: "bool", title: "Use variable for \"Speak\" command volume?", width: 6, submitOnChange: true
          input name: "boolIncludeDisabled", type: "bool", title: "Include disabled devices in report"
          input "modes", "mode", title: "Only make announcements/notifications when mode is", multiple: true, required: false
          input name: "debugLogging", type: "bool", title: "Enable debug logging" 
@@ -460,17 +468,20 @@ String replaceVariablesInText(String text) {
 }
 
 String registerHubVariables() {
-   if (settings["allGoodSpeech"]) {
-      registerHubVariablesFromText(settings["allGoodSpeech"])
+   if (settings.allGoodSpeech) {
+      registerHubVariablesFromText(settings.allGoodSpeech)
    }
-   if (settings["allGoodNotification"]) {
-      registerHubVariablesFromText(settings["allGoodNotification"])
+   if (settings.allGoodNotification) {
+      registerHubVariablesFromText(settings.allGoodNotification)
    }
-   if (settings["prependText"]) {
-      registerHubVariablesFromText(settings["prependText"])
+   if (settings.prependText) {
+      registerHubVariablesFromText(settings.prependText)
    }
-   if (settings["appendText"]) {
-      registerHubVariablesFromText(settings["appendText"])
+   if (settings.appendText) {
+      registerHubVariablesFromText(settings.appendText)
+   }
+   if (settings.ttsVolumeUseVariable && settings.ttsVolumeVariable != null) {
+      addInUseGlobalVar(settings.ttsVolumeVariable)
    }
 }
 
@@ -488,6 +499,7 @@ void renameVariable(String oldName, String newName) {
    if (settings.allGoodNotification) app.updateSetting("allGoodNotification", [type: "text", value: settings.allGoodNotification.replaceAll("%${oldName}%", "%${newName}%")])
    if (settings.prependText) app.updateSetting("prependText", [type: "text", value: settings.prependText.replaceAll("%${oldName}%", "%${newName}%")])
    if (settings.appendText) app.updateSetting("appendText", [type: "text", value: settings.appendText.replaceAll("%${oldName}%", "%${newName}%")])
+   if (settings.ttsVolumeUseVariable && oldName == settings.ttsVolumeVariable) app.updateSetting("ttsVolumeVariable", [type: "enum", value: newName])
 }
 
 /** Sends notification and/or TTS announcement with list of devices in undesired state unless none and not configured to send/speak if none
@@ -517,7 +529,16 @@ void doNotificationOrAnnouncement() {
       }
       if (speechText) {
          logDebug "Doing TTS for undesired devices: \"${speechText}\""
-         if (settings.ttsVolume != null) speechDevice?.speak(speechText, settings.ttsVolume)
+         Integer ttsVol
+         if (settings.ttsVolumeUseVariable) {
+            ttsVol = getGlobalVar(settings.ttsVolumeVariable)?.value ?: null
+         }
+         else if (settings.ttsVolume != null) {
+            ttsVol = settings.ttsVolume
+         }
+         // Now, actually speak
+         // Using both separaretly for now in case any "legacy" drivers don't like second parameter:
+         if (ttsVol != null) speechDevice?.speak(speechText, ttsVol)
          else speechDevice?.speak(speechText)
       }
       else {
