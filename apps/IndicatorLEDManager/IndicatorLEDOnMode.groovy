@@ -160,11 +160,12 @@ void modeChangeHandler(evt=null, Long overrideModeId=null) {
             }
          }
          else if (dev.hasCommand("setLEDColor") && dev.hasCommand("setOnLEDLevel")) {
-               if (logEnable) log.trace "sending setOnLEDLevel($onLevel)"
+               if (logEnable) log.trace "sending setLEDColor($color)"
                dev.setLEDColor(color)
                if (settings.msDelay) {
                   pauseExecution(settings.msDelay as Integer)
                }
+               if (logEnable) log.trace "sending setOnLEDLevel($level)"
                dev.setOnLEDLevel(level)
                if (settings.msDelay) {
                   pauseExecution(settings.msDelay as Integer)
