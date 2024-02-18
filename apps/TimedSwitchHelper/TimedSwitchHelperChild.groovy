@@ -10,7 +10,7 @@
  *  Add code for parent app and then and child app (this). Install/create new instance of parent
  *  app and begin using.
  *
- *  Copyright 2021 Robert Morris
+ *  Copyright 2024 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -22,13 +22,14 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2021-04-29
+ *  Last modified: 2024-02-18
  * 
  *  Changelog:
  * 
- *  2.0 - Added options to cancel or restart timer with "main" switch change
-        - Easier path to timing one swith witout separate virtual/timed switch; code cleanup
- *  1.0 - Initial public release
+ *  2.0.1 - Fix for "also turn off (second switch) when (first switch) turned off behavior"
+ *  2.0   - Added options to cancel or restart timer with "main" switch change
+          - Easier path to timing one swith witout separate virtual/timed switch; code cleanup
+ *  1.0   - Initial public release
  *
  */
 
@@ -145,9 +146,9 @@ void switch1Handler(evt) {
       logDebug "First switch (${switch1.displayName}) turned off; canceling timers (if any)"
       unschedule()
       if (settings.turnOff1) {
-         log.debug "Also turning off second switch (${switch2.displayName})"         
+         log.debug "Also turning off second switch (${switch2.displayName})"
          //if (settings.debounceTime) setRecentOffTrue()
-         switch1.off()
+         switch2.off()
          //if (settings.debounceTime) runIn(settings.debounceTime as Integer, "setRecentOffFalse")
       }
    }
