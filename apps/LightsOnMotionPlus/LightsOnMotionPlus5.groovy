@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2024-02-03
+ *  Last modified: 2024-02-22
  *
  *  Changelog:
  *
+ * 5.5.4 - Remove extraneous "trace" logging
  * 5.5.3 - Fix for lights erroneously turning on when were not on before with grace period configured
  * 5.5.2 - Fix for CT devices
  * 5.5.1 - Always show option for saving exception modes into non-exception cache (regardless of selected actions); fix for killswitches
@@ -557,7 +558,6 @@ List<DeviceWrapper> getDevicesToTurnOn() {
          devsToOn = settings["lights"]
       }
    }
-   log.trace "returning $devsToOn"
    return devsToOn
 }
 
@@ -633,11 +633,9 @@ void performActiveAction() {
                logDebug '  action is "ct"', 2, "debug"
                getDevicesToTurnOn().each {
                   if (settings["onColor.L${suffix}"]) {
-                     log.trace "1 setColorTemperature on $it"
                      it.setColorTemperature(settings["onColor.CT${suffix}"], settings["onColor.L${suffix}"])
                   }
                   else {
-                     log.trace "2 setColorTemperature on $it"
                      it.setColorTemperature(settings["onColor.CT${suffix}"])
                   }
                }
