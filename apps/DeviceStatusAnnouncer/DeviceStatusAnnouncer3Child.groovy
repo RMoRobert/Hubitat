@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 3.2.3 (2024-03-13) - Alphabetize device names in custom group list summaries
  * 3.2.2 (2024-03-13) - Add option to omit attribute name for custom devices
  * 3.2.1 (2023-12-28) - Add option to use hub variable for TTS speak level
  * 3.2   (2023-06-13) - Add support for hub variables in notification/speech and prepend/append text
@@ -279,7 +280,7 @@ Map pageViewReport() {
 String getDeviceGroupDescription(Integer groupNum) {
    String desc = ""
    if (settings."customDeviceGroup_${groupNum}_capability") {
-      String deviceNames = settings."customDeviceGroup_${groupNum}_devs"?.collect { it.displayName }?.join(", ")
+      String deviceNames = settings."customDeviceGroup_${groupNum}_devs"?.collect({it.displayName})?.sort()?.join(", ")
       String capability = settings."customDeviceGroup_${groupNum}_capability"
       String attribute = customDeviceCapabilities."${capability}"?.attribute ?: "(unsupported attribute; please re-select)"
       String attributeDisplayName = customDeviceCapabilities."${capability}"?.displayName ?: "(unknown)"
