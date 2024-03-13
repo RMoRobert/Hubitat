@@ -391,13 +391,24 @@ String getDeviceStatusReport() {
                String isOrIsnt = settings."customDeviceGroup_${groupNum}_isOrIsnt"
                List<String> values = settings."customDeviceGroup_${groupNum}_stateString"
                devs.each { com.hubitat.app.DeviceWrapper d ->
+                  String attributeDispName = customDeviceCapabilities."$capability"?.displayName 
                   if (isOrIsnt == "is not") {
                      if (!(values.contains(d.currentValue(attribute)))) {
-                       statusReportList << """${d.displayName} ${customDeviceCapabilities."$capability"?.displayName} is ${d.currentValue(attribute)}"""
+                        if (settings."customDeviceGroup_${groupNum}_omitAttributeName" == true) {
+                           statusReportList << """${d.displayName} is ${d.currentValue(attribute)}"""
+                        }
+                        else {
+                           statusReportList << """${d.displayName} ${customDeviceCapabilities."$capability"?.displayName} is ${d.currentValue(attribute)}"""
+                        }
                      }
                   }
                   else if ((values.contains(d.currentValue(attribute)))) {
-                     statusReportList << """${d.displayName} ${customDeviceCapabilities."$capability"?.displayName} is ${d.currentValue(attribute)}"""
+                     if (settings."customDeviceGroup_${groupNum}_omitAttributeName" == true) {
+                        statusReportList << """${d.displayName} is ${d.currentValue(attribute)}"""
+                     }
+                     else {
+                        statusReportList << """${d.displayName} ${customDeviceCapabilities."$capability"?.displayName} is ${d.currentValue(attribute)}"""
+                     }
                   }
                }
             }
