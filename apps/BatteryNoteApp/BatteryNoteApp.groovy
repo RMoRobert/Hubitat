@@ -1,5 +1,6 @@
 /**
  *  Battery Note App for Hubitat
+ *
  *  Description: Tracks battery replacement and other information (e.g., battery size) for devices on your
  *               Hubitat Elevation system in the app.
  *
@@ -13,6 +14,9 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *  Changes:
+ *   2023-12-18: Add search/filter box for device list
+ *   2023-09-23: Add more graceful handling of surprise-removed devices
+ *   2023-07-25: Add link to device detail page on battery note page (in title), custom battery fix
  *   2023-03-19: Add device list sorting and filtering options
  *   2023-01-18: Initial release
  *
@@ -20,8 +24,6 @@
  
 import groovy.transform.Field
 import com.hubitat.app.DeviceWrapper
-
-@Field static final Boolean logEnable = true
 
 // Device type filters:
 @Field static final String strBattery = "capability.battery"
@@ -64,9 +66,10 @@ def mainPage() {
                defaultValue: strDefaultFilter, submitOnChange: true, width: 4
             paragraph "NOTE: Changing any options above after selecting devices may result in needing to re-select devices."
          }
+         input "showSearch", "bool", title: "Show device name filter/search box?", defaultValue: true, submitOnChange: true
          String deviceListSelector = strDefaultFilter
          if (isFilter && filterBy) deviceListSelector = filterBy
-         input "devices", deviceListSelector, title: "Select devices", multiple: true, submitOnChange: true
+         input "devices", deviceListSelector, title: "Select devices", multiple: true, submitOnChange: true, showFilter: (showSearch != false)
       }
       section(styleSection("Individual Devices")) {
          paragraph "To make a change on a single device at a time, select the device from the list below."
@@ -92,11 +95,22 @@ def mainPage() {
                filteredDevices?.sort { DeviceWrapper d -> d.getLastActivity() }
                break
             default: // including display name
-               filteredDevices?.sort { DeviceWrapper d -> d.displayName }
+               try {
+                  filteredDevices?.sort { DeviceWrapper d -> d.displayName }
+               }
+               catch (Exception ex) {
+                  if (logEnable) log.warn "Problem sorting: ${ex.description}"
+                  // nothing, leave unsorted?
+               }
          }
          // Display list:
+         try {
          filteredDevices.each { DeviceWrapper dev ->
-            href name: "hrefDevicePage", page: "devicePage", title: dev.displayName, description: "", params: ["deviceId": dev.id]
+            href name: "hrefDevicePage", page: "devicePage", title: dev?.displayName ?: "(not found)", description: "", params: ["deviceId": dev.id]
+         }
+         }
+         catch (Exception ex) {
+            paragraph "Problem displaying entry for unknown device: {$ex}. Make sure you remove any devices from this app before removing from your hub. Open device selection above and select \"Done\" as a possible fix."
          }
       }
       section(styleSection("History Size")) {
@@ -116,16 +130,16 @@ def mainPage() {
 def devicePage(Map params) {
    if (params) state.devicePageParams = params
    DeviceWrapper dev = devices.find { DeviceWrapper dev -> dev.id == state.devicePageParams?.deviceId}
-   dynamicPage(name:"devicePage", title: dev.displayName, nextPage: "mainPage") {
+   dynamicPage(name:"devicePage", title: "Battery Notes for <a href=\"/device/edit/${dev.deviceId}\">${dev.displayName}</a>", nextPage: "mainPage") {
       section(styleSection("Battery Type")) {
-         if (isCustomBattery) {
+         if (settings["isCustomBattery_${dev.id}"]) {
             input "batteryType_${dev.id}", "string", title: "Battery type:"
          }
          else {
             input "batteryType_${dev.id}", "enum", options: defaultBatteryTypes, title: "Battery type:"
          }
          input "isCustomBattery_${dev.id}", "bool", title: "Custom battery type?", submitOnChange: true
-         input "isRechargeable_${dev.id}", "bool", title: "Rechargeable?", submitOnChange: true
+         input "isRechargeable_${dev.id}", "bool", title: "Rechargeable?", submitOnChange: true, width: 5
       }
       section(styleSection("Add ${isRechargeable? 'Recharge' : 'Replacement'} Date")) {
          String dateText = isRechargeable ? "Add battery-recharged date" : "Add battery replacement date"
