@@ -17,7 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
- * 3.2.3 (2024-03-13) - Alphabetize device names in custom group list summaries
+ * 3.2.3 (2024-03-13) - Alphabetize device names in custom group list summaries and notifications
  * 3.2.2 (2024-03-13) - Add option to omit attribute name for custom devices
  * 3.2.1 (2023-12-28) - Add option to use hub variable for TTS speak level
  * 3.2   (2023-06-13) - Add support for hub variables in notification/speech and prepend/append text
@@ -380,7 +380,7 @@ String getDeviceStatusReport() {
       }
    }
    state.customDeviceGroups?.each { Integer groupNum ->
-      com.hubitat.app.DeviceWrapperList devs = settings."customDeviceGroup_${groupNum}_devs"
+      List<com.hubitat.app.DeviceWrapper> devs = settings."customDeviceGroup_${groupNum}_devs"
       String capability = settings."customDeviceGroup_${groupNum}_capability"
       String attribute = customDeviceCapabilities."${capability}"?.attribute
       if (attribute == null) {
@@ -391,7 +391,7 @@ String getDeviceStatusReport() {
             if (customDeviceCapabilities."$capability"?.type == "string") {
                String isOrIsnt = settings."customDeviceGroup_${groupNum}_isOrIsnt"
                List<String> values = settings."customDeviceGroup_${groupNum}_stateString"
-               devs.each { com.hubitat.app.DeviceWrapper d ->
+               devs?.sort({it.displayName}).each { com.hubitat.app.DeviceWrapper d ->
                   String attributeDispName = customDeviceCapabilities."$capability"?.displayName 
                   if (isOrIsnt == "is not") {
                      if (!(values.contains(d.currentValue(attribute)))) {
