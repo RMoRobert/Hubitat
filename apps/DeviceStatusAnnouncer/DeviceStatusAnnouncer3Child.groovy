@@ -2,7 +2,7 @@
  * ==========================  Device Status Announcer ==========================
  *  Platform: Hubitat Elevation
  *
- *  Copyright 2023 Robert Morris
+ *  Copyright 2024 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 3.2.2 (2024-03-13) - Add option to omit attribute name for custom devices
  * 3.2.1 (2023-12-28) - Add option to use hub variable for TTS speak level
  * 3.2   (2023-06-13) - Add support for hub variables in notification/speech and prepend/append text
  * 3.1.1 (2023-02-02) - Remove inadvertent logging even when disabled
@@ -97,7 +98,6 @@ Map pageMain() {
             String strTitle = customDeviceCapabilities."$capability"?.displayName ?
                               """Custom ${customDeviceCapabilities."$capability".displayName} devices""" :
                               "Custom devices (click/tap to configure)"
-            //String strTitle = "customDeviceGroup_ ..."
             href(name: "pageCustomDeviceGroup${groupNum}Href",
                page: "pageCustomDeviceGroup",
                params: [groupNumber: groupNum],
@@ -218,6 +218,7 @@ def pageCustomDeviceGroup(Map params) {
                   paragraph "Unsupported capability; verify settings."
                }
             }
+            input name: "customDeviceGroup_${groupNum}_omitAttributeName", type: "bool", title: "Omit attribute name (${customDeviceCapabilities[capability]?.attribute}) in notification"
          }
          href(name: "hrefRemoveCustomDeviceGroup",
                page: "pageRemoveCustomDeviceGroup",
@@ -408,23 +409,30 @@ String getDeviceStatusReport() {
                   Integer currentValue = Math.round((d.currentValue(attribute) ?: 0) as BigDecimal)
                   // If so, this should suffice:
                   //Integer currentValue = d.currentValue(attribute)
+                  String statusText // may or may not actually be appended, depending on comparisions a few lines below
+                  if (settings."customDeviceGroup_${groupNum}_omitAttributeName" == true) {
+                     statusText = """${d.displayName} is ${currentValue}"""
+                  }
+                  else {
+                     statusText = """${d.displayName} ${customDeviceCapabilities."$capability"?.displayName} is ${currentValue}"""
+                  }                  
                   if (aboveBelowEqual == "=") {
-                     if (currentValue == value) statusReportList << """${d.displayName} ${customDeviceCapabilities."$capability"?.displayName} is ${currentValue}"""
+                     if (currentValue == value) statusReportList << statusText
                   }
                   else if (aboveBelowEqual == "!=") {
-                     if (currentValue != value) statusReportList << """${d.displayName} ${customDeviceCapabilities."$capability"?.displayName} is ${currentValue}"""
+                     if (currentValue != value) statusReportList << statusText
                   }
                   else if (aboveBelowEqual == "<=") {
-                     if (currentValue <= value) statusReportList << """${d.displayName} ${customDeviceCapabilities."$capability"?.displayName} is ${currentValue}"""
+                     if (currentValue <= value) statusReportList << statusText
                   }
                   else if (aboveBelowEqual == "<") {
-                     if (currentValue < value) statusReportList << """${d.displayName} ${customDeviceCapabilities."$capability"?.displayName} is ${currentValue}"""
+                     if (currentValue < value) statusReportList << statusText
                   }
                   else if (aboveBelowEqual == ">") {
-                     if (currentValue > value) statusReportList << """${d.displayName} ${customDeviceCapabilities."$capability"?.displayName} is ${currentValue}"""
+                     if (currentValue > value) statusReportList << statusText
                   }
                   else if (aboveBelowEqual == ">=") {
-                     if (currentValue >= value) statusReportList << """${d.displayName} ${customDeviceCapabilities."$capability"?.displayName} is ${currentValue}"""
+                     if (currentValue >= value) statusReportList << statusText
                   }
                   else {
                      log.warn "unsupported comparison: $aboveBelowEqual"
@@ -436,8 +444,13 @@ String getDeviceStatusReport() {
             }
          }
          else {
-            devs.each { com.hubitat.app.DeviceWrapper d -> 
-               statusReportList << """${d.displayName} ${customDeviceCapabilities."$capability"?.displayName} is ${d.currentValue(attribute)}"""
+            devs.each { com.hubitat.app.DeviceWrapper d ->
+               if (settings."customDeviceGroup_${groupNum}_omitAttributeName" == true) {
+                  statusReportList << """${d.displayName} is ${d.currentValue(attribute)}"""
+               }
+               else {
+                  statusReportList << """${d.displayName} ${customDeviceCapabilities."$capability"?.displayName} is ${d.currentValue(attribute)}"""
+               }
             }
          }
       }
