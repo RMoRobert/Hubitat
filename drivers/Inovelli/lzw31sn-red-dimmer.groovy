@@ -596,12 +596,7 @@ List<String> setLEDColor(String color, level=null) {
    List<String> cmds = []
    cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: intColor, parameterNumber: 13, size: 2)))
    if (level != null) {
-      Double dblLevel = level.toDouble()
-      Integer scaledIntLevel = Math.round(dblLevel/10)
-      if (dblLevel >= 0.1 && scaledIntLevel == 0) scaledIntLevel = 1
-      if (scaledIntLevel < 0) scaledIntLevel = 0
-      else if (scaledIntLevel > 10) scaledIntLevel = 10
-      cmds.add(zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: scaledIntLevel, parameterNumber: 14, size: 1)))
+      cmds.add(setOnLEDLevel(level))
    }
    return delayBetween(cmds, 750)
 }
@@ -611,7 +606,7 @@ String setOnLEDLevel(value) {
    if (enableDebug) log.debug "setOnLEDLevel($value)"
    Double dblLevel = value.toDouble()
    Integer scaledIntLevel = Math.round(dblLevel/10)
-   if (dblLevel >= 0.1 && scaledIntLevel == 0) scaledIntLevel = 1
+   if (dblLevel >= 0.09 && scaledIntLevel == 0) scaledIntLevel = 1
    return setParameter(14, scaledIntLevel, 1)
 }
 
@@ -620,7 +615,7 @@ String setOffLEDLevel(value) {
    if (enableDebug) log.debug "setOffLEDLevel($value)"
    Double dblLevel = value.toDouble()
    Integer scaledIntLevel = Math.round(dblLevel/10)
-   if (dblLevel >= 0.1 && scaledIntLevel == 0) scaledIntLevel = 1
+   if (dblLevel >= 0.099 && scaledIntLevel == 0) scaledIntLevel = 1
    return setParameter(15, scaledIntLevel, 1)
 }
 
