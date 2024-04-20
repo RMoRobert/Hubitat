@@ -15,6 +15,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.0.1  (2024-04-05) - Add updateFirmware command, importUrl, other minor changes
  *  v1.0    (2024-04-03) - Initial release
  * 
  */
@@ -179,10 +180,13 @@ import com.hubitat.zigbee.DataType
 ]
 
 metadata {
-   definition (name: "Inovelli VZM36 Fan/Light Canopy Module", namespace: "RMoRobert", author: "Robert Morris") {
+   definition (name: "Inovelli VZM36 Fan/Light Canopy Module", namespace: "RMoRobert", author: "Robert Morris",
+               importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/Inovelli/vzm36-fan-light-module.groovy") {
       capability "Actuator"
       capability "Configuration"
       capability "Refresh"
+
+      command "updateFirmware"
 
       fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0003,0004,0005,0006,0008,0B05,1000,FC31,FC57", outClusters:"0019", model:"VZM36", manufacturer:"Inovelli" 
    }
@@ -194,7 +198,7 @@ metadata {
       mscAttributesEp2.each { attrDetails ->
          input(getInputParamsForMscPreference(attrDetails, 2))
       }
-      input name: "showAttrNumber", type: "bool", title: "Show attribute (\"parameter\") numbers for device-specific preferences"
+      input name: "showAttrNumber", type: "bool", title: "Show attribute (\"parameter\") numbers for device-specific preferences in UI"
       input name: "logEnable", type: "bool", title: "Enable debug logging", defaultValue: true
       input name: "txtEnable", type: "bool", title: "Enable descriptionText logging", defaultValue: true
    }
@@ -226,6 +230,7 @@ String getSettingNameForMscPreference(attrDetails, Integer endpoint) {
 
 void installed() {
    log.debug "installed()"
+   runIn(3, "createChildDevicesIfNeeded")
 }
 
 void updated() {
@@ -284,6 +289,16 @@ void parse(String description) {
    Map descMap = zigbee.parseDescriptionAsMap(description)
    if (logEnable) log.debug "parsed map: $descMap"
    switch (descMap.clusterInt) {
+      case 0x0000: // Basic
+         switch (descMap.attrInt) {
+            case 0x0006:  // SW Date
+               // Putting these in state since matches Inovelli driver:
+               state.fwDate = descMap.value
+               break
+            case 0x4000: // SW Build ID
+               state.fwVersion = descMap.value
+               break
+         }
       case 0x0006: // On/Off
          if (descMap.attrInt == 0) {
             Integer rawValue = Integer.parseInt(descMap.value, 16)
@@ -344,11 +359,18 @@ void refresh() {
    List<String> cmds = []
    List<Integer> epIds = [1, 2]
    epIds.each { Integer epId ->
-      cmds += zigbee.readAttribute(0x0006, 0x0000, [destEndpoint: epId], 200) // on/off
-      cmds += zigbee.readAttribute(0x0008, 0x0000, [destEndpoint: epId], 200) // level
+      cmds += zigbee.readAttribute(0x0006, 0x0000, [destEndpoint: epId], 200) // On/off
+      cmds += zigbee.readAttribute(0x0008, 0x0000, [destEndpoint: epId], 200) // Level
       // TODO: private clusters for "parameters"?
    }
+   cmds += zigbee.readAttribute(0x0000, 0x0006, null, 200)  // Basic - SW Date
+   cmds += zigbee.readAttribute(0x0000, 0x4000, null, 200)  // Basic - SW Version
    sendToDevice(cmds)
+}
+
+List<String> updateFirmware() {
+    if (logEnable) log.debug "updateFirmware()"
+    return zigbee.updateFirmware()
 }
 
 /***********************
