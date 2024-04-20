@@ -1,7 +1,7 @@
 /**
  *  Zooz ZEN37 (4-Button Remote) community driver for Hubitat
  * 
- *  Copyright 2023 Robert Morris
+ *  Copyright 2024 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -12,11 +12,15 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  * 
+ *  ---------------
  *  Version History
+ *  ---------------
+ *  2024-04-17: Fix descriptionText logging for button events
  *  2023-12-12: Initial release
  *
+ *
  * BUTTON NUMBER/EVENT MAPPING:
- * 
+ * ----------------------------
  * "Base" button number:
  *   - Top button (large)          = button 1
  *   - Middle button (large)       = button 2
@@ -232,9 +236,9 @@ void zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification c
    }
 
    if (btnNum) {
-      String descriptionText = "${device.displayName} button ${btnNum} was ${btnAction}"
-      if (enableDesc) log.info "${descriptionText}"
-      sendEvent(name: "${btnAction}", value: "${btnNum}", descriptionText: descriptionText, isStateChange: true, type: "physical")
+      String descriptionText = "${device.displayName} button ${btnNum} was ${btnAction} (physical)"
+      if (txtEnable) log.info "${descriptionText}"
+      sendEvent(name: btnAction, value: btnNum, descriptionText: descriptionText, isStateChange: true, type: "physical")
    }
 }
 
@@ -359,16 +363,22 @@ void zwaveEvent(hubitat.zwave.Command cmd){
     if (logEnable) log.debug "skip: ${cmd}"
 }
 
-void push(Number btnNum) {
-   sendEvent(name: "pushed", value: btnNum, isStateChange: true, type: "digital")
+void push(btnNum) {
+   Integer intNum = btnNum.toInteger()
+   sendEvent(name: "pushed", value: intNum, isStateChange: true, type: "digital")
+   if (txtEnable) log.info "${device.displayName} button $intNum is pushed (digital)"
 }
 
 void hold(Number btnNum) {
-   sendEvent(name: "held", value: btnNum, isStateChange: true, type: "digital")
+   Integer intNum = btnNum.toInteger()
+   sendEvent(name: "held", value: intNum, isStateChange: true, type: "digital")
+   if (txtEnable) log.info "${device.displayName} button $intNum is held (digital)"
 }
 
 void release(Number btnNum) {
-   sendEvent(name: "released", value: btnNum, isStateChange: true, type: "digital")
+   Integer intNum = btnNum.toInteger()
+   sendEvent(name: "released", value: intNum, isStateChange: true, type: "digital")
+   if (txtEnable) log.info "${device.displayName} button $intNum is released (digital)"
 }
 
 void installed(){
