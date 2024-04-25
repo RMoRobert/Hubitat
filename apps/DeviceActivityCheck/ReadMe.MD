@@ -33,11 +33,13 @@ in the Hubitat Community</a>.
 
 ## Installation Instructions
 
-1. Add the app code to "Apps Code" in the Hubitat admin UI:
+1. **Add the code:** Navigate to **Apps Code** in the hub UI, select **New App**, and copy/paste the code (or import the URL) from:
 https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/DeviceActivityCheck/DeviceActivityCheck2.groovy
 
-2. Create a new instance of the app under "Apps" > "Add User App." Choose "Device Activity Check," and follow the instructions.
+2. **Enable OAuth:** Select the **OAuth** button (in the upper right), select **Enable OAuth in App**, and then select **Update**.
+
+3. To use the app, create a new instance of the app under **Apps > Add User App**. Choose "Device Activity Check," and follow the instructions.
 
 If you do not know how to add custom app code to Hubitat, consult <a  href="https://docs2.hubitat.com/en/how-to/install-custom-apps">the
-first five steps of the Hubitat support document on custom app installation</a> and consider whether using custom code
+Hubitat support document on custom app installation</a> and consider whether using custom code
 is a good choice for you.

@@ -2,7 +2,7 @@
  * ==========================  Device Activity Check ==========================
  *  Platform: Hubitat Elevation
  *
- *  Copyright 2023 Robert Morris
+ *  Copyright 2024 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 2.4   (2024-04-24) - Add option to append text to notifications (e.g., Pushover users who want cloud report link)
  * 2.3   (2023-12-14) - Add search for device list
  * 2.2   (2023-05-27) - Add OAuth endpoints to view reports locally or via cloud (not "officially" released but can be used if don't want 3.x now)
  * 2.1.2 (2023-02-15) - Fix snooze time calcuations
@@ -169,13 +170,16 @@ Map pageMain() {
          }
       }
       
-      
-      section("Advanced Options", hideable: true, hidden: true) {
+      section("Advanced Options", hideable: true, hidden: (boolAppendNotificationText != true)) {
          label title: "Customize installed app name:", required: true
          input name: "includeHubName", type: "bool", title: "Include hub name in notifications (${location.name})"
          input name: "modes", type: "mode", title: "Only send notifications if mode is", multiple: true, required: false
          input name: "snoozeDuration", type: "number", title: 'Number of hours to remove deivce freom report with "snooze"', defaultValue: defaultSnoozeDuration
          input name: "boolIncludeDisabled", type: "bool", title: "Include disabled devices in report"
+         input name: "boolAppendNotificationText", type: "bool", title: "Append text to notification?", submitOnChange: true
+         if (settings.boolAppendNotificationText) {
+            input name: "textToAppendToNotification", type: "text", title: "Text to append to notification:"
+         }
          input name: "debugLevel", type: "enum", title: "Debug logging level:", options: [[0: "Logs off"], [1: "Debug logging"], [2: "Verbose logging"]],
             defaultValue: 0
       }
@@ -616,6 +620,9 @@ void sendInactiveNotification(Boolean doRefreshIfConfigured=true) {
          sbNotificationText << " - ${status.join(', ')}"
          
       }
+      if (settings.boolAppendNotificationText == true) {
+         sbNotificationText << settings.textToAppendToNotification
+      }
       String notificationText = sbNotificationText.toString()
       logDebug "Sending notification for inactive devices: \"$notificationText\""
       notificationDevice?.each {
@@ -901,12 +908,12 @@ String createReportHTML(Boolean isLocal=true) {
                      // using uppercase to avoid collision with Hubitat method...
                      INPUT(type: "checkbox", id: "snoozebox_dev_${dev.id}", value: "snoozebox_dev_${dev.id}",
                         onclick: "toggleSnooze(${dev.id})", checked: true)
-                     label(for: "snoozebox_dev_${dev.id}", hidden: true, "Is snoozed?")
+                     LABEL(for: "snoozebox_dev_${dev.id}", hidden: true, "Is snoozed?")
                   }
                   else {
                      INPUT(type: "checkbox", id: "snoozebox_dev_${dev.id}", value: "snoozebox_dev_${dev.id}",
                         onclick: "toggleSnooze(${dev.id})")
-                     label(for: "snoozebox_dev_${dev.id}", hidden: true, "Is snoozed?")
+                     LABEL(for: "snoozebox_dev_${dev.id}", hidden: true, "Is snoozed?")
                   }
                }
             }
