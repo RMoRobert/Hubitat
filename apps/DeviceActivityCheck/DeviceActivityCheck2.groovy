@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 2.4.1 (2024-04-25) - Add line break before (optional) appended notification text
  * 2.4   (2024-04-24) - Add option to append text to notifications (e.g., Pushover users who want cloud report link)
  * 2.3   (2023-12-14) - Add search for device list
  * 2.2   (2023-05-27) - Add OAuth endpoints to view reports locally or via cloud (not "officially" released but can be used if don't want 3.x now)
@@ -174,11 +175,11 @@ Map pageMain() {
          label title: "Customize installed app name:", required: true
          input name: "includeHubName", type: "bool", title: "Include hub name in notifications (${location.name})"
          input name: "modes", type: "mode", title: "Only send notifications if mode is", multiple: true, required: false
-         input name: "snoozeDuration", type: "number", title: 'Number of hours to remove deivce freom report with "snooze"', defaultValue: defaultSnoozeDuration
+         input name: "snoozeDuration", type: "number", title: 'Number of hours to remove deivce from report with "snooze"', defaultValue: defaultSnoozeDuration
          input name: "boolIncludeDisabled", type: "bool", title: "Include disabled devices in report"
          input name: "boolAppendNotificationText", type: "bool", title: "Append text to notification?", submitOnChange: true
          if (settings.boolAppendNotificationText) {
-            input name: "textToAppendToNotification", type: "text", title: "Text to append to notification:"
+            input name: "textToAppendToNotification", type: "text", title: "Text to append to notification:", submitOnChange: true
          }
          input name: "debugLevel", type: "enum", title: "Debug logging level:", options: [[0: "Logs off"], [1: "Debug logging"], [2: "Verbose logging"]],
             defaultValue: 0
@@ -620,8 +621,8 @@ void sendInactiveNotification(Boolean doRefreshIfConfigured=true) {
          sbNotificationText << " - ${status.join(', ')}"
          
       }
-      if (settings.boolAppendNotificationText == true) {
-         sbNotificationText << settings.textToAppendToNotification
+      if (settings.boolAppendNotificationText == true && settings.textToAppendToNotification) {
+         sbNotificationText << "\n${settings.textToAppendToNotification}"
       }
       String notificationText = sbNotificationText.toString()
       logDebug "Sending notification for inactive devices: \"$notificationText\""
