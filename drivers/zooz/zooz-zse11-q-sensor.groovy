@@ -1,7 +1,7 @@
 /**
  *  Zooz ZSE11 (Q Sensor) community driver for Hubitat
  * 
- *  Copyright 2021 Robert Morris
+ *  Copyright 2024 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -13,7 +13,8 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
- *  2021-04-25: Fix displayed temperature units to be correct if hub units different from sensor units
+ *  2024-05-27: Update for 800LR hardware (new parameters and reports)
+ *  2021-04-25: (500 series) Fix displayed temperature units to be correct if hub units different from sensor units
  *  2021-04-23: Pad firmware subversion with 0 as needed
  *  2021-04-19: Added option for temperature and humidity value adjustment
  *  2021-04-18: Fix for parameter 13 and 172 size
@@ -47,47 +48,107 @@ import groovy.transform.Field
 @Field static final Integer defaultWakeUpInterval = 43200
 
 @Field static final Map zwaveParameters = [
-   12: [input: [name: "param.12", type: "enum", title: "Motion sensitivity",
-           options: [[0:"Disabled"],[1:"1 - Low"],[2:"2"],[3:"3"],[4:"4"],[5:"5"],[6:"6 (default)"],
-           [7:"7"],[8:"8 - High"]]],
-      size: 1],
-   13: [input: [name: "param.13", type: "enum", title: "Motion re-trigger interval",
-           options: [[10:"10 seconds"],[15:"15 seconds"],[20:"20 seconds"],[25:"25 seconds"],[30:"30 seconds (default)"],
-           [45:"45 seconds"],[60:"1 minute"],[90:"1.5 minutes"],[120:"2 minutes"],[180:"3 minutes"],[240:"4 minutes"],
-           [300:"5 minutes"],[600:"10 minutes"],[900:"15 minutes"],[1800:"30 minutes"],[2700:"45 minutes"],
-           [3600:"1 hour"]]],
-      size: 2],
-   19: [input: [name: "param.19", type: "enum", title: "LED flash for motion",
-           options: [[0:"Do not flash when motion is detected"],[1:"Flash when motion is detected (default)"]]],
-      size: 1],
-   183: [input: [name: "param.183", type: "enum", title: "Send new temperature report if temperatue changes by",
+   12: [
+      type: "enum", desc: "Motion sensitivity", size: 1,
+      options: [[0:"Disabled"],[1:"1 - Low"],[2:"2"],[3:"3"],[4:"4"],[5:"5"],[6:"6 (default)"], [7:"7"],[8:"8 - High"]]
+   ],
+   13: [
+      type: "enum", desc: "Motion re-trigger interval", size: 2,
+      options: [[10:"10 seconds"],[15:"15 seconds"],[20:"20 seconds"],[25:"25 seconds"],[30:"30 seconds (default)"],
+         [45:"45 seconds"],[60:"1 minute"],[90:"1.5 minutes"],[120:"2 minutes"],[180:"3 minutes"],[240:"4 minutes"],
+         [300:"5 minutes"],[600:"10 minutes"],[900:"15 minutes"],[1800:"30 minutes"],[2700:"45 minutes"],
+         [3600:"1 hour"]]
+   ],
+   19: [type: "enum", desc: "LED flash for motion", size: 1,
+       options: [[0:"Do not flash when motion is detected"],[1:"Flash when motion is detected (default)"]],
+   ],
+   20: [type: "enum", desc: "Enable vibration/tamper sensor", size: 1,
+         options: [[0:"Disable"],[1:"Enable (default)"]],
+         minMajorFirmwareVersion: 2, minMinorFirmwareVersion: 0
+   ],
+   183: [type: "enum", desc: "Temperature report threshold: send new temperature report if temperatue changes by", size: 2,
            options: [[1:"1 °F (default)"],[2:"2 °F"],[3:"3 °F"],[4:"4 °F"],[5:"5 °F"],[6:"6 °F"],[7:"7 °F"],
            [8:"8 °F"],[9:"9 °F"],[10:"10 °F"],[15:"15 °F"],[20:"20 °F"],[25:"25 °F"],[50:"50 °F"],
-           [100:"100 °F"],[144:"144 °F"]]],
-      size: 2],
-   184: [input: [name: "param.184", type: "enum", title: "Send new humidity report if value changes by",
+           [100:"100 °F"],[144:"144 °F"]]
+   ],
+   22: [type: "enum", desc: "Temperature change probe interval (report still sent only if value change crosses report threshold)",
+         options: [[30:"30 seconds"],[60:"1 minute (default)"],[180:"3 minutes"],[300:"5 minutes"],[600:"10 minutes"],
+            [1200:"20 minutes"],[1800:"30 minutes"],[2700:"45 minutes"],[3600:"1 hour"],[5400:"1.5 hours"],[7200:"2 hours"],
+            [10800:"3 hours"],[18000:"5 hours"],[28800:"8 hours"],[43200:"12 hours"]],
+         size: 2,
+         minMajorFirmwareVersion: 2, minMinorFirmwareVersion: 0
+   ],
+   173: [type: "enum", desc: "Reporting interval for temperature (report sent regardless of reporting threshold)",
+         options: [[0:"Disabled; report based on threshold only"],[60:"1 minute"],
+         [180:"3 minutes"],[300:"5 minutes"],[600:"10 minutes"],[1200:"20 minutes"],[1800:"30 minutes"],
+         [2700:"45 minutes"],[3600:"1 hour"],[5400:"1.5 hours"],[7200:"2 hours"],
+         [10800:"3 hours"],[18000:"5 hours"],[28800:"8 hours"],[43200:"12 hours (default)"]],
+         size: 2,
+         minMajorFirmwareVersion: 2, minMinorFirmwareVersion: 0
+   ],
+   184: [type: "enum", desc: "Humidity report threshold: send new humidity report if value changes by", size: 1,
            options: [[1:"1%"],[2:"2%"],[3:"3%"],[4:"4%"],[5:"5% (default)"],[6:"6%"],[7:"7%"],[8:"8%"],[9:"9%"],
            [10:"10%"],[11:"11%"],[12:"12%"],[13:"13%"],[14:"14%"],[15:"15%"],[20:"20%"],[25:"25%"],[30:"30%"],
-           [35:"35%"],[40:"40%"],[45:"45%"],[50:"50%"],[80:"80%"]]],
-      size: 1],
-   185: [input: [name: "param.185", type: "enum", title: "Send new illuminance report if value changes by",
+           [35:"35%"],[40:"40%"],[45:"45%"],[50:"50%"],[80:"80%"]]
+   ],
+   23: [type: "enum", desc: "Humidity change probe interval (report still sent only if value change crosses lux report threshold)",
+         options: [[10:"10 seconds (default)"],[60:"1 minute"],[180:"3 minutes"],[300:"5 minutes"],[600:"10 minutes"],
+            [1200:"20 minutes"],[1800:"30 minutes"],[2700:"45 minutes"],[3600:"1 hour"],[5400:"1.5 hours"],[7200:"2 hours"],
+            [10800:"3 hours"],[18000:"5 hours"],[28800:"8 hours"],[43200:"12 hours"]],
+         size: 2,
+         minMajorFirmwareVersion: 2, minMinorFirmwareVersion: 0
+   ],
+   174: [type: "enum", desc: "Reporting interval for humidity (report sent regardless of reporting threshold)",
+         options: [[0:"Disabled; report based on threshold only (default)"],[60:"1 minute"],
+         [180:"3 minutes"],[300:"5 minutes"],[600:"10 minutes"],[1200:"20 minutes"],[1800:"30 minutes"],
+         [2700:"45 minutes"],[3600:"1 hour"],[5400:"1.5 hours"],[7200:"2 hours"],
+         [10800:"3 hours"],[18000:"5 hours"],[28800:"8 hours"],[43200:"12 hours"]],
+         size: 2,
+         minMajorFirmwareVersion: 2, minMinorFirmwareVersion: 0
+   ],
+   185: [type: "enum", desc: "Lux report threshold: send new illuminance report if value changes by", size: 2,
            options: [[1:"1 lux"],[3:"3 lux"],[5:"5 lux"],[7:"7 lux"],[10:"10 lux"],[12:"12 lux"],[15:"15 lux"],
            [20:"20 lux"],[25:"25 lux"],[30:"30 lux"],[35:"35 lux"],[40:"40 lux"],[45:"45 lux"],
            [50:"50 lux (default)"],[60:"60 lux"],[75:"75 lux"],[100:"100 lux"],[150:"150 lux"],
            [200:"200 lux"],[300:"300 lux"],[400:"400 lux"],[500:"500 lux"],[750:"750 lux"],[1000:"1000 lux"],
-           [2000:"2000 lux"],[5000:"5000 lux"],[10000:"10000 lux"],[30000:"30000 lux"]]],
-      size: 2],
-   172: [input: [name: "param.172", type: "enum", title: "Minimum reporting interval for temperature, humidity, and lux (even if threshold not met)",
-           options: [[1:"1 hour"],[2:"2 hours"],[3:"3 hours"],[4:"4 hours (default)"],[5:"5 hours"],
-           [6:"6 hours"],[9:"9 hours"],[12:"12 hours"],[18:"18 hours"],[24:"24 hours"],[48:"48 hours"],
-           [120:"5 days (120 hours)"],[240:"10 days (240 hours)"],[480:"20 days (480 hours)"],[744:"31 days (744 hours)"]]],
-      size: 2]
+           [2000:"2000 lux"],[5000:"5000 lux"],[10000:"10000 lux"],[30000:"30000 lux"]]
+   ],
+   21: [type: "enum", desc: "Lux change probe interval (report still sent only if value change crosses report threshold)",
+         options: [[10:"10 seconds (default)"],[60:"1 minute"],[180:"3 minutes"],[300:"5 minutes"],[600:"10 minutes"],
+            [1200:"20 minutes"],[1800:"30 minutes"],[2700:"45 minutes"],[3600:"1 hour"],[5400:"1.5 hours"],[7200:"2 hours"],
+            [10800:"3 hours"],[18000:"5 hours"],[28800:"8 hours"],[43200:"12 hours"]],
+         size: 2,
+         minMajorFirmwareVersion: 2, minMinorFirmwareVersion: 0
+   ],
+   175: [type: "enum", desc: "Reporting interval for lux (report sent regardless of reporting threshold)",
+         options: [[0:"Disabled; report based on threshold only (default)"],[60:"1 minute"],
+         [180:"3 minutes"],[300:"5 minutes"],[600:"10 minutes"],[1200:"20 minutes"],[1800:"30 minutes"],
+         [2700:"45 minutes"],[3600:"1 hour"],[5400:"1.5 hours"],[7200:"2 hours"],
+         [10800:"3 hours"],[18000:"5 hours"],[28800:"8 hours"],[43200:"12 hours"]],
+         size: 2,
+         minMajorFirmwareVersion: 2, minMinorFirmwareVersion: 0
+   ],
+   203: [type: "enum", desc: "Adjust lux values by this amount",
+         options: [[0:"-100"],[10:"-90"],[20:"-80"],[30:"-70"],[40:"-60"],[50:"-50"],[60:"-40"],[70:"-30"],
+         [75:"-25"],[80:"-20"],[85:"-15"],[90:"-10"],[95:"-5"],[98:"-2"],[99:"-1"],[100:"0 (default; must reset device to return to this setting)"],
+         [101:"1"],[102:"2"],[105:"5"],[110:"10"],[115:"15"],[120:"20"],[130:"30"],[140:"40"],[150:"50"],[160:"60"],
+         [170:"70"],[180:"80"],[190:"90"],[200:"100"]],
+         size: 1,
+         minMajorFirmwareVersion: 2, minMinorFirmwareVersion: 0
+   ],
+   172: [type: "enum", desc: "Reporting interval for temperature, humidity, and lux (even if threshold not met)",
+         options: [[1:"1 hour"],[2:"2 hours"],[3:"3 hours"],[4:"4 hours (default)"],[5:"5 hours"],
+            [6:"6 hours"],[9:"9 hours"],[12:"12 hours"],[18:"18 hours"],[24:"24 hours"],[48:"48 hours"],
+            [120:"5 days (120 hours)"],[240:"10 days (240 hours)"],[480:"20 days (480 hours)"],[744:"31 days (744 hours)"]],
+         size: 2,
+         maxMajorFirmwareVersion: 1, maxMinorFirmwareVersion: 999
+   ],
 ]
 
 @Field static final String wakeUpInstructions = "To wake the device immediately, press and hold the Z-Wave button for 3 seconds."
 
 metadata {
-   definition(name: "Zooz ZSE11 Q Sensor", namespace: "RMoRobert", author: "Robert Morris", 
+   definition(name: "Zooz ZSE11 Q Sensor", namespace: "RMoRobert", author: "Robert Morris",
    importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/zooz/zooz-zse11-q-sensor.groovy") {
       capability "Sensor"
       capability "Battery"
@@ -99,22 +160,87 @@ metadata {
       capability "PowerSource"
       capability "Configuration"
       capability "Refresh"
-      
+
       // Can uncomment this if want easy way to do without switching to "Device" driver:
       //command "clearChildDevsAndState"
 
-      fingerprint mfr:"027A", prod:"0201", deviceId:"0006", inClusters:"0x5E,0x6C,0x55,0x98,0x9F"
-      fingerprint mfr:"027A", prod:"0201", deviceId:"0006"
+      fingerprint mfr:"027A", prod:"0201", deviceId:"0006", inClusters:"0x5E,0x6C,0x55,0x98,0x9F", controllerType: "ZWV"  // 500-series w/ S2
+      fingerprint mfr:"027A", prod:"0201", deviceId:"0006", inClusters:"0x5E,0x22,0x55,0x98,0x9F,0x6C"
+      fingerprint mfr:"027A", prod:"0201", deviceId:"0006", inClusters:"0x5E,0x22,0x55,0x9F,0x6C" 
    }
 
    preferences {
-      zwaveParameters.each {
-         input it.value.input
+      getZwaveParametersForFwVersion().each { Map.Entry paramDetails ->
+         input getInputParamsForZwaveParam(paramDetails)
       }
+      // HW v2 supports Z-Wave params for these offsets, but keep preferences so works with all models:
       input name: "tempAdjust", type: "number", title: "Adjust temperature value by this amount", description: "Example: 0.4 or -1.5 (optional)"
       input name: "humidAdjust", type: "number", title: "Adjust humidity value by this amount", description: "Example: 0.4 or -1.5 (optional)"
+      input name: "showParamNumbers", type: "bool", title: "Show Z-Wave parameter numbers in preference descriptions"
       input name: "logEnable", type: "bool", title: "Enable debug logging", defaultValue: true
       input name: "txtEnable", type: "bool", title: "Enable descriptionText logging", defaultValue: true
+   }
+}
+
+Map getZwaveParametersForFwVersion() {
+   String firmwareVersion = getDataValue("firmwareVersion")
+   Integer fwMajorVersion = 0
+   Integer fwMinorVersion = 0
+   if (firmwareVersion != null) {
+      try {
+         String strMaj
+         String strMin
+         (strMaj, strMin) = firmwareVersion.split("\\.")
+         fwMajorVersion = Integer.parseInt(strMaj)
+         fwMinorVersion = Integer.parseInt(strMin)
+      }
+      catch (Exception ex) {
+         log.warn "Error parsing firmware version: $ex"
+      }
+   }
+   return zwaveParameters.findAll { Integer key, Map value ->
+      if ( // none specified:
+         value.minMajorFirmwareVersion == null && value.maxMajorFirmwareVersion == null &&
+         value.minMinorFirmwareVersion == null && value.maxMinorFirmwareVersion == null
+      ) {
+         return true
+      }
+      else if ( // min specified and meets:
+         (value.minMajorFirmwareVersion != null && value.minMinorFirmwareVersion != null) &&
+         (fwMajorVersion >= value.minMajorFirmwareVersion && fwMinorVersion >= value.minMinorFirmwareVersion)
+      ) {
+         return true
+      }
+      else if ( // max specified and meets:
+         (value.maxMajorFirmwareVersion != null && value.maxMinorFirmwareVersion != null) &&
+         (fwMajorVersion <= value.maxMajorFirmwareVersion && fwMinorVersion <= value.maxMinorFirmwareVersion)
+      ) {
+         return true
+      }
+      // does not handle min *and* max but also not currently used...if needed in future, add. Otherwise:
+      else {
+         return false
+      }
+   }
+}
+
+Map getInputParamsForZwaveParam(Map.Entry paramDetails) {
+   String title
+   if (showParamNumbers) {
+      title = "[${paramDetails.key}] " + paramDetails.value.desc
+   }
+   else {
+      title = title = paramDetails.value.desc
+   }
+   if (paramDetails.value.default && paramDetails.value.type != "enum") title += " [DEFAULT: ${paramDetails.value.default}]"
+   if (paramDetails.value.type == "number") {
+      return [name: "param.${paramDetails.key}" as String, type: "number", range: paramDetails.value.range, title: title]
+   }
+   else if (paramDetails.value.type == "enum") {
+      return [name: "param.${paramDetails.key}" as String, type: "enum", options: paramDetails.value.options, title: title]
+   }
+   else {
+      log.warn "Unexpected input type ${paramDetails.value.type} for number ${paramDetails.key}"
    }
 }
 
@@ -140,6 +266,19 @@ List<String> commands(List<String> cmds, Long delay=300) {
 
 void setStoredConfigParamValue(Integer parameterNumber, BigInteger parameterValue) {
    state."configParam${parameterNumber}" = parameterValue
+   // Also update preference if present:
+   String settingName = "param.${parameterNumber}" as String
+   if (settings[settingName] != parameterValue && settings[settingName] != parameterValue.toString()) {
+      Map paramData = getZwaveParametersForFwVersion()[parameterNumber]
+      if (paramData) {
+         if (paramData.type == "enum") {
+            device.updateSetting(settingName, [value: parameterValue.toString(), type: "enum"])
+          }
+          else {
+            device.updateSetting(settingName, [value: parameterValue, type: "number"])
+         }
+      }
+   }
 }
 
 BigInteger getStoredConfigParamValue(Integer parameterNumber) {
@@ -166,7 +305,7 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
    else {
       if (logEnable) log.debug "Unable to de-encapsulate command from $cmd"
    }
-   // Is this necessary (or effective) on sleep devices?
+   // Is this necessary (or effective) on sleepy devices?
    /*
    sendHubCommand(new hubitat.device.HubAction(
       zwaveSecureEncap(zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID,
@@ -246,15 +385,36 @@ void zwaveEvent(hubitat.zwave.commands.sensorbinaryv2.SensorBinaryReport cmd) {
 
 void zwaveEvent(hubitat.zwave.commands.notificationv3.NotificationReport cmd) {
    if (logEnable) log.debug "NotificationReport: $cmd"
-   if (cmd.notificationType == hubitat.zwave.commands.notificationv3.NotificationReport.NOTIFICATION_TYPE_BURGLAR
-      && (cmd.event == 3 || cmd.eventParameter[0] == 3)) {
-      if (cmd.event) {
-         sendEvent(name: "tamper", value: "detected", descriptionText: "${device.displayName} tamper is detected")
-         if (txtEnable) log.info("${device.displayName} tamper is detected")
+   if (cmd.notificationType == hubitat.zwave.commands.notificationv3.NotificationReport.NOTIFICATION_TYPE_BURGLAR) {  //0x07
+      if (cmd.event == 3 || cmd.eventParameter[0] == 3) {
+         if (cmd.event) {
+            sendEvent(name: "tamper", value: "detected", descriptionText: "${device.displayName} tamper is detected (case opened)")
+            if (txtEnable) log.info("${device.displayName} tamper is detected (case opened)")
+         }
+         else {
+            sendEvent(name: "tamper", value: "clear", descriptionText: "${device.displayName} tamper is clear")
+            if (txtEnable) log.info("${device.displayName} tamper is clear")
+         }
       }
-      else {
-         sendEvent(name: "tamper", value: "clear", descriptionText: "${device.displayName} tamper is clear")
-         if (txtEnable) log.info("${device.displayName} tamper is clear")
+      else if (cmd.event == 8 || cmd.eventParameter[0] == 8) {
+         if (cmd.event) {
+            sendEvent(name: "motion", value: "active", descriptionText: "${device.displayName} motion is active")
+            if (txtEnable) log.info("${device.displayName} motion is active")
+         }
+         else {
+            sendEvent(name: "motion", value: "inactive", descriptionText: "${device.displayName} motion is inactive")
+            if (txtEnable) log.info("${device.displayName} motion is inactive")
+         }
+      }
+      else if (cmd.event == 9 || cmd.eventParameter[0] == 9) {
+         if (cmd.event) {
+            sendEvent(name: "tamper", value: "detected", descriptionText: "${device.displayName} tamper is detected (vibration)")
+            if (txtEnable) log.info("${device.displayName} tamper is detected (vibration)")
+         }
+         else {
+            sendEvent(name: "tamper", value: "clear", descriptionText: "${device.displayName} tamper is clear")
+            if (txtEnable) log.info("${device.displayName} tamper is clear")
+         }
       }
    }
 }
@@ -285,6 +445,8 @@ void zwaveEvent(hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelReport
          sendEvent(name: "humidity", value: val, unit: "%", descriptionText: descText)
          if (txtEnable) log.info descText
          break
+      default:
+         if (logEnable) log.debug "skip: $cmd"
    }
 }
 
@@ -301,6 +463,7 @@ void zwaveEvent(hubitat.zwave.commands.wakeupv2.WakeUpNotification cmd) {
    //cmds << zwave.wakeUpV2.wakeUpNoMoreInformation().format()
   
    state.pendingConfigure = false
+   state.pendingRefresh = false
    state.initialized = true
 
    if (cmds) {
@@ -427,11 +590,11 @@ List<String> getPendingConfigureAndRefreshCommands(Boolean refreshOnly=false) {
 List<String> getPendingConfigurationChanges() {
    List<String> changes = []
    List<Short> paramsToGet = []
-   zwaveParameters.each { param, data ->
-      if (settings[data.input.name] != null) {
-         Short paramNumber = param as Short
-         Short paramSize = data.size as Short
-         BigInteger paramValue = settings[data.input.name] as BigInteger
+   getZwaveParametersForFwVersion().each { Integer key, Map value ->
+      if (settings["param.${key}"] != null) {
+         Short paramNumber = key as Short
+         Short paramSize = value.size as Short
+         BigInteger paramValue = settings["param.${key}"] as BigInteger
          if ((getStoredConfigParamValue(paramNumber) == null || getStoredConfigParamValue(paramNumber) != paramValue) || state.pendingConfigure) {
             if (logEnable) log.debug "parameter $paramNumber (size $paramSize) is ${getStoredConfigParamValue(paramNumber)} but should be $paramValue; adding to commands..."
             changes << zwave.configurationV1.configurationSet(scaledConfigurationValue: paramValue,
