@@ -17,6 +17,7 @@
  * =======================================================================================
  *
  * Changelog:
+ * 2024-05-28: Update fingerprint
  * 2022-12-31: Initial release
  *
  */
@@ -101,13 +102,14 @@ import groovy.transform.Field
         [30000:"8.33 hours"]]],
       size: 2],
    // skip param 16, only for associated devices
-   17: [input: [name: "param.17", type: "enum", title: "Lux, temperature, and humidity reporting interval",
+   // Manual lists next to parameters but haven't seen this on any devices...
+   17: [input: [name: "param.17", type: "enum", title: "Lux, temperature, and humidity reporting interval (may not be supported on all)",
         options: [[0:"Disabled"],[10:"10 seconds [default with USB]"],[20:"20 seconds"],[30:"30 seconds"],
         [45:"45 seconds"],[60:"1 minute"],[90:"1.5 minutes"],[120:"2 minutes"],[180:"3 minutes [DEFAULT]"],
         [300:"5 minutes"],[420:"7 minutes"],[600:"10 minutes"],[900:"15 minutes"],[1800:"30 minutes"],[2700:"45 minutes"],
         [3600:"1 hour"],[7200:"2 hours"],[30000:"8.33 hours"]]],
       size: 2],
-   18: [input: [name: "param.18", type: "number", title: "Lux offset calibration (1-32767, default 5320; consult manual)",
+   18: [input: [name: "param.18", type: "number", title: "Lux offset calibration (1-32767, default 5320; consult manual; may not be supported on all)",
        range: 1..32767],
       size: 1],
 ]
@@ -129,8 +131,9 @@ metadata {
       capability "Configuration"
       capability "Refresh"
 
-      fingerprint mfr:"0258", prod:"0020", deviceId:"0720", inClusters:"0x5E,0x98,0x9F,0x6C,0x55"
-      fingerprint mfr:"0258", prod:"0020", deviceId:"0718", inClusters:"0x5E,0x98,0x9F,0x6C,0x55"
+      fingerprint mfr:"0258", prod:"0020", deviceId:"0720", inClusters:"0x5E,0x98,0x9F,0x6C,0x55", controllerType: "ZWV"
+      fingerprint mfr:"0258", prod:"0020", deviceId:"0720", inClusters:"0x5E,0x98,0x9F,0x6C,0x55,0x86,0x73,0x85,0x8E,0x59,0x72,0x5A,0x87,0x71,0x30,0x31,0x70,0x7A", controllerType: "ZWV"
+      fingerprint mfr:"0258", prod:"0020", deviceId:"0718", inClusters:"0x5E,0x98,0x9F,0x6C,0x55", controllerType: "ZWV" // EU?
    }
 
    preferences {
@@ -142,7 +145,6 @@ metadata {
       input name: "txtEnable", type: "bool", title: "Enable descriptionText logging", defaultValue: true	
    }
 }
-
 
 void logsOff() {
    log.warn "Disabling debug logging"
