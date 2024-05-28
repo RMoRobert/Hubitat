@@ -15,6 +15,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.0.2  (2024-05-27) - Improve initial child device creation
  *  v1.0.1  (2024-04-05) - Add updateFirmware command, importUrl, other minor changes
  *  v1.0    (2024-04-03) - Initial release
  * 
@@ -192,10 +193,10 @@ metadata {
    }
 
    preferences {
-      mscAttributesEp1.each { attrDetails ->
+      mscAttributesEp1.each { Map.Entry attrDetails ->
          input(getInputParamsForMscPreference(attrDetails, 1))
       }
-      mscAttributesEp2.each { attrDetails ->
+      mscAttributesEp2.each { Map.Entry attrDetails ->
          input(getInputParamsForMscPreference(attrDetails, 2))
       }
       input name: "showAttrNumber", type: "bool", title: "Show attribute (\"parameter\") numbers for device-specific preferences in UI"
@@ -204,7 +205,7 @@ metadata {
    }
 }
 
-Map getInputParamsForMscPreference(attrDetails, Integer endpoint) {
+Map getInputParamsForMscPreference(Map.Entry attrDetails, Integer endpoint) {
    String title
    if (showAttrNumber) {
       title = "[${attrDetails.key}] " + attrDetails.value.desc
@@ -224,13 +225,13 @@ Map getInputParamsForMscPreference(attrDetails, Integer endpoint) {
    }
 }
 
-String getSettingNameForMscPreference(attrDetails, Integer endpoint) {
+String getSettingNameForMscPreference(Map.Entry attrDetails, Integer endpoint) {
    return "attr_${attrDetails.key}_ep${String.format('%02d',endpoint)}"
 }
 
 void installed() {
    log.debug "installed()"
-   runIn(3, "createChildDevicesIfNeeded")
+   runIn(10, "createChildDevicesIfNeeded")
 }
 
 void updated() {
@@ -282,6 +283,7 @@ void configure() {
    // cmds += zigbee.configureReporting(0x0008, 0, DataType.UINT8, 0, 0xFFFF, null, [destEndpoint: 1], 0)
    // cmds += zigbee.configureReporting(0x0008, 0, DataType.UINT8, 0, 0xFFFF, null, [destEndpoint: 2], 0)
    sendToDevice(cmds)
+   createChildDevicesIfNeeded()
 }
 
 void parse(String description) {
