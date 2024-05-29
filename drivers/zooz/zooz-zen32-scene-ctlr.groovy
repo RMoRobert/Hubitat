@@ -1,7 +1,7 @@
 /*
  * ===================== Zooz Scene Controller (ZEN32) Driver =====================
  *
- *  Copyright 2023 Robert Morris
+ *  Copyright 2024 Robert Morris
  *  
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -36,6 +36,7 @@
  *
  * 
  *  Changelog:
+ *  v2.2.2  (2024-05-29): Update fingerprint
  *  v2.2.1  (2023-12-04): Fix for parameter 18 swapped values (power restore state)
  *  v2.2    (2023-09-23): Enhancements for some commands and preferences with changes thanks to @jtp10181
  *  v2.1    (2023-09-19): Update for firmware 10.40 (700-series) and hardware 2.0. Recommended for use with
@@ -150,7 +151,8 @@ metadata {
                          [name:"lengthOfOnPeriod", type: "NUMBER", description: "On period length in tenths of seconds (e.g., 8 = 0.8 seconds; can be used to create asymmetric on/off periods)", constraints: 1..254],
                         ]
 
-      fingerprint mfr:"027A", prod:"7000", deviceId:"A008", inClusters:"0x5E,0x25,0x70,0x20,0x5B,0x85,0x8E,0x59,0x55,0x86,0x72,0x5A,0x73,0x87,0x9F,0x6C,0x7A"
+      fingerprint mfr:"027A", prod:"7000", deviceId:"A008", inClusters:"0x5E,0x25,0x70,0x20,0x5B,0x85,0x8E,0x59,0x55,0x86,0x72,0x5A,0x73,0x87,0x9F,0x6C,0x7A", controllerType: "ZWV"
+      fingerprint mfr:"027A", prod:"7000", deviceId:"A008", inClusters:"0x5E,0x9F,0x55,0x6C", controllerType: "ZWV"
    }
 
    preferences {
