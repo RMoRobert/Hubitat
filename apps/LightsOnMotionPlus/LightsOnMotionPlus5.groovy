@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2024-02-22
+ *  Last modified: 2024-09-19
  *
  *  Changelog:
  *
+ * 5.5.5 - Update for CoCoHue 5.1 scene activation
  * 5.5.4 - Remove extraneous "trace" logging
  * 5.5.3 - Fix for lights erroneously turning on when were not on before with grace period configured
  * 5.5.2 - Fix for CT devices
@@ -675,8 +676,8 @@ void performActiveAction() {
             logDebug "    -> lights on, not configured to change if on, and not dimmed, so doing nothing (anyOn = $anyOn; dimmed = ${state.isDimmed}; notIfOn = $notIfOn)", 2, "debug"
          }
          if (doOnAction) {
-            logDebug "        -> now performing scene activation...", 2, "debug"            
-            getDevicesToTurnOn().each { it.on() }
+            logDebug "        -> now performing scene activation...", 2, "debug"
+            getDevicesToTurnOn().each { it.push(1) }
          }
          state.isDimmed = false
          endGrace()
@@ -912,7 +913,7 @@ def modeChangeHandler(evt) {
                endGrace()
                break
             case "onScene":
-               getDevicesToTurnOn().each { it.on() }
+               getDevicesToTurnOn().each { it.push(1) }
                state.isDimmed = false
                endGrace()
                break
