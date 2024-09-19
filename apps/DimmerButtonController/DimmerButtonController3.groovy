@@ -2,7 +2,7 @@
  * ==========================  Dimmer Button Controller (Child  App) ==========================
  *  Platform: Hubitat Elevation
  *
- *  Copyright 2018-2022 Robert Morris
+ *  Copyright 2018-2024 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 3.3.1  (2024-09-18) - Fix for CoCoHue 5.1+ scenes
  * 3.1.2  (2022-10-05) - Fix for toggle and setLevel error (typo)
  * 3.1.1  (2022-08-23) - Fix for dim step setting being ignored
  * 3.1    (2022-01-04) - Add support for setting to level from hub variable; added command metering preference (optional)
@@ -700,13 +701,13 @@ void buttonHandler(evt) {
                List<DeviceWrapper> devs = settings["btn${btnNum}.${action}.Press${pressNum}.HueScene"]
                atomicState.lastScene = "btn${btnNum}.${action}.Press${pressNum}.HueScene"
                devs.each { DeviceWrapper dev ->
-                  dev.on()
+                  dev.push(1)
                   if (settings.meterDelay) pauseExecution(settings.meterDelay)
                }
                if (settings['boolDblCmd']) {
                   pauseExecution(settings.meterDelay ?: 200)
                   devs.each { DeviceWrapper dev ->
-                     dev.on()
+                     dev.push(1)
                      if (settings.meterDelay) pauseExecution(settings.meterDelay)
                   }
                }
