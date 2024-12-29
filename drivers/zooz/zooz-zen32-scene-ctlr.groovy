@@ -36,6 +36,7 @@
  *
  * 
  *  Changelog:
+ *  v2.2.3  (2024-12-29): Add parameter 27 for 800LR model
  *  v2.2.2  (2024-05-29): Update fingerprint
  *  v2.2.1  (2023-12-04): Fix for parameter 18 swapped values (power restore state)
  *  v2.2    (2023-09-23): Enhancements for some commands and preferences with changes thanks to @jtp10181
@@ -113,6 +114,9 @@ import groovy.transform.Field
       size: 1],
    26: [input: [name: "param.26", type: "enum", title: "[26] Enable scene control from momentary in 3-way (hardware v2 or firmware 10.40+ only)",
         options: [[0:"Disabled (default)"],[1:"Enabled"]]],
+      size: 1]
+   27: [input: [name: "param.27", type: "enum", title: "[27] Enable LED blink when buttons pressed (hardware v2 with firmware 2.40+ only)",
+        options: [[0:"Enabled (default)"],[1:"Disabled"]]],
       size: 1]
 ]
 
