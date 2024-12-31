@@ -4,7 +4,7 @@
  *  Description: Tracks furnace or AC (based on thermostat) runtime and can send notification when exceeds
  *               certain number of hours. Timer can be reset at any time.
  *
- *  Copyright © 2022-2023 Robert Morris
+ *  Copyright © 2022-2024 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -15,9 +15,10 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *  Changes:
+ *   2024-12-30: Add replace history
  *   2023-02-12: Avoid reset with initialize()
  *   2023-01-28: Add "snooze" option
- *   2022-12-28: Add runtime and last reset to UIg
+ *   2022-12-28: Add runtime and last reset to UI
  *   2022-12-23: Rename to HVAC Filter Notifier
  *   2022-12-21: Fix runtime calcuation (was reversed)
  *   2022-12-20: Initial release
@@ -40,6 +41,7 @@ import com.hubitat.app.DeviceWrapper
 
 @Field static final List<String> trackedStates = ["heating", "cooling", "fan only"]
 @Field static final Long MILLISECONDS_PER_HOUR = 3600000
+@Field static final Integer MAX_HISTORY_DATES = 20
 
 preferences {
    mainPage()
@@ -71,12 +73,21 @@ def mainPage() {
             paragraph """<span style="font-weight:bold">Current Total Runtime:</span> ${String.format("%.2f", state.totalRuntime)} hr"""
             paragraph "<small>NOTE: Total is not updated until thermostat returns to idle (or other non-tracked state).</small>"
          }
+         input name: "saveHistory", type: "bool", title: "Save reset history (up to last ${MAX_HISTORY_DATES} reset dates)", defaultValue: true
          if (state.lastReset) {
             String strLastReset = new Date(state.lastReset).format("yyyy-MM-dd HH:mm z", location.timeZone)
             paragraph """<span style="font-weight:bold">Last Reset:</span> ${strLastReset}"""
          }
          paragraph "Use the button below to reset the total tracked runtime (e.g., after replacing the filter):"
          input name: "btnReset", type: "button", title: "Reset Runtime", submitOnChange: true
+      }
+      if (saveHistory != false && state.resetHistory) {
+         section("Reset History", hideable: true, hidden: true) {
+            state.resetHistory.each { Long resetTime ->
+               String strResetTime = new Date(resetTime).format("yyyy-MM-dd HH:mm z", location.timeZone)
+               paragraph "$strResetTime", width: 6
+            }
+         }
       }
       section(styleSection("Name and Logging")) {
          label title: "Customize installed app name:", required: true
@@ -99,6 +110,7 @@ void initialize() {
    log.debug "Initializing"
    subscribe(thermoDev, "thermostatOperatingState", "operatingStateHandler")
    if (state.lastReset == null) state.lastReset = now()
+   if (state.resetHistory == null || saveHistory == false) state.resetHistory = []
 }
 
 void operatingStateHandler(evt) {
@@ -153,6 +165,17 @@ void resetTotalRuntime() {
    if (logEnable == true) log.debug "resetTotalRuntime() -- resetting total runtime to 0"
    state.totalRuntime = 0.0
    state.lastReset = now()
+   if (saveHistory) addDateTimeToResetHistory(state.lastReset)
+}
+
+void addDateTimeToResetHistory(Long unixTime) {
+   if (logEnable) log.trace "addDateTimeToResetHistory($unixTime)"
+   if (state.resetHistory == null) state.resetHistory
+   state.resetHistory << unixTime
+   state.resetHistory = state.resetHistory.sort().reverse()
+   if (state.resetHistory.size() > MAX_HISTORY_DATES) {
+      state.resetHistory = state.resetHistory.take(MAX_HISTORY_DATES)
+   }
 }
 
 String styleSection(String sectionHeadingText) {
