@@ -114,7 +114,7 @@ import groovy.transform.Field
       size: 1],
    26: [input: [name: "param.26", type: "enum", title: "[26] Enable scene control from momentary in 3-way (hardware v2 or firmware 10.40+ only)",
         options: [[0:"Disabled (default)"],[1:"Enabled"]]],
-      size: 1]
+      size: 1],
    27: [input: [name: "param.27", type: "enum", title: "[27] Enable LED blink when buttons pressed (hardware v2 with firmware 2.40+ only)",
         options: [[0:"Enabled (default)"],[1:"Disabled"]]],
       size: 1]
