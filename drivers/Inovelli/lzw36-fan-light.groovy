@@ -1,7 +1,7 @@
 /*
  * ===================== Advanced Inovelli Red Series Fan + Light Switch (LZW36) Driver =====================
  *
- *  Copyright 2020-2023 Robert Morris
+ *  Copyright 2020-2025 Robert Morris
  *  Portions based on code from Inovelli and Hubitat
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -16,6 +16,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.2.1 (2025-01-28) - Fix held and released events for buttons 1 and 2
  *  v1.2   (2023-10-14) - Update LED level scaling to 0-100 to match Blue and VZW Red 2-in-1s, Hubitat convention, etc.
  *  v1.1.3 (2023-07-04) - Update importUrl
  *  v1.1.2 (2023-05-28) - Add explicit lifeline association (multichannel), fix typo in Supervision response
@@ -745,7 +746,7 @@ void zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification c
    Integer buttonNumber = 0
    if (cmd.sceneNumber == 1 || cmd.sceneNumber == 2) {
       if (cmd.keyAttributes == 1 || cmd.keyAttributes == 2) {
-         buttonAction = cmd.keyAttributes == 2 ? "released" : "held"
+         buttonAction = cmd.keyAttributes == 2 ? "held" : "released"
          buttonNumber = 1
       }
       else {
