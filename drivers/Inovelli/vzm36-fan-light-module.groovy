@@ -1,7 +1,7 @@
 /*
  * ================ Inovelli Blue Series Fan/Light Canopy (VZM36) Driver ==================
  *
- *  Copyright 2024 Robert Morris
+ *  Copyright 2024-2025 Robert Morris
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -15,6 +15,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.0.3  (2025-01-28) - Slower default startLevelChange duration
  *  v1.0.2  (2024-05-27) - Improve initial child device creation
  *  v1.0.1  (2024-04-05) - Add updateFirmware command, importUrl, other minor changes
  *  v1.0    (2024-04-03) - Initial release
@@ -449,7 +450,7 @@ void componentStartLevelChange(DeviceWrapper cd, String direction) {
    if (logEnable) log.debug "componentStartLevelChange(${cd.displayName}, $direction)"
    if (cd.deviceNetworkId.endsWith(LIGHT_EP)) {
       Integer upDown = (direction == "down") ? 1 : 0
-      Integer unitsPerSecond = 100
+      Integer unitsPerSecond = 300
       String cmd = "he cmd 0x${device.deviceNetworkId} 0x${LIGHT_EP} 0x0008 1 { 0x${intTo8bitUnsignedHex(upDown)} 0x${DataType.pack(unitsPerSecond, DataType.UINT16, true)} }"
       sendToDevice(cmd)
    }

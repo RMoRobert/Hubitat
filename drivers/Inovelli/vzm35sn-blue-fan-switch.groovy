@@ -1,5 +1,5 @@
 /*
- * =========== Inovelli Blue Series 2-in-1 Switch/Dimmer (VZM31-SN) Driver ===============
+ * =========== Inovelli Blue Series Fan Switch (VZM35-SN) Driver ===============
  *
  *  Copyright 2025 Robert Morris
  * 
@@ -15,20 +15,21 @@
  * =======================================================================================
  * 
  *  Changelog:
- *  v1.0.2  (2025-01-26) - Add numberOfButtons
- *  v1.0.1  (2024-05-28) - Initial release
+ *  v1.0.1  (2025-01-24) - Initial release, based on VZM31-SN driver
  * 
  */
 
  /*
 TO-DO:
-[ ] add new FW/ep3 params for fan binding
+[ ] see if VZM31 new ep3 binding applies here too and add to both?
 [ ] ?
 */
 
 import groovy.transform.Field
 import com.hubitat.app.DeviceWrapper
 import com.hubitat.zigbee.DataType
+
+@Field static final List supportedFanSpeeds = ["low", "medium", "high", "off"]
 
 @Field static final Integer INOVELLI_CLUSTER = 0xFC31
 @Field static final Integer INOVELLI_MFG_CODE = 0x122F
@@ -70,14 +71,14 @@ import com.hubitat.zigbee.DataType
 // "Parameters" (manufacturer-specific cluster attributes):
 @Field static final Map mscAttributes = [
    1:  [
-          desc: "Dimming speed up (remote)", type: "enum", dataType: DataType.UINT8, options:
+          desc: "Fan \"dimming\" speed up (remote)", type: "enum", dataType: DataType.UINT8, options:
           [[0: "ASAP"],[1:"100 ms"], [2:"200 ms"], [3:"300 ms"],[4:"400 ms"],
            [5:"500 ms"],[6:"600 ms"],[7:"700 ms"],[8:"800 ms"],[9:"900 ms"],[10:"1.0 s"],[12:"1.2 s"],
            [15:"1.5 s"],[20:"2.0 s"],[25:"2.5 s  [DEFAULT]"],[30:"3.0 s"],[35:"3.5 s"],[40:"4.0 s"],[50:"5.0 s"],
            [60:"6.0 s"],[75:"7.5 s"],[100:"10 s"],[126:"12.6 s"]]
        ],
    2:  [
-          desc: "Dimming speed up (local)", type: "enum", dataType: DataType.UINT8, options:
+          desc: "Fan \"dimming\" speed up (local)", type: "enum", dataType: DataType.UINT8, options:
           [[0: "ASAP"],[1:"100 ms"], [2:"200 ms"], [3:"300 ms"],[4:"400 ms"],
            [5:"500 ms"],[6:"600 ms"],[7:"700 ms"],[8:"800 ms"],[9:"900 ms"],[10:"1.0 s"],[12:"1.2 s"],
            [15:"1.5 s"],[20:"2.0 s"],[25:"2.5 s"],[30:"3.0 s"],[35:"3.5 s"],[40:"4.0 s"],[50:"5.0 s"],
@@ -98,14 +99,14 @@ import com.hubitat.zigbee.DataType
            [60:"6.0 s"],[75:"7.5 s"],[100:"10 s"],[127:"Match ramp rate  off to on (remote)  [DEFAULT]"]]
        ],
    5:  [
-          desc: "Dimming speed down (remote)", type: "enum", default: 127, dataType: DataType.UINT8, options:
+          desc: "Fan \"dimming\" speed down (remote)", type: "enum", default: 127, dataType: DataType.UINT8, options:
           [[0: "ASAP"],[1:"100 ms"], [2:"200 ms"], [3:"300 ms"],[4:"400 ms"],
            [5:"500 ms"],[6:"600 ms"],[7:"700 ms"],[8:"800 ms"],[9:"900 ms"],[10:"1.0 s"],[12:"1.2 s"],
            [15:"1.5 s"],[20:"2.0 s"],[25:"2.5 s"],[30:"3.0 s"],[35:"3.5 s"],[40:"4.0 s"],[50:"5.0 s"],
            [60:"6.0 s"],[75:"7.5 s"],[100:"10 s"],[127:"Match dimming speed up (remote) [DEFAULT]"]]
        ],
    6:  [
-          desc: "Dimming speed down (local)", type: "enum", dataType: DataType.UINT8, options:
+          desc: "Fan \"dimming\" speed down (local)", type: "enum", dataType: DataType.UINT8, options:
           [[0: "ASAP"],[1:"100 ms"], [2:"200 ms"], [3:"300 ms"],[4:"400 ms"],
            [5:"500 ms"],[6:"600 ms"],[7:"700 ms"],[8:"800 ms"],[9:"900 ms"],[10:"1.0 s"],[12:"1.2 s"],
            [15:"1.5 s"],[20:"2.0 s"],[25:"2.5 s"],[30:"3.0 s"],[35:"3.5 s"],[40:"4.0 s"],[50:"5.0 s"],
@@ -126,10 +127,10 @@ import com.hubitat.zigbee.DataType
            [60:"6.0 s"],[75:"7.5 s"],[100:"10 s"],[127:"Match ramp rate - off to on (local)  [DEFAULT]"]]
        ],
    9:  [
-          desc: "Minimum dim level (1-254, to be scaled to 1-100)", range: "1..254", type: "number", default: 1, dataType: DataType.UINT8
+          desc: "Minimum fan speed/level (1-254, to be scaled to 1-100)", range: "1..254", type: "number", default: 1, dataType: DataType.UINT8
        ],
    10: [
-          desc: "Maximum dim level (2-255, to be scaled to 1-100)", range: "2..255", type: "number", default: 255, dataType: DataType.UINT8
+          desc: "Maximum fan speed/level (2-255, to be scaled to 1-100)", range: "2..255", type: "number", default: 255, dataType: DataType.UINT8
        ],
    11:  [
           desc: "Invert switch", type: "enum", default: 0, dataType: DataType.BOOLEAN, options:
@@ -139,19 +140,19 @@ import com.hubitat.zigbee.DataType
           desc: "Auto-off timer (seconds, 1-32767; 0=disabled)", range: "0..32767", type: "number", default: 0, dataType: DataType.UINT16
        ],
    13:  [
-          desc: "Default dim level (local)", type: "enum", default: 255, dataType: DataType.UINT8, options:
+          desc: "Default fan speed/level (local)", type: "enum", default: 255, dataType: DataType.UINT8, options:
           [[1: "1%"],[5:"2%"], [13:"5%"], [25:"10%"],[38:"15%"],[50:"20%"],[64:"25%"],[76:"30%"],[102:"40%"],[127:"50%"],
            [152:"60%"],[178:"70%"],[191:"75%"],[203:"80%"],[216:"85%"],[229:"90%"],[241:"95%"],[254:"100%"],
            [255:"Previous level  [DEFAULT]"]]
        ],
    14:  [
-          desc: "Default dim level (remote)", type: "enum", default: 255, dataType: DataType.UINT8, options:
+          desc: "Default fan speed/level (remote)", type: "enum", default: 255, dataType: DataType.UINT8, options:
           [[1: "1%"],[5:"2%"], [13:"5%"], [25:"10%"],[38:"15%"],[50:"20%"],[64:"25%"],[76:"30%"],[102:"40%"],[127:"50%"],
            [152:"60%"],[178:"70%"],[191:"75%"],[203:"80%"],[216:"85%"],[229:"90%"],[241:"95%"],[254:"100%"],
            [255:"Previous level  [DEFAULT]"]]
        ],
    15:  [
-          desc: "State after power restored", type: "enum", default: 255, dataType: DataType.UINT8, options:
+          desc: "Fan speed after power restored", type: "enum", default: 255, dataType: DataType.UINT8, options:
           [[0: "Off"],[1: "1%"],[5:"2%"], [13:"5%"], [25:"10%"],[38:"15%"],[50:"20%"],[64:"25%"],[76:"30%"],[102:"40%"],[127:"50%"],
            [152:"60%"],[178:"70%"],[191:"75%"],[203:"80%"],[216:"85%"],[229:"90%"],[241:"95%"],[254:"100%"],
            [255:"Previous state  [DEFAULT]"]]
@@ -161,24 +162,6 @@ import com.hubitat.zigbee.DataType
           [[0: "Always off"],[1: "1 s"],[2:"2 s"], [3:"3 s"], [4:"4 s"],[5:"5 s"],[6:"6 s"],[7:"7 s"],[8:"8 s"],
            [9:"9 s"],[10:"10 s"],[11:"Always on  [DEFAULT]"]]
       ],
-   18:  [
-         desc: "Send power reports when power changes by...", type: "enum", default: 10, dataType: DataType.UINT16,
-         options: [[0:"Disabled"],[2: "2%"],[5: "5%"],[7: "7%"],[10:"10% [DEFAULT]"],[15:"15%"],[20:"20%"],[25:"25%"],[30:"30%"],
-         [40:"40%"],[50:"50%"],[60:"60%"],[70:"70%"],[80:"80%"],[90:"90%"],[100:"100%"]]
-      ],
-   19:  [
-         desc: "Send periodic power and energy reports every...", type: "enum", default: 3600, dataType: DataType.UINT16,
-         options: [[0:"Disabled"],[30: "30 seconds"],[60: "1 minute"],[90:"1.5 minutes"],[120:"2 minutes"],
-         [180:"3 minutes"],[300:"5 minutes"],[420:"7 minutes"],[600:"10 minutes"],[900:"15 minutes"],[1200:"20 minutes"],
-         [1800:"30 minutes"],[2700:"45 minutes"],[3600:"1 hour [DEFAULT]"],[5400:"1.5 hours"],[7200:"2 hours"],[10800:"3 hours"],
-         [18000:"5 hours"],[32767:"10.9 hours"]]
-      ],
-   20:  [
-         desc: "Send energy reports when energy changes by...", type: "enum", default: 10, dataType: DataType.UINT16,
-         options: [[0:"Disabled"],[10: "0.1 kWh [DEFAULT]"],[20: "0.2 kWh"],[30: "0.3 kWh"],[50:"0.5 kWh"],[75:"0.75 kWh"],
-         [100:"1 kWh"],[250:"2.5 kWh"],[500:"5 kWh"],[1000:"10 kWh"],[2000:"20 kWh"],[3000: "30 kWh"],[5000:"50 kWh"],
-         [7500:"75 kWh"],[10000:"100 kWh"],[20000:"200 kWh"],[32767:"320.67 kWh"]]
-   ],
    22:  [
           desc: "Switch type", type: "enum", default: 0, dataType: DataType.UINT8, options:
           [[0:"Single-pole [DEFAULT]"], [1:"Multi-way with dumb switch"],[2:"Multi-way with aux switch"],
@@ -187,27 +170,18 @@ import com.hubitat.zigbee.DataType
    23: [
           desc: "Quick start duration (higher power output for off-to-on transition in 60ths of a second, e.g., 15 =  0.25 sec.; 0 = disabled)", range: "0..60", type: "number", default: 0, dataType: DataType.UINT8
        ],
-   24: [
-          desc: "Quick start power level (1-254, scaled to 1-100%)", range: "1..254", type: "number", default: 254, dataType: DataType.UINT8
-       ],
-   25:  [
-          desc: "Higher output in non-neutral", type: "enum", default: 0, dataType: DataType.BOOLEAN, options:
-          [[0:"No [DEFAULT]"], [1:"Yes"]],
-          minimumFirmwareVersion: 0x0102020E
-      ],
-   26:  [
-          desc: "Leading/trialing edge", type: "enum", default: 0, dataType: DataType.BOOLEAN, options:
-          [[0:"Leading edge [DEFAULT]"], [1:"Trailing edge (requires neutral and single-pole or 3-way w/ aux)"]],
-          minimumFirmwareVersion: 0x0102020F
-         ],
+   // Not in docs or Z2M converter, leaving for now in case is actually used on fan too:
+   // 24: [
+   //        desc: "Quick start power level (1-254, scaled to 1-100%)", range: "1..254", type: "number", default: 254, dataType: DataType.UINT8
+   //     ],
    50:  [
           desc: "Button press delay", type: "enum", default: 5, dataType: DataType.UINT8, options:
           [[0: "None (disables multi-taps)"],[3:"300 ms"],[4:"400 ms"],[5:"500 ms [DEFAULT"],
           [6:"600 ms"],[7:"700 ms"],[8:"800 ms"],[9:"900 ms"]]
        ],
    52:  [
-          desc: "Smart bulb mode", type: "enum", default: 0, dataType: DataType.BOOLEAN, options:
-          [[0:"Regular bulbs [DEFAULT]"], [1:"Smart bulbs"]]
+          desc: "Smart fan mode", type: "enum", default: 0, dataType: DataType.BOOLEAN, options:
+          [[0:"Regular fan [DEFAULT]"], [1:"Smart fan"]]
        ],
    53:  [
           desc: "Enable double-tap up to double-tap up level", type: "enum", default: 0, dataType: DataType.BOOLEAN, options:
@@ -227,17 +201,22 @@ import com.hubitat.zigbee.DataType
           desc: "Double-tap down percentage if enabled (1-254, scaled to 1-100%, or 0 to turn off)", range: "0..254", type: "number",
           default: 2, dataType: DataType.UINT8
        ],
-   100:  [
-          desc: "Match Red Gen 2 (LZW model numbers) LED bar scaling", type: "enum", default: 0, dataType: DataType.BOOLEAN, options:
-          [[0:"No (VZW/VZM-style) [DEFAULT]"], [1:"Yes (LZW-style)"]],
-          minimumFirmwareVersion: 0x0102020E
-         ],
+   // 100:  [
+   //        desc: "Match Red Gen 2 (LZW model numbers) LED bar scaling", type: "enum", default: 0, dataType: DataType.BOOLEAN, options:
+   //        [[0:"No (VZW/VZM-style) [DEFAULT]"], [1:"Yes (LZW-style)"]],
+   //        minimumFirmwareVersion: 0x0102020E
+   //       ],
    // 120:  [
    //        desc: "Single-tap behavior", type: "enum", default: 0, dataType: DataType.UINT8, options:
    //        [[0: "Traditional (up on, down off)"],[1:"Cycle preset single-tap levels"],[2:"Cylce preset levels on up, down always off"]],
    //        minimumFirmwareVersion: 0x01020211
    //     ],
    //     // TODO: Add reset of fan/ep3 parameters to complete this
+   121:  [
+          desc: "Advanced timer mode: act like bathroom fan timer with multi-taps and LED bar", type: "enum", default: 1, dataType: DataType.BOOLEAN, options:
+          [[0: "Disabled [DEFAULT]"],[1: "Enabled"]],
+          minimumFirmwareVersion: 0x02020105
+       ],
    261:  [
           desc: "Disable relay click (see manual for more)", type: "enum", default: 0, dataType: DataType.BOOLEAN, options:
           [[0:"No [DEFAULT]"], [1:"Yes (disable click)"]]
@@ -251,26 +230,20 @@ import com.hubitat.zigbee.DataType
           [[0: "Disabled [DEFAULT]"],[1: "Enabled (no commands accepted from hub)"]]
        ],
    258:  [
-          desc: "Switch/dimmer mode", type: "enum", default: 1, dataType: DataType.BOOLEAN, options:
-          [[0: "Dimmer"],[1: "On/off [DEFAULT]"]]
+          desc: "Fan (speed/level) mode", type: "enum", default: 1, dataType: DataType.BOOLEAN, options:
+          [[0: "3-speed control (ceiling fan)"],[1: "On/off only (exhaust fan) [DEFAULT]"]]
        ],
 ]
 
 metadata {
-   definition (name: "Inovelli VZM31-SN Blue Series 2-in-1", namespace: "RMoRobert", author: "Robert Morris") {
+   definition (name: "Inovelli VZM35-SN Blue Series Fan Switch", namespace: "RMoRobert", author: "Robert Morris") {
       capability "Actuator"
       capability "Configuration"
+      capability "FanControl"
       capability "Refresh"
-      capability "Refresh"
-      capability "Switch"
-      capability "SwitchLevel"
-      capability "ChangeLevel"
-      capability "EnergyMeter"
-      capability "PowerMeter"
       capability "PushableButton"
       capability "HoldableButton"
       capability "ReleasableButton"
-      capability "Light"
 
 
       command "setIndicator", [[name:"Color", type: "ENUM", constraints: ["red", "red-orange", "orange", "yellow", "green", "spring", "cyan", "azure", "blue", "violet", "magenta", "rose", "white"]],
@@ -357,7 +330,9 @@ void updated() {
 
 void configure() {
    if (logEnable) log.debug "configure()"
+   sendEvent(name: "supportedFanSpeeds", value: new groovy.json.JsonBuilder(supportedFanSpeeds).toString())
    sendEvent(name: "numberOfButtons", value: 15)
+   
    List<String> cmds = []
    // Preferences:
    getMscAttributesForFwVersion().each { Map.Entry attrDetails ->
@@ -375,8 +350,6 @@ void configure() {
    //cmds.add "zdo unbind 0x${device.deviceNetworkId} 0x${device.endpointId} 0x01 0x0008 {${device.zigbeeId}} {}"
    cmds.add "zdo bind 0x${device.deviceNetworkId} 0x${device.endpointId} 0x01 0x0006 {${device.zigbeeId}} {}"  // on/off
    cmds.add "zdo bind 0x${device.deviceNetworkId} 0x${device.endpointId} 0x01 0x0008 {${device.zigbeeId}} {}"  // level
-   cmds.add "zdo bind 0x${device.deviceNetworkId} 0x${device.endpointId} 0x01 0x0702 {${device.zigbeeId}} {}"  // simple metering
-   cmds.add "zdo bind 0x${device.deviceNetworkId} 0x${device.endpointId} 0x01 0x0B04 {${device.zigbeeId}} {}"  // electrical measurement
    cmds.add "zdo bind 0x${device.deviceNetworkId} 0x${device.endpointId} 0x01 $INOVELLI_CLUSTER {${device.zigbeeId}} {}"  // manufacturer-specific
    cmds.add "zdo bind 0x${device.deviceNetworkId} 0x02 0x01 $INOVELLI_CLUSTER {${device.zigbeeId}} {}"  // manufacturer-specific ep2 = buttons evts
 
@@ -417,49 +390,17 @@ void parse(String description) {
          if (descMap.attrInt == 0) {
             Integer rawValue = Integer.parseInt(descMap.value, 16)
             Integer levelValue = Math.round(rawValue/2.55)
-            if (levelValue == 0 && rawValue > 0) levelValue = 1
-            if (txtEnable) log.info "${device.displayName} level is ${levelValue}"
-            sendEvent(name: "level", value: levelValue, descriptionText: "${device.displayName} level is ${levelValue}")
+            if (logEnable) log.info "${device.displayName} raw level is ${levelValue}"
+            if (levelValue <= 0) newSpeed = "off"
+            else if (levelValue < 21) newSpeed = "low"
+            else if (levelValue < 61) newSpeed = "medium"
+            else if (levelValue <= 100) newSpeed = "high"
+            String descText = "${device.displayName} speed is ${newSpeed}"
+            if (logEnable) log.info descText
+            sendEvent(name: "speed", value: newSpeed, descriptionText: descText)
          }
          else {
             if (logEnable) log.debug "skipping 0x0008:${descMap.attrId}"
-         }
-         break
-      case 0x0B04: // Electrial Measurement
-         if (descMap.attrInt == 0x0501) {  // Amps
-            if (descMap.command == "01" || descMap.command == "0A" || descMap.command == "0B") {
-               Integer intVal = zigbee.convertHexToInt(descMap.value)
-               Double ampsVal = intVal/100
-               if (txtEnable) log.info "${device.displayName} amperage is ${ampsVal} A"
-               sendEvent(name: "amperage", value: ampsVal, unit: "A",
-                  descriptionText: "${device.displayName} amperage is ${ampsVal} A")
-            }
-         }
-         else if (descMap.attrInt == 0x050B) { // Watts
-            if (descMap.command == "01" || descMap.command == "0A" || descMap.command == "0B") {
-               Integer intVal = zigbee.convertHexToInt(descMap.value)
-               Double wattsVal = intVal/100
-               if (txtEnable) log.info "${device.displayName} power is ${wattsVal} W"
-               sendEvent(name: "power", value: wattsVal, unit: "W",
-                  descriptionText: "${device.displayName} power is ${wattsVal} AW")
-            }
-         }
-         break
-      case 0x0702: // Simple Metering
-         if (descMap.attrInt == 0) {
-            if (descMap.command == "01" || descMap.command == "0A" || descMap.command == "0B") {
-               Integer intVal = zigbee.convertHexToInt(descMap.value)
-               Double energyVal = intVal/100
-               if (txtEnable) log.info "${device.displayName} energy is ${energyVal} kWh"
-               sendEvent(name: "energy", value: energyVal, unit: "kWh",
-                  descriptionText: "${device.displayName} energy is ${energyVal} kWh")
-            }
-            else {
-               "skipping 0x0702:0x0000 command ${descMap.command}"
-            }
-         }
-         else {
-            if (logEnable) log.debug "skipping 0x0702:${descMap.attrId}"
          }
          break
       case INOVELLI_CLUSTER:
@@ -509,6 +450,52 @@ void on() {
 void off() {
    if (logEnable) log.debug "off()"
    sendToDevice "he cmd 0x${device.deviceNetworkId} 0x${device.endpointId} 0x0006 0 {}"
+}
+
+void setSpeed(String speed) {
+   if (logEnable) log.debug "setSpeed($speed)"
+   switch (speed) {
+      case "off":
+         off()
+         break
+      case "on":
+         on()
+         break
+      case "low":
+         scaledetLevel(20)
+         break
+      case "medium-low":
+      case "medium":
+      case "medium-high":
+         setLevel(60)
+         break
+      case "high":
+         setLevel(100)
+         break
+      default:
+         log.warn "Unexpected fan speed; ignoring. Speed: $speed"
+   }
+}
+
+void cycleSpeed() {
+   if (logEnable) log.debug "cycleSpeed()"
+   String currentSpeed = device.currentValue("speed") ?: "off"
+   switch (currentSpeed) {
+      case "off":
+         setLevel(20)
+      break
+      case "low":
+         setLevel(60)
+      break
+      case "medium-low":
+      case "medium":
+      case "medium-high":
+         setLevel(100)
+      break
+      case "high":
+         off()
+      break
+   }
 }
 
 void setLevel(level, Number transitionTime=null) {
