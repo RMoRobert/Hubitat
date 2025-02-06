@@ -15,6 +15,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.0.4  (2025-02-05) - Likely fix for configure() Long type error
  *  v1.0.3  (2025-01-28) - Slower default startLevelChange duration
  *  v1.0.2  (2024-05-27) - Improve initial child device creation
  *  v1.0.1  (2024-04-05) - Add updateFirmware command, importUrl, other minor changes
@@ -251,8 +252,9 @@ void configure() {
    mscAttributesEp1.each { attrDetails ->
       def settingVal = settings[getSettingNameForMscPreference(attrDetails, 1)]
       if (settingVal != null) {
-         // OK to do here since all this device's parameters are numeric:
-         Integer intVal = settingVal instanceof Number ? settingVal : Integer.parseInt(settingVal)
+         // log.trace "setting name = ${getSettingNameForMscPreference(attrDetails, 1)}; setting value = $settingVal"
+         // All the parameters are numeric, but some may be saved as string, so:
+         Integer intVal = Integer.parseInt("$settingVal")
          List<String> cmd = zigbee.writeAttribute(INOVELLI_CLUSTER, attrDetails.key, attrDetails.value.dataType,
                                intVal, [destEndpoint: 1, mfgCode: INOVELLI_MFG_CODE], 0)
          if (logEnable) log.debug "Setting MSC attribute ${attrDetails.key} to ${intVal} for ep1"
@@ -260,6 +262,7 @@ void configure() {
       }
    }
    mscAttributesEp2.each { attrDetails ->
+      // log.trace "setting name = ${getSettingNameForMscPreference(attrDetails, 2)}; setting value = $settingVal"
       def settingVal = settings[getSettingNameForMscPreference(attrDetails, 2)]
       if (settingVal != null) {
          Integer intVal = settingVal instanceof Integer ? settingVal : Integer.parseInt(settingVal)
