@@ -15,7 +15,7 @@
  * =======================================================================================
  * 
  *  Changelog:
- *  v1.0.4  (2025-02-05) - Likely fix for configure() Long type error
+ *  v1.0.5  (2025-02-06) - Additional fix for configure() Long type error
  *  v1.0.3  (2025-01-28) - Slower default startLevelChange duration
  *  v1.0.2  (2024-05-27) - Improve initial child device creation
  *  v1.0.1  (2024-04-05) - Add updateFirmware command, importUrl, other minor changes
@@ -262,10 +262,10 @@ void configure() {
       }
    }
    mscAttributesEp2.each { attrDetails ->
-      // log.trace "setting name = ${getSettingNameForMscPreference(attrDetails, 2)}; setting value = $settingVal"
       def settingVal = settings[getSettingNameForMscPreference(attrDetails, 2)]
       if (settingVal != null) {
-         Integer intVal = settingVal instanceof Integer ? settingVal : Integer.parseInt(settingVal)
+         // log.trace "setting name = ${getSettingNameForMscPreference(attrDetails, 2)}; setting value = $settingVal"
+         Integer intVal = Integer.parseInt("$settingVal")
          cmds += zigbee.writeAttribute(INOVELLI_CLUSTER, attrDetails.key, attrDetails.value.dataType,
                                       intVal, [destEndpoint: 2, mfgCode: INOVELLI_MFG_CODE], 0)
          if (logEnable) log.debug "Setting MSC attribute ${attrDetails.key} to ${intVal} for ep2"
