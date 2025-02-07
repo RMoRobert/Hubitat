@@ -1,7 +1,7 @@
 /**
  *  Zooz ZEN34 (Remote) community driver for Hubitat
  * 
- *  Copyright 2021 Robert Morris
+ *  Copyright 2021-2025 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -13,6 +13,8 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
+ *  2025-02-07: Force string type for zwWakeupInterval data value save
+ *  2024-04-17: Fix descriptionText logging for digital button events
  *  2021-07-29: Fix for "released" scene to report correct event
  *  2021-04-11: Initial release
  */
@@ -84,6 +86,8 @@ import groovy.transform.Field
       size: 1]
 ]
 
+@Field static final Map<Short,String> associationGroups = [2:"associationGroupTwo", 3:"associationGroupThree"]
+
 @Field static final String wakeUpInstructions = "To wake the device immediately, tap up 7x."
 
 metadata {
@@ -96,6 +100,11 @@ metadata {
       capability "ReleasableButton"
       capability "Configuration"
       capability "Refresh"
+
+      command "setAssociationGroup", [[name: "Group Number*",type:"NUMBER", description: "Association group number (consult device manual)"], 
+                                 [name: "Z-Wave Node*", type:"STRING", description: "Node number (in hex) to add/remove from group"], 
+                                 [name: "Action*", type:"ENUM", constraints: ["Add", "Remove"]],
+                                 [name:"Multi-channel Endpoint", type:"NUMBER", description: "Currently not implemented"]] 
 
       fingerprint mfr: "027A", prod: "7000", deviceId: "F001", inClusters: "0x5E,0x55,0x9F,0x6C" 
       fingerprint mfr: "027A", prod: "7000", deviceId: "F001", inClusters: "0x5E,0x85,0x8E,0x59,0x55,0x86,0x72,0x5A,0x73,0x80,0x5B,0x9F,0x70,0x84,0x6C,0x7A"
@@ -200,7 +209,6 @@ void zwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) 
    if (logEnable) log.debug "ConfigurationReport: ${cmd}"
    if (txtEnable) log.info "${device.displayName} parameter ${cmd.parameterNumber} (size ${cmd.size}) is ${cmd.scaledConfigurationValue}"
    setStoredConfigParamValue(cmd.parameterNumber, cmd.scaledConfigurationValue)
-
 }
 
 void zwaveEvent(hubitat.zwave.commands.batteryv1.BatteryReport cmd) {
@@ -279,7 +287,7 @@ void zwaveEvent(hubitat.zwave.commands.centralscenev3.CentralSceneNotification c
    }
 
    if (btnNum) {
-      String descriptionText = "${device.displayName} button ${btnNum} was ${btnAction}"
+      String descriptionText = "${device.displayName} button ${btnNum} was ${btnAction} (physical)"
       if (txtEnable) log.info(descriptionText)
       sendEvent(name: "${btnAction}", value: btnNum, descriptionText: descriptionText, isStateChange: true, type: "physical")
    }
@@ -287,7 +295,7 @@ void zwaveEvent(hubitat.zwave.commands.centralscenev3.CentralSceneNotification c
 
 void zwaveEvent(hubitat.zwave.commands.wakeupv2.WakeUpIntervalReport cmd) {
    if (logEnable) log.debug "WakeUpIntervalReport: $cmd"
-   updateDataValue("zwWakeupInterval", cmd.seconds)
+   updateDataValue("zwWakeupInterval", "${cmd.seconds}")
 }
 
 void zwaveEvent(hubitat.zwave.commands.wakeupv2.WakeUpNotification cmd) {
@@ -322,20 +330,38 @@ void zwaveEvent(hubitat.zwave.commands.wakeupv2.WakeUpNotification cmd) {
    sendToDevice(cmds, 500)
 }
 
+void zwaveEvent(hubitat.zwave.commands.associationv2.AssociationReport cmd) {
+   if (logEnable) log.debug "AssociationReport: $cmd"
+   if (logEnable) "Group ${cmd.groupingIdentifier} Association: ${cmd.nodeId}"
+
+   String name = associationGroups[cmd.groupingIdentifier]
+   if (name) {
+      state["${name}NodeIds"] = cmd.nodeId
+      //List<String> dnis = convertIntListToHexList(cmd.nodeId)?.join(", ") ?: ""
+      //sendEventIfNew(name, (dnis ?: "none"))
+   }
+}
+
 void zwaveEvent(hubitat.zwave.Command cmd){
     if (logEnable) log.debug "skip: ${cmd}"
 }
 
-void push(Number btnNum) {
-   sendEvent(name: "pushed", value: btnNum, isStateChange: true, type: "digital")
+void push(btnNum) {
+   Integer intNum = btnNum.toInteger()
+   sendEvent(name: "pushed", value: intNum, isStateChange: true, type: "digital")
+   if (txtEnable) log.info "${device.displayName} button $intNum is pushed (digital)"
 }
 
-void hold(Number btnNum) {
-   sendEvent(name: "held", value: btnNum, isStateChange: true, type: "digital")
+void hold(btnNum) {
+   Integer intNum = btnNum.toInteger()
+   sendEvent(name: "held", value: intNum, isStateChange: true, type: "digital")
+   if (txtEnable) log.info "${device.displayName} button $intNum is pushed (digital)"
 }
 
-void release(Number btnNum) {
-   sendEvent(name: "released", value: btnNum, isStateChange: true, type: "digital")
+void release(btnNum) {
+   Integer intNum = btnNum.toInteger()
+   sendEvent(name: "released", value: intNum, isStateChange: true, type: "digital")
+   if (txtEnable) log.info "${device.displayName} button $intNum is pushed (digital)"
 }
 
 void installed(){
@@ -387,6 +413,28 @@ List<String> getPendingConfigurationChanges() {
    }
    if (logEnable) "getPendingConfigurationChanges: $changes"
    return changes
+}
+
+List<String> convertIntListToHexList(List<Integer> intList) {
+   List<String> hexList = []
+   intList?.each { Integer i ->
+      hexList.add(Integer.toHexString(i).padLeft(2, "0").toUpperCase())
+   }
+   return hexList
+   }
+
+List<Integer> convertHexListToIntList(String[] hexList) {
+   List<Integer> intList = []
+   hexList?.each { String s ->
+      try {
+         s = s.trim()
+         intList.add(Integer.parseInt(s, 16))
+      }
+      catch (e) {
+         if (logEnable) log.warn ("in convertIntListToHexList: $e")
+      }
+   }
+   return intList
 }
 
 void clearChildDevsAndState() {
