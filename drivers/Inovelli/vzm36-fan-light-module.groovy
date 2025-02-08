@@ -15,6 +15,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.0.6  (2022-02-07) - Fix for attribute 258 (dimmer vs. on/off-only)
  *  v1.0.5  (2025-02-06) - Additional fix for configure() Long type error
  *  v1.0.3  (2025-01-28) - Slower default startLevelChange duration
  *  v1.0.2  (2024-05-27) - Improve initial child device creation
@@ -112,7 +113,7 @@ import com.hubitat.zigbee.DataType
    //     ],
    258:  [
           desc: "Light: switch mode", type: "enum", default: 1, dataType: DataType.BOOLEAN, options:
-          [[0: "On/off only"],[1: "Dimmer [DEFAULT]"]]
+          [[0: "Dimmer"],[1: "On/Off Only [DEFAULT]"]]
        ],
 ]
 
@@ -178,7 +179,7 @@ import com.hubitat.zigbee.DataType
    //     ],
    258:  [
           desc: "Fan: switch mode", type: "enum", default: 1, dataType: DataType.BOOLEAN, options:
-          [[0: "On/off only"],[1: "Speed and on/off control [DEFAULT]"]]
+          [[0: "Speed and on/off control"],[1: "On/off only [DEFAULT]"]]
        ],
 ]
 
