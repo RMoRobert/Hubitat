@@ -15,6 +15,7 @@
  * =======================================================================================
  * 
  *  Changelog:
+ *  v1.0.2  (2025-02-09) - Update to handle decimal (and hex) firmware version format
  *  v1.0.1  (2025-01-24) - Initial release, based on VZM31-SN driver
  * 
  */
@@ -279,6 +280,14 @@ metadata {
 
 Map getMscAttributesForFwVersion() {
    String softwareBuild = getDataValue("softwareBuild")
+   if (softwareBuild?.contains(".")) {
+      // Convert to hex if in decimal format:
+      String prepend = "0202" // unsure what this means but seems (HW identifier?) but seems to be ignored...
+      def (String major, String minor) = softwareBuild.split("\\.")
+      String hexMajor = hubitat.helper.HexUtils.integerToHexString(major.toInteger(), 2)
+      String hexminor = hubitat.helper.HexUtils.integerToHexString(minor.toInteger(), 2)
+      softwareBuild = prepend + hexMajor + hexminor
+   }
    Integer minBuild = 0
    Integer currBuild
    try {
