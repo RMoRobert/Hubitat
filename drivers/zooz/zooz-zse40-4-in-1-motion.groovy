@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
+ *  2025-02-09: Force zwWakeupInterval to save as string per device.data value requirements
  *  2021-04-23: Pad firmware subversion with 0 as needed
  *  2021-04-11: Initial release
  */
@@ -141,17 +142,6 @@ void parse(String description) {
    }
 }
 
-void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
-   if (logEnable) log.debug "SupervisionGet: $cmd"
-   hubitat.zwave.Command encapCmd = cmd.encapsulatedCommand(commandClassVersions)
-   if (encapCmd) {
-      zwaveEvent(encapCmd)
-   }
-   else {
-      if (logEnable) log.debug "Unable to de-encapsulate command from $cmd"
-   }
-}
-
 void zwaveEvent(hubitat.zwave.commands.versionv2.VersionReport cmd) {
    if (logEnable) log.debug "VersionReport: ${cmd}"
    device.updateDataValue("firmwareVersion", """${cmd.firmware0Version}.${String.format("%02d", cmd.firmware0SubVersion)}""")
@@ -269,7 +259,7 @@ void zwaveEvent(hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelReport
 
 void zwaveEvent(hubitat.zwave.commands.wakeupv2.WakeUpIntervalReport cmd) {
    if (logEnable) log.debug "WakeUpIntervalReport: $cmd"
-   updateDataValue("zwWakeupInterval", cmd.seconds)
+   updateDataValue("zwWakeupInterval", "${cmd.seconds}")
 }
 
 void zwaveEvent(hubitat.zwave.commands.wakeupv2.WakeUpNotification cmd) {
