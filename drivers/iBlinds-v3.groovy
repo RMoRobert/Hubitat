@@ -1,7 +1,7 @@
 /**
  *  iBlinds v3 (manufactured by HAB Home Intel) community driver for Hubitat
  * 
- *  Copyright 2022 Robert Morris
+ *  Copyright 2020-2025 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
+ *  2025-02-10: Switch from SwitchMultilevel to WindowCovering command class for setPosition and similar; remove driver-level Supervision
  *  2022-10-09: Fix for error during scheduled battery refresh
  *  2022-09-01: Add initiateCalibration() command, new min/max tilt parameters, add start/stopPositionChange(),
  *              remove inadvertent initialize()/configure() on hub restart
@@ -31,7 +32,6 @@
  */
 
 import groovy.transform.Field
-import java.util.concurrent.ConcurrentHashMap
 
 @Field static final BigInteger param3DefaultValue = 1 // 1 = send Report after Set (so don't need to query after setPosition(), etc.)
 @Field static final Integer calibrationTime = 60 // Number of seconds to wait before setting paramater 7 back to 0 when set to 1
@@ -71,10 +71,6 @@ import java.util.concurrent.ConcurrentHashMap
    8: [input: [name: "param.8", type: "number", title: "Minimum tilt level (default = 0), firmware 3.07/3.12+ only", range:0..25], size:1],
    9: [input: [name: "param.9", type: "number", title: "Maximum tilt level (default = 99; adjust these only if closing too tightly in up/down direction), firmware 3.07/3.12+ only", range:75..99], size:1]
 ]
-
-@Field static ConcurrentHashMap<Long, ConcurrentHashMap<Short, String>> supervisedPackets = [:]
-@Field static ConcurrentHashMap<Long, Short> sessionIDs = [:]
-@Field static final Long supervisionCheckDelay = 5 // number of seconds
 
 metadata {
    definition (name: "iBlinds v3 (Community Driver)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/iBlinds-v3.groovy") {
@@ -211,20 +207,19 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
    )
 }
 
-void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionReport cmd) {
-   if (enableDebug) log.debug "supervision report for session: ${cmd.sessionID}"
-   if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
-   if (supervisedPackets[device.idAsLong][cmd.sessionID] != null) { supervisedPackets[device.idAsLong].remove(cmd.sessionID) }
-   unschedule(supervisionCheck)
-}
-
 void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd) {
    if (enableDebug) log.debug "BasicReport: $cmd"
    dimmerEvents(cmd)
 }
 
+// Should no longer be necessary but keeping in case comes in anyway:
 void zwaveEvent(hubitat.zwave.commands.switchmultilevelv2.SwitchMultilevelReport cmd) {
    if (enableDebug) log.debug "SwitchMultilevelReport: $cmd"
+   dimmerEvents(cmd)
+}
+
+void zwaveEvent(hubitat.zwave.commands.mtpwindowcoveringv1.MoveToPositionReport cmd) {
+   if (enableDebug) log.debug "MoveToPositionReport: $cmd"
    dimmerEvents(cmd)
 }
 
@@ -324,90 +319,53 @@ void zwaveEvent(hubitat.zwave.Command cmd) {
 }
 
 // ---------------------
-// Z-Wave Supervision helper methods:
-// ---------------------
-
-void supervisionCheck() {
-   // re-attempt once
-   if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
-   supervisedPackets[device.idAsLong].each { k, v ->
-      if (enableDebug) log.debug "re-sending supervised session: ${k}"
-      sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(v), hubitat.device.Protocol.ZWAVE))
-      supervisedPackets[device.idAsLong].remove(k)
-   }
-}
-
-Short getSessionId() {
-   Short sessId = 1
-   if (!sessionIDs[device.idAsLong]) {
-      sessionIDs[device.idAsLong] = sessId
-      return sessId
-   } else {
-      sessId = sessId + sessionIDs[device.idAsLong]
-      if (sessId > 63) sessId = 1
-      sessionIDs[device.idAsLong] = sessId
-      return sessId
-   }
-}
-
-hubitat.zwave.Command supervisedEncap(hubitat.zwave.Command cmd) {
-   if (getDataValue("S2")?.toInteger() != null) {
-      hubitat.zwave.commands.supervisionv1.SupervisionGet supervised = new hubitat.zwave.commands.supervisionv1.SupervisionGet()
-      supervised.sessionID = getSessionId()
-      if (enableDebug) log.debug "new supervised packet for session: ${supervised.sessionID}"
-      supervised.encapsulate(cmd)
-      if (!supervisedPackets[device.idAsLong]) { supervisedPackets[device.idAsLong] = [:] }
-      supervisedPackets[device.idAsLong][supervised.sessionID] = supervised.format()
-      runIn(supervisionCheckDelay, "supervisionCheck")
-      return supervised
-   } else {
-      return cmd
-   }
-}
-
-// ---------------------
 // Command implementations:
 // ---------------------
 
 List<String> on() {
    if (enableDebug) log.debug "on()"
    Integer openTo = settings["openPosition"] ? (settings["openPosition"]  as Integer) : 50   
-   setLevel(openTo)
+   setPosition(openTo)
 }
 
 List<String> off() {
    if (enableDebug) log.debug "off()"
-   setLevel(0)
+   setPosition(0)
 }
 
 List<String> open() {
    if (enableDebug) log.debug "open()"
    Integer openTo = settings["openPosition"] ? (settings["openPosition"]  as Integer) : 50   
-   setLevel(openTo)
+   setPosition(openTo)
 }
 
 List<String> close() {
    if (enableDebug) log.debug "close()"
-   setLevel(0)
+   setPosition(0)
 }
 
 List<String> setPosition(Number value) {
    if (enableDebug) log.debug "setPosition($value)"
    Integer level = Math.max(Math.min(value as Integer, 99), 0)
-   hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: level)
-   return [zwaveSecureEncap(supervisedEncap(cmd))]
+   //hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: level)
+   hubitat.zwave.Command cmd = new hubitat.zwave.commands.windowcoveringv1.WindowCoveringSet(values:[23:value.shortValue()])
+   return [zwaveSecureEncap(cmd)]
 }
 
 List<String> startPositionChange(String direction) {
    if (enableDebug) log.debug "startPositionChange($direction)"
    Boolean openClose = (direction != "open")
    hubitat.zwave.Command cmd = zwave.switchMultilevelV1.switchMultilevelStartLevelChange(upDown: openClose, ignoreStartLevel: 1, startLevel: 0)
+   // Trying to figure out:
+   //hubitat.zwave.Command cmd = new hubitat.zwave.commands.windowcoveringv1.WindowCoveringStartLevelChange(parameterId: 23, upDown: openClose)
    return [zwaveSecureEncap(cmd)]
 }
 
 List<String> stopPositionChange() {
    if (enableDebug) log.debug "stopPositionChange()"
    hubitat.zwave.Command cmd = zwave.switchMultilevelV1.switchMultilevelStopLevelChange()
+   // Trying to figure out:
+   //hubitat.zwave.Command cmd = new hubitat.zwave.commands.windowcoveringv1.WindowCoveringStopLevelChange()
    return [zwaveSecureEncap(cmd)]
 }
 
@@ -419,9 +377,10 @@ List<String> setLevel(Number value) {
 List<String> setLevel(Number value, Number duration) {
    if (enableDebug) log.debug "setLevel($value, $duration)"
    Integer level = Math.max(Math.min(value as Integer, 99), 0)
-   Integer dimmingDuration = duration < 128 ? duration : 128 + Math.round(duration / 60)
-   hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: level, dimmingDuration: dimmingDuration)
-   return [zwaveSecureEncap(supervisedEncap(cmd))]
+   Integer intDuration = duration < 128 ? duration : 128 + Math.round(duration / 60)
+   //hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: level, duration: intDuration)
+   hubitat.zwave.Command cmd = new hubitat.zwave.commands.windowcoveringv1.WindowCoveringSet(values:[23:value.shortValue()], duration: duration)
+   return [zwaveSecureEncap(cmd)]
 }
 
 List<String> refresh() {
@@ -429,8 +388,9 @@ List<String> refresh() {
    state.lastBattAttemptAt = now()
    delayBetween([
       //zwaveSecureEncap(zwave.switchBinaryV1.switchBinaryGet()),
-      zwaveSecureEncap(zwave.switchMultilevelV2.switchMultilevelGet()),
-      zwaveSecureEncap(zwave.batteryV1.batteryGet()),
+      zwaveSecureEncap(zwave.switchMultilevelV2.switchMultilevelGet().format()),
+      zwaveSecureEncap(zwave.windowCoveringV1.windowCoveringGet().format()),
+      zwaveSecureEncap(zwave.batteryV1.batteryGet().format()),
    ], 200)
 }
 
@@ -441,7 +401,7 @@ String initiateCalibration() {
       log.warn "Remote initiation of calibration is not possible on iBlinds v3 firmware versions before 3.06; ignoring command"
       return ""
    }
-   String cmd = zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: 1, parameterNumber: 7, size: 1))
+   String cmd = zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: 1, parameterNumber: 7, size: 1).format())
    runIn(calibrationTime, "resetCalibrationParameter")
    return cmd
 }
@@ -453,14 +413,14 @@ String initiateCalibration() {
 // Resets parameter 7 to 0 (recommended after calibration is done after setting to 1)
 void resetCalibrationParameter() {
    if (enableDebug) log.debug "resetCalibrationParameter()"
-   String cmd = zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: 0, parameterNumber: 7, size: 1))
+   String cmd = zwaveSecureEncap(zwave.configurationV1.configurationSet(scaledConfigurationValue: 0, parameterNumber: 7, size: 1).format())
    sendHubCommand(new hubitat.device.HubAction(cmd, hubitat.device.Protocol.ZWAVE))
 }
 
 void getBattery() {
    if (enableDebug) log.debug "getBattery()"
    state.lastBattAttemptAt = now()
-   String cmd = zwaveSecureEncap(zwave.batteryV1.batteryGet())
+   String cmd = zwaveSecureEncap(zwave.batteryV1.batteryGet().format())
    sendHubCommand(new hubitat.device.HubAction(cmd, hubitat.device.Protocol.ZWAVE))
 }
 
