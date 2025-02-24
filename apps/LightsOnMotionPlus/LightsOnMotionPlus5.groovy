@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2024-09-19
+ *  Last modified: 2025-02-23
  *
  *  Changelog:
  *
+ * 5.5.6 - Add option to consider off if "off" command just sent but device not reported yet
  * 5.5.5 - Update for CoCoHue 5.1 scene activation
  * 5.5.4 - Remove extraneous "trace" logging
  * 5.5.3 - Fix for lights erroneously turning on when were not on before with grace period configured
@@ -86,6 +87,7 @@ definition(
    iconUrl: "",
    iconX2Url: "",
    iconX3Url: "",
+   singleThreaded: true,
    documentationLink: "https://community.hubitat.com/t/release-lights-on-motion-plus-dim-before-off-remember-individual-bulb-states-etc/7178"
 )
 
@@ -231,6 +233,7 @@ def pageMain() {
          input name: "dimRule", type: "enum", title: "Run these Rule actions after lights dim", options: (ruleList + rule5List), multiple: true
          input name: "offRule", type: "enum", title: "Run these Rule actions after lights turn off", options: (ruleList + rule5List), multiple: true
          input name: "noRestoreScene", type: "bool", title: 'Re-activate "Turn on and set scene" or "Turn on and set color..." settings instead of restoring saved state when motion detected during dim'
+         input name: "enableRecentOffCheck", type: "bool",  title: "Consider lights off if \"off\" command sent within last few seconds, even if device has not reported new state yet", defaultValue: true
          //input name: "btnPrintModeIDs", type: "button", title: "Print mode IDs"
          href name: "hrefViewSavedStates", page: "pageViewSavedStates", title: "View Captured States", description: "View or edit captured light states (for troubleshooting) - beta"
          input name: "btnClearCaptured", type: "button", title: "Clear all captured states"
@@ -478,8 +481,8 @@ void motionHandler(evt) {
       // If it's a "turn on sensor" or lights were dimmed (from inactivity)...
       if (onSensors.any { it.deviceId == evt.deviceId} || state.isDimmed ||
          (state.inGrace && (settings["gracePeriod"]?.isInteger() && settings["gracePeriod"] as Integer != 0))) {
-         // If no lights on or configured to not care or currenly dimmed...
-         if ((settings["notIfOn"] == false) || state.isDimmed || state.inGrace || verifyNoneOn()) {
+         // If no lights on, configured to not care, currenly dimmed, or (setting enabled and) just turned off and maybe hasn't reported yet:
+         if ((settings.notIfOn == false) || state.isDimmed || state.inGrace || verifyNoneOn() || (settings.enableRecentOffCheck != false && state.recentOff == true)) {
             // If dimmed or all restrictions OK, then perform active action
             if (state.isDimmed || state.inGrace ||
                 (isTimeOK() && isLuxOK() && isOnKillSwitchOK()))
@@ -599,6 +602,11 @@ void performActiveAction() {
    logDebug "performActiveAction", 2, "trace"
    String suffix = getSettingModeSuffix()
    Boolean anyOn = !verifyNoneOn()
+   if (anyOn && settings.enableRecentOffCheck != false && state.recentOff == true) {
+      logDebug "  Lights reporting on but considering off because recent off command sent"
+      anyOn = false
+      state.remove("recentOff")
+   }
    switch (settings["activeAction${suffix}"]) {
       case "on":
          logDebug '  action is "on"', 2, "debug"
@@ -787,6 +795,10 @@ void scheduledOffHandler() {
    List<DeviceWrapper> devsToTurnOff = getDevicesToTurnOff(true)
    Boolean wereAnyOn = devsToTurnOff.any { it.currentValue("switch") == "on" }
    devsToTurnOff.each { it.off() }
+   if (enableRecentOffCheck != false) {
+      runIn(3, "recentOffReset")
+      state.recentOff = true
+   }
    state.isDimmed = false
    if (settings["gracePeriod"]?.isInteger() && settings["gracePeriod"] as Integer != 0) {
       Integer graceSeconds = settings["gracePeriod"] as Integer
@@ -864,7 +876,12 @@ void startGrace() {
    runIn(settings.get("gracePeriod") ? settings.gracePeriod as Integer : 1, "scheduledGraceEndHandler")
 }
 
-def modeChangeHandler(evt) {
+void recentOffReset() {
+   logDebug "recentOffReset()"
+   state.remove("recentOff")
+}
+
+void modeChangeHandler(evt) {
    if (settings["changeWithMode"]) {
       logDebug "modeChangeHandler: configured to handle", 2, "trace"
       if (state.lastMode != null) {
@@ -1106,6 +1123,7 @@ void initialize() {
    unschedule()
    unsubscribe()
    state.isDimmed = false
+   state.remove("recentOff")
    endGrace()
    subscribe(onSensors, "motion", motionHandler)
    subscribe(keepOnSensors, "motion", motionHandler)
