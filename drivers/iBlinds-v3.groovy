@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
+ *  2025-02-24: Revert to SwitchMultilevel from WindowCovering
  *  2025-02-10: Switch from SwitchMultilevel to WindowCovering command class for setPosition and similar; remove driver-level Supervision
  *  2022-10-09: Fix for error during scheduled battery refresh
  *  2022-09-01: Add initiateCalibration() command, new min/max tilt parameters, add start/stopPositionChange(),
@@ -209,22 +210,22 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
 
 void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd) {
    if (enableDebug) log.debug "BasicReport: $cmd"
-   dimmerEvents(cmd)
+   positionEvents(cmd)
 }
 
 // Should no longer be necessary but keeping in case comes in anyway:
 void zwaveEvent(hubitat.zwave.commands.switchmultilevelv2.SwitchMultilevelReport cmd) {
    if (enableDebug) log.debug "SwitchMultilevelReport: $cmd"
-   dimmerEvents(cmd)
+   positionEvents(cmd)
 }
 
 void zwaveEvent(hubitat.zwave.commands.mtpwindowcoveringv1.MoveToPositionReport cmd) {
    if (enableDebug) log.debug "MoveToPositionReport: $cmd"
-   dimmerEvents(cmd)
+   positionEvents(cmd)
 }
 
-private void dimmerEvents(hubitat.zwave.Command cmd) {
-   if (enableDebug) log.debug "Dimmer events:  $cmd"
+private void positionEvents(hubitat.zwave.Command cmd) {
+   if (enableDebug) log.debug "positionEvents(cmd = $cmd)"
    Integer position = cmd.value as Integer
    String switchValue = "off"
    String windowShadeState = "closed"
@@ -347,8 +348,8 @@ List<String> close() {
 List<String> setPosition(Number value) {
    if (enableDebug) log.debug "setPosition($value)"
    Integer level = Math.max(Math.min(value as Integer, 99), 0)
-   //hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: level)
-   hubitat.zwave.Command cmd = new hubitat.zwave.commands.windowcoveringv1.WindowCoveringSet(values:[23:value.shortValue()])
+   hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: level)
+   //hubitat.zwave.Command cmd = new hubitat.zwave.commands.windowcoveringv1.WindowCoveringSet(values:[23:value.shortValue()])
    return [zwaveSecureEncap(cmd)]
 }
 
@@ -356,7 +357,7 @@ List<String> startPositionChange(String direction) {
    if (enableDebug) log.debug "startPositionChange($direction)"
    Boolean openClose = (direction != "open")
    hubitat.zwave.Command cmd = zwave.switchMultilevelV1.switchMultilevelStartLevelChange(upDown: openClose, ignoreStartLevel: 1, startLevel: 0)
-   // Trying to figure out:
+   // Probably not right, but could be starting point if need some day:
    //hubitat.zwave.Command cmd = new hubitat.zwave.commands.windowcoveringv1.WindowCoveringStartLevelChange(parameterId: 23, upDown: openClose)
    return [zwaveSecureEncap(cmd)]
 }
@@ -364,7 +365,7 @@ List<String> startPositionChange(String direction) {
 List<String> stopPositionChange() {
    if (enableDebug) log.debug "stopPositionChange()"
    hubitat.zwave.Command cmd = zwave.switchMultilevelV1.switchMultilevelStopLevelChange()
-   // Trying to figure out:
+   // Probably not right, but could be starting point if need some day:
    //hubitat.zwave.Command cmd = new hubitat.zwave.commands.windowcoveringv1.WindowCoveringStopLevelChange()
    return [zwaveSecureEncap(cmd)]
 }
@@ -378,8 +379,8 @@ List<String> setLevel(Number value, Number duration) {
    if (enableDebug) log.debug "setLevel($value, $duration)"
    Integer level = Math.max(Math.min(value as Integer, 99), 0)
    Integer intDuration = duration < 128 ? duration : 128 + Math.round(duration / 60)
-   //hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: level, duration: intDuration)
-   hubitat.zwave.Command cmd = new hubitat.zwave.commands.windowcoveringv1.WindowCoveringSet(values:[23:value.shortValue()], duration: duration)
+   hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: level, dimmingDuration: intDuration)
+   //hubitat.zwave.Command cmd = new hubitat.zwave.commands.windowcoveringv1.WindowCoveringSet(values:[23:value.shortValue()], duration: duration)
    return [zwaveSecureEncap(cmd)]
 }
 
@@ -389,7 +390,7 @@ List<String> refresh() {
    delayBetween([
       //zwaveSecureEncap(zwave.switchBinaryV1.switchBinaryGet()),
       zwaveSecureEncap(zwave.switchMultilevelV2.switchMultilevelGet().format()),
-      zwaveSecureEncap(zwave.windowCoveringV1.windowCoveringGet().format()),
+      //zwaveSecureEncap(zwave.windowCoveringV1.windowCoveringGet().format()),
       zwaveSecureEncap(zwave.batteryV1.batteryGet().format()),
    ], 200)
 }
