@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  * 
  *  Version History
+ *  2025-04-05: Implement association support
  *  2025-02-07: Force string type for zwWakeupInterval data value save
  *  2024-04-17: Fix descriptionText logging for digital button events
  *  2021-07-29: Fix for "released" scene to report correct event
@@ -85,8 +86,7 @@ import groovy.transform.Field
            options: [[0:"White  (default)"],[1:"Blue"],[2:"Green"],[3:"Red"],[4:"Magenta"],[5:"Yellow"],[6:"Cyan"]]],
       size: 1]
 ]
-
-@Field static final Map<Short,String> associationGroups = [2:"associationGroupTwo", 3:"associationGroupThree"]
+@Field static final List<Short> associationGroups = [2, 3]
 
 @Field static final String wakeUpInstructions = "To wake the device immediately, tap up 7x."
 
@@ -102,7 +102,7 @@ metadata {
       capability "Refresh"
 
       command "setAssociationGroup", [[name: "Group Number*",type:"NUMBER", description: "Association group number (consult device manual)"], 
-                                 [name: "Z-Wave Node*", type:"STRING", description: "Node number (in hex) to add/remove from group"], 
+                                 [name: "Z-Wave Node*", type:"STRING", description: "Node number (in hex) to add/remove from group (be sure to remove here if node ever removed from hub!)"], 
                                  [name: "Action*", type:"ENUM", constraints: ["Add", "Remove"]],
                                  [name:"Multi-channel Endpoint", type:"NUMBER", description: "Currently not implemented"]] 
 
@@ -226,7 +226,7 @@ void zwaveEvent(hubitat.zwave.commands.batteryv1.BatteryReport cmd) {
 }
 
 void zwaveEvent(hubitat.zwave.commands.centralscenev3.CentralSceneNotification cmd) {    
-   if (logEnable) log.debug "CentralSceneNotification: ${cmd}"
+   if (logEnable) log .debug "CentralSceneNotification: ${cmd}"
    Integer btnNum = 0
    String btnAction = "pushed"
    if (cmd.sceneNumber == 1) {  // Up paddle
@@ -315,6 +315,12 @@ void zwaveEvent(hubitat.zwave.commands.wakeupv2.WakeUpNotification cmd) {
    if (state.pendingRefresh || !(getDataValue("zwWakeupInterval"))) {
       cmds << zwave.wakeUpV2.wakeUpIntervalGet().format()
    }
+   if (state.pendingRefresh) {
+      // everything else:
+      associationGroups.each { Integer grpNum ->
+         cmds << zwave.associationV2.associationGet(groupingIdentifier: grpNum).format()
+      }
+   }
    state.pendingRefresh = false
 
    // configure (or initial set if needed)
@@ -332,18 +338,63 @@ void zwaveEvent(hubitat.zwave.commands.wakeupv2.WakeUpNotification cmd) {
 
 void zwaveEvent(hubitat.zwave.commands.associationv2.AssociationReport cmd) {
    if (logEnable) log.debug "AssociationReport: $cmd"
-   if (logEnable) "Group ${cmd.groupingIdentifier} Association: ${cmd.nodeId}"
+   Integer grpNum = cmd.groupingIdentifier
+   if (logEnable) "Group ${grpNum} Association: ${cmd.nodeId}"
 
-   String name = associationGroups[cmd.groupingIdentifier]
-   if (name) {
-      state["${name}NodeIds"] = cmd.nodeId
-      //List<String> dnis = convertIntListToHexList(cmd.nodeId)?.join(", ") ?: ""
-      //sendEventIfNew(name, (dnis ?: "none"))
+   if (grpNum == 1) {
+      if (logEnable) log.debug "Association group 1 (lifeline) reported for ${cmd.nodeId}"
+   }
+   else if (grpNum in associationGroups) {
+      String dnis = convertIntListToHexList(cmd.nodeId)?.join(", ") ?: ""
+      if (logEnable) log.debug "Association group ${grpNum} node IDs: ${dnis ?: 'none'}"
+      if (cmd.nodeId.size() > 0) {
+         state."associationGroup${grpNum}NodeIds" = convertIntListToHexList(cmd.nodeId)
+      }
+      else {
+         state.remove("associationGroup${grpNum}NodeIds" as String)
+      }
+      state.pendingRefresh = true
+   }
+   else {
+      log.warn "Association group ${grpNum} not supported"
+      return
    }
 }
 
 void zwaveEvent(hubitat.zwave.Command cmd){
     if (logEnable) log.debug "skip: ${cmd}"
+}
+
+void setAssociationGroup(Number groupNum, String nodeId, String action, Integer endpoint=null) {
+   if (logEnable) log.debug "setAssociationGroup($groupNum, $nodeId, $action)"
+   if (logEnable || txtEnable) log.info "Attempting association group changes. Please wake the device within a few seconds before running this command. ${wakeUpInstructions}"
+   List<String> cmds = []
+   Integer grpNum = groupNum as Integer
+   if (grpNum in associationGroups) {
+      List<Integer> nodeIds = convertHexListToIntList(nodeId.split(",")).findAll { it > 0 }
+      if (nodeIds.size() > 0) {
+         if (action?.toLowerCase().trim() == "add") {
+            log.trace "grp, node = $grpNum, $nodeIds"
+            log.warn zwave.associationV2.associationSet(groupingIdentifier: grpNum, nodeId: nodeIds).format()
+            cmds << zwave.associationV2.associationSet(groupingIdentifier: grpNum, nodeId: nodeIds).format()
+            if (logEnable) log.debug "Adding node IDs ${nodeIds} to group ${grpNum}: $cmds"
+         }
+         else if (action?.toLowerCase().trim() == "remove") {
+            cmds << zwave.associationV2.associationRemove(groupingIdentifier: grpNum, nodeId: nodeIds).format()
+         }
+         else {
+            log.error "Invalid action in setAssociationGroup: '${action}'"
+         }
+         cmds << zwave.associationV2.associationGet(groupingIdentifier: grpNum).format()
+         sendToDevice(cmds)
+      }
+      else {
+         log.warn "No node ID or invalid format: ${nodeId}"
+      }
+   }
+   else {
+      log.warn "Association group ${grpNum} not supported"
+   }
 }
 
 void push(btnNum) {

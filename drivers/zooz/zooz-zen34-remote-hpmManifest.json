@@ -13,7 +13,7 @@
          "namespace": "RMoRobert",
          "location": "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/zooz/zooz-zen34-remote.groovy",
          "required": true,
-         "version": "2025.02.07",
+         "version": "2025.04.04",
          "primary": true,
          "oauth": false
       }
