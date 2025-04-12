@@ -17,7 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
- * 3.3.0 (2025-04-11) - Add feature to write notification/TTS text to hub variable
+ * 3.3.0 (2025-04-12) - Add feature to write notification/TTS text to hub variable
  * 3.2.3 (2024-03-13) - Alphabetize device names in custom group list summaries and notifications
  * 3.2.2 (2024-03-13) - Add option to omit attribute name for custom devices
  * 3.2.1 (2023-12-28) - Add option to use hub variable for TTS speak level
@@ -521,7 +521,7 @@ String registerHubVariables() {
       addInUseGlobalVar(settings.ttsVolumeVariable)
    }
    if (settings.boolUseTtsTextVariable) {
-      addInUseGlobalVar(Settings.ttsTextVariable)
+      addInUseGlobalVar(settings.ttsTextVariable)
    }
 }
 
@@ -582,7 +582,7 @@ void doNotificationOrAnnouncement() {
          if (ttsVol != null) speechDevice?.speak(speechText, ttsVol)
          else speechDevice?.speak(speechText)
          if (settings.boolUseTtsTextVariable && settings.ttsTextVariable) {
-            logDebug "Also setting ${settings.ttsTextVariable} to notification/TTS text"
+            logDebug "Also setting ${settings.ttsTextVariable} to notification/TTS text: \"${speechText}\""
             setGlobalVar(settings.ttsTextVariable, speechText)
          }
       }
