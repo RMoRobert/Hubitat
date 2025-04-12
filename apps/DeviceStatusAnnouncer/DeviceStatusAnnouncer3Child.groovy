@@ -2,7 +2,7 @@
  * ==========================  Device Status Announcer ==========================
  *  Platform: Hubitat Elevation
  *
- *  Copyright 2024 Robert Morris
+ *  Copyright 2025 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -17,6 +17,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 3.3.0 (2025-04-11) - Add feature to write notification/TTS text to hub variable
  * 3.2.3 (2024-03-13) - Alphabetize device names in custom group list summaries and notifications
  * 3.2.2 (2024-03-13) - Add option to omit attribute name for custom devices
  * 3.2.1 (2023-12-28) - Add option to use hub variable for TTS speak level
@@ -148,15 +149,26 @@ Map pageMain() {
          paragraph "<small>NOTE: Hub variables can be used in any of the above text by using the <code>%variable-name%</code> format.</small>"
          input name: "goodSwitches", type: "capability.switch", title: "Turn this switch on if all devices are OK when announcement or notification is requested", multiple: true
          input name: "badSwitches", type: "capability.switch", title: "Turn this switch on if any devices are not OK when announcement or notification is requested", multiple: true
-         paragraph "The above switches will also be turned off if the stated condition is no longer true when an annoucement or notification is requested."
+         paragraph "<small>The above switches will also be turned off if the stated condition is no longer true when an annoucement or notification is requested.</small>"
+         input name: "boolUseTtsTextVariable", type: "bool", title: "Also write notification or TTS text to hub variable", width: 6, submitOnChange: true
+         if (boolUseTtsTextVariable == true) {
+            List<String> vars =  getGlobalVarsByType("string")?.collect { it.key } ?: []
+            input name: "ttsTextVariable", type: "enum", options: vars, title: "Variable:", width: 6
+         }
+         else {
+            app.removeSetting("ttsTextVariable")
+         }
       }
 
       section(styleSection("View/Test Report")) {
          href(name: "pageViewReportHref",
                page: "pageViewReport",
                title: "View current report",
-               description: "Evaluate all devices now according to the criteria above, and display a report of devices in undesired state (the same information that would be spoken or sent in a real notification/announcement).")
-         paragraph "The \"Test Announcement/Notification Now\" button will send a TTS announcement and/or notification to your selected device(s) if any current device states and options would cause an annoucement or notification. (Note: if you have changed options since you last loaded this page, press \"Done\" to save settings and re-enter the app before testing.) This a manual method to trigger the same actions the above options can automate:"
+               description: "Evaluate all devices now according to the criteria above, and display a report of devices in undesired state (the same information that would be spoken or sent in a real notification/announcement, though none will be sent).")
+         paragraph "The \"Test Announcement/Notification Now\" button will send a TTS announcement and/or notification to your selected device(s) if any current device states and options would cause an annoucement or notification. (Note: if you have changed options since you last loaded this page, select \"Done\" to save settings and re-enter the app before testing.) This a manual method to trigger the same actions the above options can automate:"
+         if (settings.boolUseTtsTextVariable && settings.ttsTextVariable) {
+            paragraph "The text of the notification and/or TTS will also be written to the variable you specified above, or the variable text will be cleared if no TTS or notification would be sent."
+         }
          input name: "btnTestNotification", type: "button", title: "Test Announcement/Notification Now", submitOnChange: true
       }
       
@@ -508,6 +520,9 @@ String registerHubVariables() {
    if (settings.ttsVolumeUseVariable && settings.ttsVolumeVariable != null) {
       addInUseGlobalVar(settings.ttsVolumeVariable)
    }
+   if (settings.boolUseTtsTextVariable) {
+      addInUseGlobalVar(Settings.ttsTextVariable)
+   }
 }
 
 String registerHubVariablesFromText(String text) {
@@ -525,6 +540,7 @@ void renameVariable(String oldName, String newName) {
    if (settings.prependText) app.updateSetting("prependText", [type: "text", value: settings.prependText.replaceAll("%${oldName}%", "%${newName}%")])
    if (settings.appendText) app.updateSetting("appendText", [type: "text", value: settings.appendText.replaceAll("%${oldName}%", "%${newName}%")])
    if (settings.ttsVolumeUseVariable && oldName == settings.ttsVolumeVariable) app.updateSetting("ttsVolumeVariable", [type: "enum", value: newName])
+   if (settings.ttsTextVariable && oldName == settings.ttsTextVariable) app.updateSetting("ttsTextVariable", [type: "enum", value: newName])
 }
 
 /** Sends notification and/or TTS announcement with list of devices in undesired state unless none and not configured to send/speak if none
@@ -565,13 +581,25 @@ void doNotificationOrAnnouncement() {
          // Using both separaretly for now in case any "legacy" drivers don't like second parameter:
          if (ttsVol != null) speechDevice?.speak(speechText, ttsVol)
          else speechDevice?.speak(speechText)
+         if (settings.boolUseTtsTextVariable && settings.ttsTextVariable) {
+            logDebug "Also setting ${settings.ttsTextVariable} to notification/TTS text"
+            setGlobalVar(settings.ttsTextVariable, speechText)
+         }
       }
       else {
          logDebug "TTS skipped: nothing to report"
+      if (settings.boolUseTtsTextVariable && settings.ttsTextVariable) {
+         logDebug "Also clearing variable ${settings.ttsTextVariable} text because nothing to report"
+         setGlobalVar(settings.ttsTextVariable, "")
+      }
       }
    }
    else {
       logDebug "Notification/TTS skipped: outside of specified mode(s)"
+      if (settings.boolUseTtsTextVariable && settings.ttsTextVariable) {
+         logDebug "Also clearing variable ${settings.ttsTextVariable} text because outside mode"
+         setGlobalVar(settings.ttsTextVariable, "")
+      }
    }
    notificationText = null
    speechText = null
