@@ -1,8 +1,7 @@
 /*
- * ===================== Zooz Scene Controller (ZEN32) Driver =====================
+ * ================ Zooz Dimmer Scene Controller (ZEN35) Driver =================
  *
- *  Copyright 2024 Robert Morris
- *  
+ *  Copyright 2025 Robert Morris
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -36,16 +35,7 @@
  *
  * 
  *  Changelog:
- *  v2.2.3  (2024-12-29): Add parameter 27 for 800LR model
- *  v2.2.2  (2024-05-29): Update fingerprint
- *  v2.2.1  (2023-12-04): Fix for parameter 18 swapped values (power restore state)
- *  v2.2    (2023-09-23): Enhancements for some commands and preferences with changes thanks to @jtp10181
- *  v2.1    (2023-09-19): Update for firmware 10.40 (700-series) and hardware 2.0. Recommended for use with
- *                        hardware v2 (800LR) or original hardware with 10.40+ firmware only.
- *  v2.0.1  (2023-05-07): Superivsion response fix
- *  v2.0    (2022-02-20): Add Indicator command class support (thanks to @jtp10181); requires ZEN32 firmware 10.10 or greater
- *  v1.0.1  (2021-04-23): Fix typo in BasicGet; pad firmware subversion with 0 as needed
- *  v1.0    (2021-04-01): Initial Release   
+ *  v1.0    (2025-04-18): Initial release, based on ZEN32 driver
  */
 
 import groovy.transform.Field
@@ -98,25 +88,81 @@ import groovy.transform.Field
        options: [[0: "Disable local control, enable Z-Wave"], [1: "Enable local and Z-Wave control (default)"], [2: "Disable local and Z-Wave control"]]],
       size: 1],
    20: [input: [name: "param.20", type: "enum", title: "[20] Behavior of relay reports if local and/or Z-Wave control disabled (scene/button events are always sent)",
-        options: [[0:"Send on/off reports and change LED"],[1:"Do not send on/off reports or change LED (default)"]]],
+        options: [[0:"Send on/off reports and change LED (default)"],[1:"Do not send on/off reports or change LED"]]],
       size: 1],
-   21: [input: [name: "param.21", type: "enum", title: "[21] 3-way switch type",
-        options: [[0:"Mechanical (connected 3-way turns on/off) (default)"],[1:"Momentary (connected 3-way toggles on/off)"]]],
+   21: [input: [name: "param.21", type: "enum", title: "[21] Ramp rate for physical on",
+        options: [[0:"ASAP (default)"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],
+        [7:"7 seconds"],[10:"10 seconds"],[15:"15 seconds"],[20:"20 seconds"],[30:"30 seconds"], [45:"45 seconds"],[60:"60 seconds"],
+        [99:"99 seconds"]]],
       size: 1],
-   22: [input: [name: "param.22", type: "enum", title: "[22] Disable Z-Wave programming (except reset and scenes) on button 5",
+   21: [input: [name: "param.22", type: "enum", title: "[22] Ramp rate for physical off",
+        options: [[0:"ASAP (default)"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],
+        [7:"7 seconds"],[10:"10 seconds"],[15:"15 seconds"],[20:"20 seconds"],[30:"30 seconds"], [45:"45 seconds"],[60:"60 seconds"],
+        [99:"99 seconds"]]],
+      size: 1],
+   23: [input: [name: "param.23", type: "enum", title: "[23] Ramp rate for physical dimming (0-99 speed)",
+        options: [[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds (default)"],
+        [7:"7 seconds"],[10:"10 seconds"],[15:"15 seconds"],[20:"20 seconds"],[30:"30 seconds"], [45:"45 seconds"],[60:"60 seconds"],
+        [99:"99 seconds"]]],
+      size: 1],
+   24: [input: [name: "param.24", type: "enum", title: "[24] Ramp rate for Z-Wave on",
+        options: [[0:"ASAP (default)"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],
+        [7:"7 seconds"],[10:"10 seconds"],[15:"15 seconds"],[20:"20 seconds"],[30:"30 seconds"], [45:"45 seconds"],[60:"60 seconds"],
+        [99:"99 seconds"]]],
+      size: 1],
+   25: [input: [name: "param.25", type: "enum", title: "[25] Ramp rate for Z-Wave off",
+        options: [[0:"ASAP (default)"],[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds"],
+        [7:"7 seconds"],[10:"10 seconds"],[15:"15 seconds"],[20:"20 seconds"],[30:"30 seconds"], [45:"45 seconds"],[60:"60 seconds"],
+        [99:"99 seconds"]]],
+      size: 1],
+   // 26: [input: [name: "param.26", type: "enum", title: "[26] Ramp rate for Z-Wave dimming (0-99 speed) for association groups 3 and 4",
+   //      options: [[1:"1 second"],[2:"2 seconds"],[3:"3 seconds"],[4:"4 seconds"],[5:"5 seconds (default)"],
+   //      [7:"7 seconds"],[10:"10 seconds"],[15:"15 seconds"],[20:"20 seconds"],[30:"30 seconds"], [45:"45 seconds"],[60:"60 seconds"],
+   //      [99:"99 seconds"]]],
+   // size: 1],
+   27: [input: [name: "param.27", type: "number", range:"1..99", title: "[27] Minimum brightness (default: 1)"],
+      size: 1],
+   28: [input: [name: "param.28", type: "number", range:"1..99", title: "[28] Maximum brightness (default: 99)"],
+      size: 1],
+   29: [input: [name: "param.29", type: "enum", title: "[29] Button 5 double-tap behavior",
+        options: [[0:"On to full brightness (default; parameter 28 will not be available)"],
+        [1:"On to custom brightness (from parameter 31)"],
+        [2:"On to maximum brightness (from parameter 28)"]]],
+      size: 1],
+   30: [input: [name: "param.30", type: "enum", title: "[30] Button 5 single-tap behavior",
+        options: [[0:"On to last brightness (default)"],
+        [1:"On to custom brightness (from parameter 31)"],
+        [2:"On to maximum brightness (from parameter 28)"],
+        [3:"On to full brightness (may disable parameter 28?)"]]],
+      size: 1],
+   31: [input: [name: "param.31", type: "number", range:"0..99", title: "[31] Button 5 brightness for phyiscal taps (1-99, or 0 for last)"],
+      size: 1],
+   32: [input: [name: "param.32", type: "enum", title: "[32] 3-way switch type",
+        options: [[0:"Toggle on/off switch (default)"],[1:"Toggle switch with dimming mode"],
+        [2:"Momentary (connected 3-way toggles on/off)"],[3:"Momentary switch with smart sequence"]]],
+      size: 1],
+   33: [input: [name: "param.33", type: "enum", title: "[33] 3-way switch type",
+        options: [[0:"Report each level if phyiscal and Z-Wave control disabled (final level only if enabled)"],
+        [1:"Always report final level only"],
+        [2:"Report each level if physical and Z-Wave control disabled (final level only if enabled), use Multilevel reporr (default)"]]],
+      size: 1],
+   34: [input: [name: "param.34", type: "enum", title: "[34] Disable Z-Wave programming (except reset and scenes) on button 5",
         options: [[0:"Enabled (default)"],[1:"Disabled (allows triple-tap w/o activating exclusion mode)"]]],
       size: 1],
-   23: [input: [name: "param.23", type: "enum", title: "[23] Flash LED indicators when parameters adjusted (hardware v2 or firmware 10.20+ only)",
-        options: [[0:"Flash (default)"],[1:"Don't Flash (recommended if using setLED() command)"]]],
+   36: [input: [name: "param.36", type: "enum", title: "[36] Enable scene control on button 5",
+        options: [[1:"Enabled (default)"],[0:"Disabled (multi-taps no longer possible but reduces delay)"]]],
       size: 1],
-   24: [input: [name: "param.24", type: "enum", title: "[24] Enable scene control on button 5 (hardware v2 or firmware 10.30+ only)",
-        options: [[0:"Enabled (default)"],[1:"Disabled (multi-taps no longer possible but reduces delay)"]]],
-      size: 1],
-   26: [input: [name: "param.26", type: "enum", title: "[26] Enable scene control from momentary in 3-way (hardware v2 or firmware 10.40+ only)",
+   37: [input: [name: "param.26", type: "enum", title: "[37] Enable scene control (2- and 3-tap) from momentary in 3-way",
         options: [[0:"Disabled (default)"],[1:"Enabled"]]],
       size: 1],
-   27: [input: [name: "param.27", type: "enum", title: "[27] Enable LED blink when buttons pressed (hardware v2 with firmware 2.40+ only)",
+   38: [input: [name: "param.38", type: "enum", title: "[38] Flash LED indicators when parameters adjusted",
+        options: [[0:"Flash (default)"],[1:"Don't Flash (recommended if using setLED() command)"]]],
+      size: 1],
+   39: [input: [name: "param.39", type: "enum", title: "[39] Enable LED blink when buttons pressed",
         options: [[0:"Enabled (default)"],[1:"Disabled"]]],
+      size: 1],
+   40: [input: [name: "param.40", type: "enum", title: "[40] On/off only mode",
+        options: [[0:"Disabled (default)"],[1:"Enabled"]]],
       size: 1]
 ]
 
@@ -131,9 +177,10 @@ import groovy.transform.Field
 ]
 
 metadata {
-   definition (name: "Zooz Scene Controller (ZEN32)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/zooz/zooz-zen32-scene-ctlr.groovy") {
+   definition (name: "Zooz Dimmer Scene Controller (ZEN35)", namespace: "RMoRobert", author: "Robert Morris", importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/drivers/zooz/zooz-zen35-scene-ctlr-dimmer.groovy") {
       capability "Actuator"
       capability "Switch"
+      capability "SwitchLevel"
       capability "Configuration"
       capability "PushableButton"
       capability "HoldableButton"
@@ -154,9 +201,8 @@ metadata {
                          [name:"numberOfOnOffPeriods", type: "NUMBER", description: "Number of total on/off periods (1-254), or 255 for indefinite", constraints: 1..255],
                          [name:"lengthOfOnPeriod", type: "NUMBER", description: "On period length in tenths of seconds (e.g., 8 = 0.8 seconds; can be used to create asymmetric on/off periods)", constraints: 1..254],
                         ]
-
-      fingerprint mfr:"027A", prod:"7000", deviceId:"A008", inClusters:"0x5E,0x25,0x70,0x20,0x5B,0x85,0x8E,0x59,0x55,0x86,0x72,0x5A,0x73,0x87,0x9F,0x6C,0x7A", controllerType: "ZWV"
-      fingerprint mfr:"027A", prod:"7000", deviceId:"A008", inClusters:"0x5E,0x9F,0x55,0x6C", controllerType: "ZWV"
+      
+      fingerprint mfr:"027A", prod:"7000", deviceId:"A018", inClusters:"0x5E,0x9F,0x55,0x70,0x5B,0x8E,0x59,0x85,0x86,0x6C,0x73,0x26,0x72,0x87,0x7A,0x5A", controllerType: "ZWV" 
    }
 
    preferences {
@@ -311,6 +357,20 @@ String off() {
    zwaveSecureEncap(zwave.basicV1.basicSet(value: 0x00))
 }
 
+
+String setLevel(value) {
+   if (enableDebug) log.debug "setLevel($value)"
+   hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: value < 100 ? value : 99)
+   return zwaveSecureEncap(cmd)
+}
+
+String setLevel(value, duration) {
+   if (enableDebug) log.debug "setLevel($value, $duration)"
+   Integer dimmingDuration = duration < 128 ? duration : 128 + Math.round(duration / 60)
+   hubitat.zwave.Command cmd = zwave.switchMultilevelV2.switchMultilevelSet(value: value < 100 ? value : 99, dimmingDuration: dimmingDuration)
+   return zwaveSecureEncap(cmd)
+}
+
 void push(btnNum) {
    sendEvent(name: "pushed", value: btnNum, isStateChange: true, type: "digital")
 }
@@ -368,7 +428,7 @@ List<String> configure() {
    cmds << zwaveSecureEncap(zwave.versionV2.versionGet())
    cmds << zwaveSecureEncap(zwave.configurationV1.configurationGet())
    cmds << zwaveSecureEncap(zwave.manufacturerSpecificV2.deviceSpecificGet(deviceIdType: 1))
-   return cmds ? delayBetween(cmds, 150) : []
+   return cmds ? delayBetween(cmds, 200) : []
 }
 
 // Apply preferences changes, including updating parameters
@@ -378,7 +438,7 @@ List<String> updated() {
    log.warn "Description logging is: ${enableDesc == true ? 'enabled' : 'disabled'}"
    if (enableDebug) {
       log.debug "Debug logging will be automatically disabled in 30 minutes..."
-      runIn(1800, "logsOff")
+      runIn(1800, logsOff)
    }
 
    List<String> cmds = []
