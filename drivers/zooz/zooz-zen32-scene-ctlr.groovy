@@ -1,7 +1,7 @@
 /*
  * ===================== Zooz Scene Controller (ZEN32) Driver =====================
  *
- *  Copyright 2024 Robert Morris
+ *  Copyright 2025 Robert Morris
  *  
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -36,6 +36,7 @@
  *
  * 
  *  Changelog:
+ *  v2.2.4  (2025-04-22): Change order of relay LED paramter display to make easier to see; elevate log to warning if using setLED for this button but not configured to follow
  *  v2.2.3  (2024-12-29): Add parameter 27 for 800LR model
  *  v2.2.2  (2024-05-29): Update fingerprint
  *  v2.2.1  (2023-12-04): Fix for parameter 18 swapped values (power restore state)
@@ -163,8 +164,8 @@ metadata {
       zwaveParameters.each {
          input it.value.input
       }
-      input name: "relayLEDBehavior", type: "enum", title: "Relay LED Indicator Mode", options: [[0:"On when relay off (default)"],[1:"On when relay on"],
-         [2:"Always off"],[3:"Always on"],[4:"As modified by LED commands (recommended in some uses cases)"]]
+      input name: "relayLEDBehavior", type: "enum", title: "Relay LED Indicator Mode", options: [[0:"On when relay off (default)"],[4:"As modified by LED commands (recommended in some uses cases)"],
+         [1:"On when relay on"],[2:"Always off"],[3:"Always on"]]
       input name: "enableDebug", type: "bool", title: "Enable debug logging", defaultValue: true
       input name: "enableDesc", type: "bool", title: "Enable descriptionText logging", defaultValue: true
    }
@@ -434,7 +435,8 @@ List<String> setLED(ledNumber, String colorName, brightness=null) {
          cmds << zwaveSecureEncap(zwave.configurationV1.configurationGet(parameterNumber: ledIndicatorParams[intLedNum]))
       }
       else {
-         if (enableDebug) log.debug "Relay LED (#5) not configured to allow turning off from setLED (no changes made)"
+         // If you are intentionally doing this for some reason and don't want to see this log entry, comment out the following line (add two slashes to the front, like this line has)
+         log.warn "Relay LED (#5) not configured to allow turning off from setLED (no changes made)"
       }
    }
    else {

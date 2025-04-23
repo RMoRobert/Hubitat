@@ -35,6 +35,7 @@
  *
  * 
  *  Changelog:
+ *  v1.0.1  (2025-04-22): Change order of relay LED paramter display to make easier to see; elevate log to warning if using setLED for this button but not configured to follow
  *  v1.0    (2025-04-18): Initial release, based on ZEN32 driver
  */
 
@@ -42,7 +43,7 @@ import groovy.transform.Field
 
 @Field static final Map commandClassVersions = [
    0x20: 1,    // Basic
-   0x25: 1,    // SwitchBinary
+   0x26: 3,    // SwitchMultilevel
    0x55: 1,    // TransportService
    0x59: 1,    // AssociationGroupInfo
    0x5B: 1,    // CentralScene
@@ -209,8 +210,8 @@ metadata {
       zwaveParameters.each {
          input it.value.input
       }
-      input name: "relayLEDBehavior", type: "enum", title: "Relay LED Indicator Mode", options: [[0:"On when relay off (default)"],[1:"On when relay on"],
-         [2:"Always off"],[3:"Always on"],[4:"As modified by LED commands (recommended in some uses cases)"]]
+      input name: "relayLEDBehavior", type: "enum", title: "Relay LED Indicator Mode", options: [[0:"On when relay off (default)"],[4:"As modified by LED commands (recommended in some uses cases)"],
+         [1:"On when relay on"],[2:"Always off"],[3:"Always on"]]
       input name: "enableDebug", type: "bool", title: "Enable debug logging", defaultValue: true
       input name: "enableDesc", type: "bool", title: "Enable descriptionText logging", defaultValue: true
    }
@@ -268,25 +269,41 @@ void zwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) 
    setStoredConfigParamValue(cmd.parameterNumber, cmd.scaledConfigurationValue)
 }
 
-void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd) {
-   if (enableDebug) log.debug "BasicReport:  ${cmd}"
-   String value = (cmd.value ? "on" : "off")
-   if (enableDesc && device.currentValue("switch") != value) log.info "${device.displayName} switch is ${value}"
-   sendEvent(name: "switch", value: value)
-}            
+// void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd) {
+//    if (enableDebug) log.debug "BasicReport:  ${cmd}"
+//    String value = (cmd.value ? "on" : "off")
+//    if (enableDesc && device.currentValue("switch") != value) log.info "${device.displayName} switch is ${value}"
+//    sendEvent(name: "switch", value: value)
+// }            
 
-void zwaveEvent(hubitat.zwave.commands.basicv1.BasicSet cmd) {
-   if (enableDebug) log.debug "BasicSet: ${cmd}"
-   String value = (cmd.value ? "on" : "off")
-   if (enableDesc && device.currentValue("switch") != value) log.info "${device.displayName} switch is ${value}"
-   sendEvent(name: "switch", value: value)
+// void zwaveEvent(hubitat.zwave.commands.basicv1.BasicSet cmd) {
+//    if (enableDebug) log.debug "BasicSet: ${cmd}"
+//    String value = (cmd.value ? "on" : "off")
+//    if (enableDesc && device.currentValue("switch") != value) log.info "${device.displayName} switch is ${value}"
+//    sendEvent(name: "switch", value: value)
+// }
+
+// void zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd) {
+//    if (enableDebug) log.debug "SwitchBinaryReport: ${cmd}"
+//    String value = (cmd.value ? "on" : "off")
+//    if (enableDesc && device.currentValue("switch") != value) log.info "${device.displayName} switch is ${value}"
+//    sendEvent(name: "switch", value: value)
+// }
+
+void zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport cmd) {
+   if (enableDebug) log.debug "SwitchMultilevelReport: ${cmd}"
+   dimmerEvents(cmd)
 }
 
-void zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd) {
-   if (enableDebug) log.debug "SwitchBinaryReport: ${cmd}"
+void dimmerEvents(hubitat.zwave.Command cmd) {
+   if (enableDebug) log.debug "dimmerEvents value: ${cmd}"
    String value = (cmd.value ? "on" : "off")
    if (enableDesc && device.currentValue("switch") != value) log.info "${device.displayName} switch is ${value}"
    sendEvent(name: "switch", value: value)
+   if (cmd.value) {
+      if (enableDesc && device.currentValue("level") != cmd.value) log.info "${device.displayName} level is ${cmd.value}%"
+      sendEvent(name: "level", value: cmd.value, unit: "%")
+   }
 }
 
 void zwaveEvent(hubitat.zwave.commands.centralscenev1.CentralSceneNotification cmd) {    
@@ -494,6 +511,7 @@ List<String> setLED(ledNumber, String colorName, brightness=null) {
          cmds << zwaveSecureEncap(zwave.configurationV1.configurationGet(parameterNumber: ledIndicatorParams[intLedNum]))
       }
       else {
+         // If you are intentionally doing this for some reason and don't want to see this log entry, comment out the following line (add two slashes to the front, like this line has)
          if (enableDebug) log.debug "Relay LED (#5) not configured to allow turning off from setLED (no changes made)"
       }
    }
