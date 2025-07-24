@@ -4,7 +4,7 @@
  *  Description: Tracks furnace or AC (based on thermostat) runtime and can send notification when exceeds
  *               certain number of hours. Timer can be reset at any time.
  *
- *  Copyright © 2022-2024 Robert Morris
+ *  Copyright © 2022-2025 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -15,6 +15,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *  Changes:
+ *.  2025-07-23: Add ability to snooze with button push or virtual switch
  *   2024-12-30: Add replace history
  *   2023-02-12: Avoid reset with initialize()
  *   2023-01-28: Add "snooze" option
@@ -59,6 +60,12 @@ def mainPage() {
          input name: "btnSnooze_24", type: "button", title: "Snooze for 1 day", width: 3
          input name: "btnSnooze_48", type: "button", title: "Snooze for 2 days", width: 3
          input name: "btnSnooze_168", type: "button", title: "Snooze for 1 week", width: 3
+         input name: "snoozeButton", type: "capability.pushableButton", title: "Snooze with button device (optional):", multiple: true, submitOnChange: true, required: false, width: 5
+         if (snoozeButton) {
+            input name: "snoozeButtonNumber", type: "number", title: "Button number:", defaultValue: 1, required: true, width: 3
+            input name: "snoozeButtonEvent", type: "enum", title: "Button event:", options: ["pushed", "held", "doubleTapped", "released"], defaultValue: "pushed", required: true, width: 4
+            input name: "snoozeButtonDuration", type: "number", title: "Number of hours to snooze with button device:", defaultValue: 12, required: true, width: 3
+         }
          if (state.snoozeUntil > 0 && state.snoozeUntil > now()) {
             String strSnoozeEnd = new Date(state.snoozeUntil).format("YYYY-MM-dd HH:mm z")
             paragraph "<strong>Snoozing notifications until:</strong> ${strSnoozeEnd}", width: 6
@@ -108,7 +115,11 @@ void updated() {
 
 void initialize() {
    log.debug "Initializing"
+   unsubscribe()
    subscribe(thermoDev, "thermostatOperatingState", "operatingStateHandler")
+   if (snoozeButton) {
+      subscribe(snoozeButton, snoozeButtonEvent, "snoozeButtonHandler")
+   }
    if (state.lastReset == null) state.lastReset = now()
    if (state.resetHistory == null || saveHistory == false) state.resetHistory = []
 }
@@ -180,6 +191,18 @@ void addDateTimeToResetHistory(Long unixTime) {
 
 String styleSection(String sectionHeadingText) {
    return """<div style="font-weight:bold; font-size: 120%">$sectionHeadingText</div>"""
+}
+
+void snoozeButtonHandler(evt) {
+   if (logEnable) log.debug "snoozeButtonHandler: ${evt.device.displayName} ${evt.name} was ${evt.value}"
+   if (evt.name == snoozeButtonEvent && evt.value.toString() == snoozeButtonNumber.toString()) {
+      Long msToAdd = snoozeButtonDuration * MILLISECONDS_PER_HOUR
+      state.snoozeUntil = now() + msToAdd
+      if (logEnable) log.debug "Snoozing until ${state.snoozeUntil} ($snoozeButtonDuration hr from current time)"
+   }
+   else {
+      if (logEnable) log.debug "Ignoring unexpected button event: $evt"
+   }
 }
 
 void appButtonHandler(String btn) {
