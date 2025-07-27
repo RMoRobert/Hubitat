@@ -32,6 +32,7 @@ definition(
    author: "RMoRboert",
    description: "Track furnace/AC thermostat runtime and get notified when time to change filter (based on preferences)",
    category: "Convenience",
+   importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/HVACFilterNotifier/HVACFilterNotifier.groovy",
    iconUrl: "",
    iconX2Url: "",
    iconX3Url: ""
