@@ -4,7 +4,7 @@
  *  Add code for parent app first and then and child app (this). To use, install/create new
  *  instance of parent app.
  *
- *  Copyright 2018-2023 Robert Morris
+ *  Copyright 2018-2025 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2025-02-23
+ *  Last modified: 2025-09-26
  *
  *  Changelog:
  *
+ * 5.5.7 - Fix for "If time outside range" option being ignored
  * 5.5.6 - Add option to consider off if "off" command just sent but device not reported yet
  * 5.5.5 - Update for CoCoHue 5.1 scene activation
  * 5.5.4 - Remove extraneous "trace" logging
@@ -213,7 +214,7 @@ def pageMain() {
                paragraph "", width: 6
             }
             input name: "timeBehavior", type: "enum", title: "If outside time range", options: [[no: "Do nothing (do not turn on or off/dim)"], [noOn: "Do not turn on, but dim/turn off if configured"]],
-               defaultValue: 'no', required: true
+               defaultValue: "no", required: true
          }
          input name: "luxRestrict", type: "bool", title: "Use lux restrictions", submitOnChange: true
          if (luxRestrict) {
@@ -503,7 +504,7 @@ void motionHandler(evt) {
          if (!verifyNoneOn(true)) {
             logDebug "Motion inactive and at least one light on", 2, "debug"
             if ((settings["luxBehavior"] == "noOn" || isLuxOK()) &&
-                isTimeOK() && isOffKillSwitchOK())
+                (isTimeOK() || (settings["timeBehavior"] == "noOn")) && isOffKillSwitchOK())
             {
                performInactiveAction()
             }
