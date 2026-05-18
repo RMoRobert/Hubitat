@@ -13,7 +13,7 @@
  *  Add code for parent app (this) and then and child app. Install/create new instance of parent
  *  app only (do not use child app directly).
  *
- *  Copyright 2021 Robert Morris
+ *  Copyright 2018-2026 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -28,6 +28,7 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 3.0.1  (2026-05-17)  - Move to "Automations" menu
  * 3.0    (2021-07-05)  - Allows creation of DBC 3.0 child apps;
  *                        added "presets" functionality (in parent, plus additional child changes)
  * 2.0.3  (2021-04-21)  - Code formatting cleanup (no functional changes); added documentation link
@@ -39,19 +40,18 @@
  *
  */ 
 
- import groovy.transform.Field
- 
 definition(
-   name: 'Dimmer Button Controller',
-   namespace: 'RMoRobert',
-   author: 'Robert Morris',
+   name: "Dimmer Button Controller",
+   namespace: "RMoRobert",
+   author: "Robert Morris",
+   menu: "Automations",
    singleInstance: true,
    installOnOpen: true,
-   description: 'Easily configure a button device such as a Pico remote to control one or more bulbs/dimmers/switches with on/off, scene switching, and dimming',
-   category: 'Convenience',
-   iconUrl: '',
-   iconX2Url: '',
-   iconX3Url: '',
+   description: "Easily configure a button device such as a Pico remote to control one or more bulbs/dimmers/switches with on/off, scene switching, and dimming",
+   category: "Convenience",
+   iconUrl: "",
+   iconX2Url: "",
+   iconX3Url: "",
    documentationLink: "https://community.hubitat.com/t/release-dimmer-button-controller-configure-pico-to-emulate-hue-dimmer-or-any-button-device-to-easily-control-lights/7726"
 )
 
@@ -85,21 +85,18 @@ preferences {
 }
 
 void installed() {
-   //log.debug "Installed with settings: ${settings}"
+   log.debug "installed()"
    initialize()
 }
 
 void updated() {
-   //log.debug "Updated with settings: ${settings}"
-   unsubscribe()
+   log.trace "updated()"
+   unsubscribe()  // shouldn't be any subscriptions, but can't hurt...
    initialize()
 }
 
 void initialize() {
-   log.debug "Initializing; there are ${childApps.size()} child apps installed: ..."
-   childApps.each {child ->
-      log.debug "  child app: ${child.label}"
-   }
+   log.debug "initialize()"
 }
 
 // "Presets"
