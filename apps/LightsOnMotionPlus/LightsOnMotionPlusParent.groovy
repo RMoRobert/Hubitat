@@ -28,10 +28,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2023-01-24
+ *  Last modified: 2026-05-17
  * 
  *  Changelog:
  * 
+ *  5.0.2 - Move to "Automations" menu
  *  5.0.1 - Minor updates
  *  5.0   - Added ability to create 5.0 child apps; ensure parent is installed before child apps can be created
  *  3.0   - Initial release of v3 app
@@ -42,6 +43,7 @@ definition(
   name: "Lights on Motion Plus",
   namespace: "RMoRobert",
   author: "Robert Morris",
+  menu: "Automations",
   singleInstance: true,
   installOnOpen: true,
   description: "Turn lights on/off based on motion; optionally dim before turning off and remember/restore previous state of lights when motion resumes",

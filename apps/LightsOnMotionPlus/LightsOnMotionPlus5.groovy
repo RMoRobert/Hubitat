@@ -4,7 +4,7 @@
  *  Add code for parent app first and then and child app (this). To use, install/create new
  *  instance of parent app.
  *
- *  Copyright 2018-2025 Robert Morris
+ *  Copyright 2018-2026 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -16,10 +16,11 @@
  *
  * =======================================================================================
  *
- *  Last modified: 2025-09-26
+ *  Last modified: 2026-05-17
  *
  *  Changelog:
  *
+ * 5.5.8 - Fix for other lights turning on during grace period if turn-off-only lights selected and no "turn off" instead of "dim before off" used
  * 5.5.7 - Fix for "If time outside range" option being ignored
  * 5.5.6 - Add option to consider off if "off" command just sent but device not reported yet
  * 5.5.5 - Update for CoCoHue 5.1 scene activation
@@ -207,7 +208,7 @@ def pageMain() {
             if (endTimeType == 'time') {
                input name: "endTime", type: "time", title: "End time", width: 6, required: true
             }
-            else if (startTimeType) {
+            else if (endTimeType) {
                input name: "endTimeOffset", type: "number", range: "-720..720", title: "Offset (minutes)", width: 6
             }
             else {
@@ -991,7 +992,10 @@ void restoreStates() {
       logDebug "  Configured to remember states...", 2, "debug"
       String stateKey = "capturedStates"
       if (settings["perMode"] && settings["boolRemember.${location.getCurrentMode().id}"]) stateKey += ".${location.getCurrentMode().id}"
-      List<DeviceWrapper> devsToRestore = getDevicesToTurnOff(state.isDimmed) // Get all devices if dimmed, on-only devices if not
+      // Always include additional off/dim lights: they are captured and turned off too; after offOnly,
+      // isDimmed is false and omitting them skips restoring those devices and triggers the !anySavedOn fallback
+      // (turns on all main lights even when activeAction is "no").
+      List<DeviceWrapper> devsToRestore = getDevicesToTurnOff(true)  // tried state.isDimmed before instead of `true`, but see if this fixes problems...
       if (!(state."$stateKey")) stateKey = "capturedStates"  // Fall back to non-per-mode settings if can't find per-mode
       Boolean anySavedOn = false
       devsToRestore.each {
@@ -1027,8 +1031,13 @@ void restoreStates() {
       }
       logDebug """Finished restoring all states: ${state."$stateKey"}"""
       if (!anySavedOn) {
-         lights.each { it.on() }
-         logDebug "No captured light states were on; turned on all lights", 2, "debug"
+         if (settings["activeAction${getSettingModeSuffix()}"] != "no") {
+            lights.each { it.on() }
+            logDebug "No captured light states were on; turned on all lights", 2, "debug"
+         }
+         else {
+            logDebug "No captured light states were on; not turning on lights (motion action is \"no\")", 2, "debug"
+         }
       }
    }
    else {

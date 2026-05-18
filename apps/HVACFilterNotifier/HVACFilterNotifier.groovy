@@ -4,7 +4,7 @@
  *  Description: Tracks furnace or AC (based on thermostat) runtime and can send notification when exceeds
  *               certain number of hours. Timer can be reset at any time.
  *
- *  Copyright © 2022-2025 Robert Morris
+ *  Copyright © 2022-2026 Robert Morris
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -15,6 +15,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *  Changes:
+ *   2026-05-17: Move to "Automations" menu
  *.  2025-07-23: Add ability to snooze with button push or virtual switch
  *   2024-12-30: Add replace history
  *   2023-02-12: Avoid reset with initialize()
@@ -32,6 +33,7 @@ definition(
    author: "RMoRboert",
    description: "Track furnace/AC thermostat runtime and get notified when time to change filter (based on preferences)",
    category: "Convenience",
+   menu: "Automations",
    importUrl: "https://raw.githubusercontent.com/RMoRobert/Hubitat/master/apps/HVACFilterNotifier/HVACFilterNotifier.groovy",
    iconUrl: "",
    iconX2Url: "",
