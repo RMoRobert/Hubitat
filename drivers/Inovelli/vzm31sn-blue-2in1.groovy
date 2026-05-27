@@ -1,7 +1,7 @@
 /*
  * =========== Inovelli Blue Series 2-in-1 Switch/Dimmer (VZM31-SN) Driver ===============
  *
- *  Copyright 2025 Robert Morris
+ *  Copyright 2024-2026 Robert Morris
  * 
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -15,7 +15,8 @@
  * =======================================================================================
  * 
  *  Changelog:
- *  v1.0.2  (2025-01-26) - Add numberOfButtons
+ *  v1.1    (2026-05-27) - Add new FW/ep3 params for fan binding; add bind() command for compatibility; add parsing for major.minor firmware version strings
+ *  v1.0.2               - Add numberOfButtons
  *  v1.0.1  (2024-05-28) - Initial release
  * 
  */
@@ -201,8 +202,8 @@ import com.hubitat.zigbee.DataType
           minimumFirmwareVersion: 0x0102020F
          ],
    50:  [
-          desc: "Button press delay", type: "enum", default: 5, dataType: DataType.UINT8, options:
-          [[0: "None (disables multi-taps)"],[3:"300 ms"],[4:"400 ms"],[5:"500 ms [DEFAULT"],
+          desc: "Button press delay", type: "enum", default: 3, dataType: DataType.UINT8, options:
+          [[0: "None (disables multi-taps)"],[3:"300 ms [DEFAULT]"],[4:"400 ms"],[5:"500 ms"],
           [6:"600 ms"],[7:"700 ms"],[8:"800 ms"],[9:"900 ms"]]
        ],
    52:  [
@@ -237,7 +238,27 @@ import com.hubitat.zigbee.DataType
    //        [[0: "Traditional (up on, down off)"],[1:"Cycle preset single-tap levels"],[2:"Cylce preset levels on up, down always off"]],
    //        minimumFirmwareVersion: 0x01020211
    //     ],
-   //     // TODO: Add reset of fan/ep3 parameters to complete this
+   130: [
+          desc: "Fan Control Mode", type: "enum", default: 0, dataType: DataType.UINT8, options:
+          [[0:"Disabled (default)"],[1:"Multi Tap"], [2:"Cycle"], [3:"Toggle"]],
+          minimumFirmwareVersion: 0x01020211
+   ],
+   131: [
+      desc: "Low Level For Fan Control Mode", type: "number", default: 33, dataType: DataType.UINT8,
+      minimumFirmwareVersion: 0x01020211
+   ],
+   132: [
+      desc: "Medium Level For Fan Control Mode", type: "number", default: 66, dataType: DataType.UINT8,
+      minimumFirmwareVersion: 0x01020211
+   ],
+   133: [
+      desc: "High Level For Fan Control Mode", type: "number", default: 100, dataType: DataType.UINT8,
+      minimumFirmwareVersion: 0x01020211
+   ],
+   134: [
+      desc: "LED Color For Fan Control Mode (0-255 hue)", type: "number", default: 212, dataType: DataType.UINT8,
+      minimumFirmwareVersion: 0x01020211
+   ],
    261:  [
           desc: "Disable relay click (see manual for more)", type: "enum", default: 0, dataType: DataType.BOOLEAN, options:
           [[0:"No [DEFAULT]"], [1:"Yes (disable click)"]]
@@ -289,9 +310,11 @@ metadata {
       command "setOffLEDLevel", [[name:"Level*", type: "NUMBER", description: "Brightess (0-100; 0=off)", range: 0..100]]
 
       command "updateFirmware"
+       
+      command "bind", [[name:"Command String", type:"STRING", description: "Intended for use with Binding apps but may also be used to manually enter \"zdo bind\" command"]]
 
-
-      fingerprint profileId:"0104", endpointId:"02", inClusters:"0000,0003", outClusters:"0003,0006,0008,FC31", model:"VZM31-SN", manufacturer:"Inovelli"
+      fingerprint profileId:"0104", endpointId:"02", inClusters:"0000,0003", outClusters:"0003,0006,0008,FC31", model:"VZM31-SN", manufacturer:"Inovelli", controllerType: "ZGB" 
+      fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0003,0004,0005,0006,0008,0702,0B04,0B05,FC31,FC57", outClusters:"0019", model:"VZM31-SN", manufacturer:"Inovelli", controllerType: "ZGB" 
    }
 
    preferences {
@@ -304,10 +327,24 @@ metadata {
    }
 }
 
+// forcompatibility with Zigbee Bindings App promoted by Inovelli:
+List<String> bind(cmds=[]) {
+   if (logEnable) log.debug "bind(${cmds})"
+   return cmds
+}
+
 Map getMscAttributesForFwVersion() {
-   String softwareBuild = getDataValue("softwareBuild")
+   String softwareBuild = device?.getDataValue("softwareBuild")
    Integer minBuild = 0
    Integer currBuild
+   // Usually hex, but recompose hex if got saved as decimal string in major.minor format somehow:
+   if (softwareBuild?.contains('.')) {
+      softwareBuild =
+         hubitat.helper.HexUtils.integerToHexString((softwareBuild.split('\\.')[0].toInteger()), 1) +
+         hubitat.helper.HexUtils.integerToHexString((softwareBuild.split('\\.')[1].toInteger()), 1) 
+      // Prepend additional version data that is the same for all VZM31-SN devices known so far:
+      softwareBuild = "0102" + softwareBuild
+    }
    try {
       currBuild = Integer.parseInt(softwareBuild, 16)
    }
