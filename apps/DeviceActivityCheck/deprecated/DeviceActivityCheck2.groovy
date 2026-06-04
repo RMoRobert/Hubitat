@@ -2,7 +2,7 @@
  * ==========================  Device Activity Check ==========================
  *  Platform: Hubitat Elevation
  *
- *  Copyright 2023 Robert Morris
+ *  Copyright 2026 Robert Morris
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -17,6 +17,9 @@
  *  Author: Robert Morris
  *
  * Changelog:
+ * 2.5   (2026-01-31) - Add optional Zigbee last message and Z-Wave last time option for C-8/C-8 Pro; configurable post-refresh delay
+ * 2.4.1 (2024-04-25) - Add line break before (optional) appended notification text
+ * 2.4   (2024-04-24) - Add option to append text to notifications (e.g., Pushover users who want cloud report link)
  * 2.3   (2023-12-14) - Add search for device list
  * 2.2   (2023-05-27) - Add OAuth endpoints to view reports locally or via cloud (not "officially" released but can be used if don't want 3.x now)
  * 2.1.2 (2023-02-15) - Fix snooze time calcuations
@@ -56,6 +59,7 @@ import com.hubitat.app.DeviceWrapper
                                         'dd MMM yyyy HH:mm', 'E MMM dd HH:mm', 'yyyy-MM-dd HH:mm z']
 @Field static final Integer formatListIfMoreItemsThan = 4
 @Field static final Integer defaultSnoozeDuration = 48
+@Field static final Integer defaultPostRefreshDelay = 5000
 
 // Activity detection types
 @Field static final String sACTIVITY = "activity"
@@ -66,6 +70,12 @@ import com.hubitat.app.DeviceWrapper
 // Other
 @Field static final String sSNOOZE_EMOJI = "&#x1F532;"    // black square box
 @Field static final String sUNSNOOZE_EMOJI = "&#x2611;&#xFE0F;"  // ballot box w/ check
+
+// Caches
+@Field static List<Map> cachedZigbeeDevices = []
+@Field static Long lastZigbeeCacheTime = null
+@Field static List<Map> cachedZwaveDevices = []
+@Field static Long lastZwaveCacheTime = null
 
 definition(
    name: "Device Activity Check",
@@ -169,13 +179,17 @@ Map pageMain() {
          }
       }
       
-      
-      section("Advanced Options", hideable: true, hidden: true) {
+      section("Advanced Options", hideable: true, hidden: (boolAppendNotificationText != true)) {
          label title: "Customize installed app name:", required: true
          input name: "includeHubName", type: "bool", title: "Include hub name in notifications (${location.name})"
          input name: "modes", type: "mode", title: "Only send notifications if mode is", multiple: true, required: false
-         input name: "snoozeDuration", type: "number", title: 'Number of hours to remove deivce freom report with "snooze"', defaultValue: defaultSnoozeDuration
+         input name: "snoozeDuration", type: "number", title: 'Number of hours to remove device from report with "snooze"', defaultValue: defaultSnoozeDuration
          input name: "boolIncludeDisabled", type: "bool", title: "Include disabled devices in report"
+         input name: "boolAppendNotificationText", type: "bool", title: "Append text to notification?", submitOnChange: true
+         if (settings.boolAppendNotificationText) {
+            input name: "textToAppendToNotification", type: "text", title: "Text to append to notification:", submitOnChange: true
+         }
+         input name: "btnFetchZigbeeData", type: "button", title: "Fetch Zigbee device data"
          input name: "debugLevel", type: "enum", title: "Debug logging level:", options: [[0: "Logs off"], [1: "Debug logging"], [2: "Verbose logging"]],
             defaultValue: 0
       }
@@ -239,6 +253,12 @@ Map pageDeviceGroup(params) {
             if (!(settings["group${groupNum}.intervalD"] || settings["group${groupNum}.intervalH"] || settings["group${groupNum}.intervalM"])) {
                paragraph "*At least one of: days, hours, or minutes is required"
             }
+            if (settings["group${groupNum}.devices"].any { it.controllerType == "ZGB" }) {
+               input name: "group${groupNum}.useZigbeeInfo", type: "bool", title: "Supplant \"Last Activity At\" data with Zigbee Details \"Last Message\" data for Zigbee device if available"
+            }
+            if (settings["group${groupNum}.devices"].any { it.controllerType == "ZW" }) {
+               input name: "group${groupNum}.useZwaveInfo", type: "bool", title: "Supplant \"Last Activity At\" data with Z-Wave Details \"Last Message\" data for Z-Wave device if available"
+            }
          }
          else if (settings["group${groupNum}.inactivityMethod"] == sBATTERY) {
             input name: "group${groupNum}.batteryLevel", type: "number", title: "Include in report if battery level is less than:",
@@ -277,8 +297,11 @@ Map pageDeviceGroup(params) {
             paragraph "Use the option below only if you have devices that do not regularly \"check in\" and respond to a refresh. (You must know your specific device behavior, but generally all powered devices and most battery-powered Zigbee devices will respond, while non-FLiRS Z-Wave battery devices will not.) Device Activity Check will send a \"Refresh\" command to the device before running a report, which may give a better indication of whether the device is still responsive. Be careful not to choose too many devices or devices that do not respond on-demand to refresh commands."
             input name: "group${groupNum}.refreshDevs", title: "Refresh before running report:", type: "enum", options: rdevList, multiple: true, submitOnChange: true
             if (settings["group${groupNum}.refreshDevs"]) {
-               paragraph "<strong>Note:</strong> If any devices need to be refreshed (only devices deemed inactive will be), reports will be delayed for one-half second per device plus an additional five seconds in order to give devices time to respond (so the \"Test\" on the previous page may not be instant)."
+               paragraph "<strong>Note:</strong> If any devices need to be refreshed (only devices deemed inactive will be), reports will be delayed for one-half second per device plus the additional dealy (5 seconds by deafult) specified below. Enabling this option means the \"Test Notification Now\" button on the main app page may also have a delay, depending on your options below. Viewing report pages in-app or by LAN or cloud endpoints is not affected."
             }
+            input name: "postRefreshDelay", title: "Post-refresh delay before notification", type: "enum",
+               options: [[4000:"4 seconds"],[5000:"5 seconds [DEFAULT]"],[7000:"7 seconds"],[10000:"10 seconds"],
+               [15000:"15 seconds"],[20000:"20 seconds"],[30000:"30 seconds"],[45000:"45 seconds"],[60000:"1 minute"]]
          }
       }
       section(styleSection("Remove Group")) {
@@ -377,9 +400,14 @@ Map pageViewReport() {
 //                           (ignores devices where this option is not seleceted or that are not "inactive")
 List<DeviceWrapper> getInactiveDevices(Integer groupNum, Boolean onlyDevicesToBeRefreshed=false) {
    logDebug "getInactiveDevices($groupNum, $onlyDevicesToBeRefreshed)", "trace"
+   // Will only do if needed but do soon (TODO: find better way to make sure finishes):
+   getZigbeeDeviceList()
+   getZwaveDeviceList()
+   // Variables:
    List<DeviceWrapper> inactiveDevices = []
    List<DeviceWrapper> groupDevs = settings["group${groupNum}.devices"] ?: []
    String detectionMethod = settings["group${groupNum}.inactivityMethod"]
+
    if (onlyDevicesToBeRefreshed && detectionMethod != sACTIVITY) {
       // Refresh only works for "last activity at" detection
       return []
@@ -389,7 +417,6 @@ List<DeviceWrapper> getInactiveDevices(Integer groupNum, Boolean onlyDevicesToBe
    }
    switch (detectionMethod) {
       case sACTIVITY:
-      // TODO
          if (onlyDevicesToBeRefreshed && !(settings["group${groupNum}.refreshDevs"])) {
             break
          }
@@ -400,7 +427,8 @@ List<DeviceWrapper> getInactiveDevices(Integer groupNum, Boolean onlyDevicesToBe
             if (onlyDevicesToBeRefreshed && !(dev.getId() in settings["group${groupNum}.refreshDevs"])) {
                // ignore
             }
-            else if (dev.getLastActivity()?.getTime() <= cutoffEpochTime) {
+            Date lastActivityOrMessageDate = getLastActivityOrMessageDateForDevice(dev, groupNum)
+            if (lastActivityOrMessageDate?.getTime() <= cutoffEpochTime) {
                inactiveDevices << dev
             }
          }
@@ -433,6 +461,28 @@ List<DeviceWrapper> getInactiveDevices(Integer groupNum, Boolean onlyDevicesToBe
    return inactiveDevices
 }
 
+Date getLastActivityOrMessageDateForDevice(DeviceWrapper dev, Integer groupNum) {
+   Boolean usedLastMessage = false
+   if (dev.controllerType == "ZGB" && settings["group${groupNum}.useZigbeeInfo"] == true) {
+      Map zigbeeDevInfo = cachedZigbeeDevices.find { it.id == dev.idAsLong }
+      if (zigbeeDevInfo?.lastMessage) {
+         usedLastMessage = true
+         return toDate(zigbeeDevInfo.lastMessage)
+      }
+   }
+   else if (dev.controllerType == "ZW" && settings["group${groupNum}.useZwaveInfo"] == true) {
+      Map zwaveDeviceInfo = cachedZwaveDevices.find { it.deviceId == dev.idAsLong }
+      if (zwaveDeviceInfo?.lastTime) {
+         usedLastMessage = true
+         return toDate(zwaveDevicInfo.lastTime)
+      }
+   }
+   if (!usedLastMessage) {
+      return dev.getLastActivity()
+   }
+   return null
+}
+
 /**
  *  Returns inactive devies (only) in Map in format like:
  *  [DeviceWrapper: ["device status (last activity, battery, etc.)", "optional other device status,..."]]
@@ -453,7 +503,8 @@ Map<DeviceWrapper,List<String>> getInactiveDeviceMap(Boolean isReportPage=false)
                case sACTIVITY:
                   String timeFormat = isReportPage ? settings.timeFormatForReports : settings.timeFormat
                   if (!timeFormat) timeFormat = defaultDateTimeFormat
-                  strStatus = inactiveDev.getLastActivity()?.format(timeFormat, location.timeZone)
+                  Date lastActivityOrMessageDate = getLastActivityOrMessageDateForDevice(inactiveDev, groupNum)
+                  strStatus = lastActivityOrMessageDate?.format(timeFormat, location.timeZone)
                   if (!strStatus) strStatus = "No activity reported"
                   break
                case sHEALTH_STATUS:
@@ -515,7 +566,20 @@ Integer performRefreshes(Boolean returnCountOnlyAndDoNotRefresh=false) {
             }
          }
       }
-      waitTime = (toRefreshDevices.size() * 200 + 5000) / 1000
+      Integer delay
+      if (settings.postRefreshDelay != null) {
+         try {
+            delay = Integer.parseInt(settings.postRefreshDelay ?: defaultPostRefreshDelay)
+         }
+         catch (Exception ex) {
+            log.warn "ex: $ex"
+            delay = defaultPostRefreshDelay
+         }
+      }
+      else {
+         delay = defaultPostRefreshDelay
+      }
+      waitTime = (toRefreshDevices.size() * 200 + delay) / 1000
    }
    return waitTime
 }
@@ -543,7 +607,7 @@ String getDeviceGroupInactivityThresholdString(groupNum) {
    }
    else if (settings["group${groupNum}.inactivityMethod"] == sBATTERY) {
       Integer level = settings["group${groupNum}.batteryLevel"] ?: 0
-      thresholdString = "if battery < $level"
+      thresholdString = "if battery &le; $level"  // if <= level
    }
    else if (settings["group${groupNum}.inactivityMethod"] == sHEALTH_STATUS) {
       thresholdString = "if offline"
@@ -615,6 +679,9 @@ void sendInactiveNotification(Boolean doRefreshIfConfigured=true) {
          sbNotificationText << "\n${dev.displayName}"
          sbNotificationText << " - ${status.join(', ')}"
          
+      }
+      if (settings.boolAppendNotificationText == true && settings.textToAppendToNotification) {
+         sbNotificationText << "\n${settings.textToAppendToNotification}"
       }
       String notificationText = sbNotificationText.toString()
       logDebug "Sending notification for inactive devices: \"$notificationText\""
@@ -708,6 +775,95 @@ void scheduleHandler() {
 }
 
 //=========================================================================
+// Zigbee and Z-Wave Data-Gathering Methods
+//=========================================================================
+
+void getZigbeeDeviceList() {
+   Boolean shouldGet = false
+   state.groups?.each { groupNum ->
+      if (settings["group${groupNum}.useZigbeeInfo"] == true) {
+         shouldGet = true
+      }
+   }
+   if (shouldGet == true) {
+      logDebug("Preparing to fetch Zigbee device list...", "trace")
+      if (lastZigbeeCacheTime >= now() - 59000) {
+         logDebug("Zigbee cache less than 1 minute old, skipping fetch", "trace")
+         return
+      }
+      Map params = [
+         uri: "http://127.0.0.1:8080",
+         path: "/hub/zigbeeDetails/json",
+         requestContentType: "application/json",
+         timeout: 15,
+         //ignoreSSLIssues: true
+      ]
+      //asynchttpGet("zigbeeDeviceGetCallback", params)
+      httpGet(params) { resp ->
+         if (!resp.success) {
+            log.error "Error fetching Zigbee device data: HTTP ${resp.status}: ${resp.errorMessage}."
+         }
+         resp.data.each { key, value ->
+            log.trace "Zigbee device data: $key: $value"
+         }
+         if (resp.data.devices != null) {
+            cachedZigbeeDevices = resp.data.devices
+            log.trace "Zigbee device data: $cachedZigbeeDevices"
+            lastZigbeeCacheTime = now()
+         }
+      }
+      logDebug("Zigbee info fetch complete", "trace")
+   }
+   else {
+      logDebug("Not fetching Zigbee info JSON because no device groups configured to use it", "trace")
+   }
+}
+
+// void zigbeeDeviceGetCallback(hubitat.scheduling.AsyncResponse resp, Map data=null) {
+//    logDebug("zigbeeDeviceGetCallback()")
+
+// }
+
+void getZwaveDeviceList() {
+   Boolean shouldGet = false
+   state.groups?.each { groupNum ->
+      if (settings["group${groupNum}.useZwaveInfo"] == true) {
+         shouldGet = true
+      }
+   }
+   if (shouldGet == true) {
+      logDebug("Preparing to fetch Z-Wave device list...", "trace")
+      if (lastZwaveCacheTime >= now() - 59000) {
+         logDebug("Z-wave cache less than 1 minute old, skipping fetch", "trace")
+         return
+      }
+      Map params = [
+         uri: "http://127.0.0.1:8080",
+         path: "/hub/zwaveDetails/json",
+         requestContentType: "application/json",
+         timeout: 15,
+         //ignoreSSLIssues: true
+      ]
+      asynchttpGet("zwaveDeviceGetCallback", params)
+      logDebug("Z-Wave info fetch sent", "trace")
+   }
+   else {
+      logDebug("Not fetching Z-Wave info JSON because no device groups configured to use it", "trace")
+   }
+}
+
+void zwaveDeviceGetCallback(hubitat.scheduling.AsyncResponse resp, Map data=null) {
+   logDebug("zigbeeDeviceGetCallback()")
+   if (resp.error) {
+      log.error "Error fetching Z-Wave device data: HTTP ${resp.status}: ${resp.errorMessage}."
+   }
+   if (resp.json.nodes != null) {
+      cachedZwaveDevices = resp.json.nodes
+      lastZwaveCacheTime = now()
+   }
+}
+
+//=========================================================================
 // Styling Methods
 //=========================================================================
 
@@ -779,6 +935,10 @@ void appButtonHandler(String btn) {
          break
       case { it.startsWith("btnUnsnooze_") }:
          unsnoozeDevice(btn - "btnUnsnooze_")
+         break
+      case "btnFetchZigbeeData":
+         getZigbeeDeviceList()
+         // print?
          break
       case "btnSave":
          pauseExecution(100)
@@ -901,12 +1061,12 @@ String createReportHTML(Boolean isLocal=true) {
                      // using uppercase to avoid collision with Hubitat method...
                      INPUT(type: "checkbox", id: "snoozebox_dev_${dev.id}", value: "snoozebox_dev_${dev.id}",
                         onclick: "toggleSnooze(${dev.id})", checked: true)
-                     label(for: "snoozebox_dev_${dev.id}", hidden: true, "Is snoozed?")
+                     LABEL(for: "snoozebox_dev_${dev.id}", hidden: true, "Is snoozed?")
                   }
                   else {
                      INPUT(type: "checkbox", id: "snoozebox_dev_${dev.id}", value: "snoozebox_dev_${dev.id}",
                         onclick: "toggleSnooze(${dev.id})")
-                     label(for: "snoozebox_dev_${dev.id}", hidden: true, "Is snoozed?")
+                     LABEL(for: "snoozebox_dev_${dev.id}", hidden: true, "Is snoozed?")
                   }
                }
             }

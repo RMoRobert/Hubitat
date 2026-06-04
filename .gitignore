@@ -5,3 +5,5 @@ apps/DimmerButtonController/deprecated/.DS_Store
 apps/LightsOnMotionPlus/.DS_Store
 apps/.DS_Store
 .DS_Store
+/apps/DeviceActivityCheck/.idea
+apps/DeviceActivityCheck/DeviceActivityCheck.iml
